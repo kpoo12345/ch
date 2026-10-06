@@ -152,7 +152,10 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const inputComps = (d, p) => {
     const c = feeding[`${d}.${p}`];
     if (!c) return [];
-    const long = UNBALANCED.has(c.cable) && zone(c.from.d) !== zone(c.to.d) && zone(c.from.d) !== 'room' && zone(c.to.d) !== 'room';
+    // 언밸런스드 케이블이 무대↔부스처럼 먼 거리(자유 모드에서는 7m 이상)를 가면 험
+    const pa = devices[c.from.d]?.pos, pb = devices[c.to.d]?.pos;
+    const far = !!pa && !!pb && Math.hypot(pa[0] - pb[0], pa[2] - pb[2]) > 7;
+    const long = UNBALANCED.has(c.cable) && (far || (zone(c.from.d) !== zone(c.to.d) && zone(c.from.d) !== 'room' && zone(c.to.d) !== 'room'));
     return outComps(c.from.d, c.from.p).map((x) => (long ? { ...x, hum: true } : x));
   };
 
@@ -388,7 +391,9 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     if (x.kind !== 'voice' || x.level == null) return;
     const ch = st.channels[(x.ch ?? 1) - 1];
     if (!ch) return;
-    const pos = type === 'monitor' ? -2 : dev[spk]?.position === 'front' ? 8 : -6;
+    // 스피커 위치: 마이크 정면 자리(pa_alt)면 하울링에 매우 취약
+    const front = FRONT_SLOTS.has(devices[spk]?.slot) || (!devices[spk]?.slot && dev[spk]?.position === 'front');
+    const pos = type === 'monitor' ? -2 : front ? 8 : -6;
     const fxTerm = (ch.fx / 100) * (st.master.fxReturn / 100) * 4;
     const loop = x.level + 5 + ch.eqMid + 0.4 * ch.eqHigh + pos + (x.condenser ? 6 : 0) + fxTerm + (ch.lowCut ? -0.5 : 0);
     loops.push({ src: x.src, spk, loop });

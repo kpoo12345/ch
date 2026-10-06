@@ -15,7 +15,8 @@
  *  { op:'ptz', device, act:'select'|'aim'|'store'|'recall', value, pan, tilt, zoom }
  *  { op:'talk', on } · { op:'perform', on } · { op:'wait', ms }   (화면 쪽에서 처리)
  * ===================================================================== */
-import { canConnect, computeSim, connId } from './sim.js';
+import { canConnect, computeSim, connId, DEV_DEFAULTS } from './sim.js';
+import { DEVICE_TYPES } from './engine.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const parseEnd = (s) => { const [d, p] = String(s).split('.'); return { d, p: p ?? null }; };
@@ -126,6 +127,12 @@ export function applyOp(stIn, op) {
       if (st.switcherId === id) st.switcherId = Object.values(st.devices).find((d) => d.type === 'atem' || d.type === 'atem_pro')?.id ?? null;
       return st;
     }
+    case 'move': {
+      // 다른 자리로 옮기기 (그 자리가 비어 있을 때만)
+      const d = st.devices[op.device];
+      if (d && !Object.values(st.devices).some((x) => x.id !== op.device && x.slot === op.slot)) d.slot = op.slot;
+      return st;
+    }
     case 'moveDevice': {
       const d = st.devices[op.device];
       if (d) { if (op.pos) d.pos = op.pos; if (op.rot != null) d.rot = op.rot; if (op.surface) d.surface = op.surface; }
@@ -141,6 +148,9 @@ export function opToAction(st, op, key) {
   const pc = Object.values(st.devices).find((d) => d.type === 'pc')?.id;
   switch (op.op) {
     case 'place': return { key, device: op.device, ctl: { kind: 'place' } };
+    case 'move': return { key, device: op.device, ctl: { kind: 'place' } };
+    case 'addDevice': return { key, device: op.device.id, ctl: { kind: 'place' } };
+    case 'moveDevice': return { key, device: op.device, ctl: { kind: 'place' } };
     case 'connect': return { key, device: parseEnd(op.from).d, ctl: { kind: 'cable', from: parseEnd(op.from), to: parseEnd(op.to) } };
     case 'disconnect': return { key, device: parseEnd(op.from).d, ctl: { kind: 'press' } };
     case 'ch': return { key, device: mixer, ctl: { kind: 'mixer', key: op.key, ch: op.ch, value: op.value, prev: st.channels[op.ch - 1]?.[op.key], needSelect: true } };
@@ -196,4 +206,18 @@ export function latchTalk(st, talking, latched, performing) {
   if (sim.feedback) return;
   const voices = Object.values(st.devices).filter((d) => d.placed && ['dynamic_mic', 'condenser_mic', 'wireless_mic'].includes(d.type)).map((d) => d.id);
   ['main', 'monitor', 'stream', 'headphones'].forEach((at) => { if (voices.some((v) => sim.reaches(v, at))) latched.add(`talk:${at}`); });
+}
+
+// 자유 모드: 새 장비 추가 op 만들기 (무대 쪽을 봐야 하는 장비는 뒤로 돌려 놓는다)
+const FACE_STAGE = new Set(['camera', 'mirrorless', 'ptz', 'par_led', 'moving_head', 'projector']);
+export function addDeviceOp(st, type, pos, surface) {
+  let n = 1;
+  while (st.devices[`${type}_${n}`]) n += 1;
+  const id = `${type}_${n}`;
+  const same = Object.values(st.devices).filter((d) => d.type === type).length + 1;
+  return {
+    op: 'addDevice',
+    device: { id, type, name: `${DEVICE_TYPES[type].name} ${same}`, pos, rot: FACE_STAGE.has(type) ? Math.PI : 0, surface, placed: true },
+    state: DEV_DEFAULTS[type]?.() ?? {},
+  };
 }

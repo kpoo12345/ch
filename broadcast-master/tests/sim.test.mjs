@@ -32,7 +32,7 @@ test('feedback calibration matches the v1 numbers', () => {
   let sim = computeSim(st);
   assert.equal(sim.worstLoop, -1);
   assert.ok(sim.ringing && !sim.feedback);
-  st.dev.pa.position = 'front';
+  st.devices.pa.slot = 'pa_alt';
   sim = computeSim(st);
   assert.equal(sim.worstLoop, 13);
   assert.ok(sim.feedback);

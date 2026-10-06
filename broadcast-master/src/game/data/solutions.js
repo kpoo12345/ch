@@ -30,7 +30,7 @@ export const SOLUTIONS = {
   ],
   'seminar-3': [
     say('스피커가 강연자 정면에 있고 GAIN·EQ·메인 볼륨이 모두 높아 하울링이 납니다. 하나씩 줄여 보겠습니다.'),
-    { say: '가장 먼저 스피커를 강연자 뒤쪽(청중 쪽을 향하는 자리)으로 옮깁니다. 마이크가 스피커 소리를 다시 먹지 않게 하는 것이 핵심입니다.', op: 'dev', device: 'pa', key: 'position', value: 'behind' },
+    { say: '가장 먼저 스피커를 강연자 뒤쪽(청중 쪽을 향하는 자리)으로 옮깁니다. 마이크가 스피커 소리를 다시 먹지 않게 하는 것이 핵심입니다.', op: 'move', device: 'pa', slot: 'pa_main' },
     { say: 'GAIN 54dB는 너무 높아 클리핑이 납니다. 30dB로 낮춥니다.', op: 'ch', ch: 1, key: 'gain', value: 30 },
     { say: '하울링은 주로 중음역에서 먼저 일어납니다. MID를 -3dB 깎습니다.', op: 'ch', ch: 1, key: 'eqMid', value: -3 },
     { say: 'HIGH 부스트도 0으로 돌립니다.', op: 'ch', ch: 1, key: 'eqHigh', value: 0 },

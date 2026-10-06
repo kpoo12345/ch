@@ -229,8 +229,9 @@ export function useVoice({ enabled, active, volume, phrases, rate = 1.05 }) {
 
 /* ---------------------------- 세로 페이더 / 세로 미터 ---------------------------- */
 const FADER_TICKS = [[100, '+10'], [75, '0'], [50, '-20'], [25, '-40'], [0, '-∞']];
-export function VFader({ label, value, onChange, display, cap = '#e5e7eb', height = 140 }) {
+export function VFader({ label, value, onChange, onCommit, display, cap = '#e5e7eb', height = 140 }) {
   const ref = useRef(null);
+  const startRef = useRef(null);
   const CAP_H = 22;
   const setFrom = (clientY) => {
     const r = ref.current.getBoundingClientRect();
@@ -248,8 +249,9 @@ export function VFader({ label, value, onChange, display, cap = '#e5e7eb', heigh
         </div>
         <div
           ref={ref} role="slider" tabIndex={0} aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-valuetext={display}
-          onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); setFrom(e.clientY); }}
+          onPointerDown={(e) => { e.preventDefault(); startRef.current = value; e.currentTarget.setPointerCapture?.(e.pointerId); setFrom(e.clientY); }}
           onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture?.(e.pointerId)) setFrom(e.clientY); }}
+          onPointerUp={() => { if (startRef.current != null) { onCommit?.(startRef.current, value); startRef.current = null; } }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowUp') { e.preventDefault(); onChange(clamp(value + 2, 0, 100)); }
             if (e.key === 'ArrowDown') { e.preventDefault(); onChange(clamp(value - 2, 0, 100)); }

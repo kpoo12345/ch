@@ -61,3 +61,14 @@ for (const spec of stages) {
     assert.deepEqual(failed, [], `unsolved: ${failed.join(' / ')}`);
   });
 }
+
+const { TUTORIAL } = await import('../src/game/data/tutorial.js');
+for (const part of TUTORIAL) {
+  test(`tutorial ${part.id}: every step applies cleanly`, () => {
+    assert.ok(VENUES[part.venue]);
+    part.devices.forEach((d) => assert.ok(VENUES[part.venue].slots[d.slot], `slot ${d.slot}`));
+    let errors = [];
+    runOps(buildRuntime(part), part.steps.filter((s) => s.op), { onStep: (st, op) => { if (st.lastError) errors.push(`${op.op} ${op.from ?? ''}>${op.to ?? ''}: ${st.lastError.reason}`); } });
+    assert.deepEqual(errors, []);
+  });
+}

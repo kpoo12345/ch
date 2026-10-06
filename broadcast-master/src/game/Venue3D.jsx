@@ -8,11 +8,16 @@ import {
 } from './kit3d.jsx';
 import {
   MicModel, SpeakerModel, CameraModel, AtemModel, WirelessMicModel, DiBoxModel, HeadphonesModel, MirrorlessModel, PtzModel, PcModel,
-  Plug, PendingCable, Port3D, DropIn, SelectRing, FeedbackArc, drawScene, drawMeterBar, drawWirelessLcd, drawCamLcd,
+  Plug, PendingCable, Port3D, DropIn, SelectRing, FeedbackArc, drawWirelessLcd, drawCamLcd,
   PORTS3D, GHOST, FOCUS, SELECT_RADIUS, SHORT_LABEL, FrontKnob,
 } from './Studio3D.jsx';
 import { AnalogConsole, DigitalConsole, CONSOLE_SIZE, consoleControl } from './consoles.jsx';
 import { VENUES, P_CH, P_LS } from './venues.js';
+import {
+  ParLedModel, MovingHeadModel, LightingConsoleModel, lightConsoleControl, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel,
+  PtzControllerModel, drawPtzLcd, PORTS_LIGHT, GHOST_LIGHT, FOCUS_LIGHT,
+} from './models3.jsx';
+import { drawSource, drawComposition, drawMeterBar, sourceOf, FONT as SFONT } from './scenes.js';
 export { VENUES };
 import {
   GuitarModel, KeyboardModel, LaptopModel, WedgeModel, RouterModel, PORTS_EXTRA, GHOST_EXTRA, FOCUS_EXTRA, SELECT_RADIUS_EXTRA,
@@ -32,13 +37,15 @@ const DT = DESK_TOP;
 /* ---------------------------- 장비 장착 방식 ---------------------------- */
 const FLOOR_NATIVE = new Set(['dynamic_mic', 'condenser_mic', 'speaker', 'monitor', 'camera', 'e_guitar', 'keyboard', 'di_box']);
 const MIC_TYPES = new Set(['dynamic_mic', 'condenser_mic']);
-const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA };
+const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA, ...PORTS_LIGHT };
+const FIXTURES = new Set(['par_led', 'moving_head']);
+const HANGING = new Set(['par_led', 'moving_head', 'projector']);
 const GHOST_ALL = { ...GHOST, ...GHOST_EXTRA, analog_mixer: CONSOLE_SIZE.analog_mixer, digital_mixer: CONSOLE_SIZE.digital_mixer,
   audio_interface: [0.22, 0.06, 0.12], wireless_mic: [0.4, 0.3, 0.2], di_box: [0.12, 0.07, 0.15], headphones: [0.25, 0.25, 0.2],
-  mirrorless: [0.25, 0.3, 0.2], ptz: [0.18, 0.25, 0.18], atem_pro: [0.46, 0.4, 0.45] };
+  mirrorless: [0.25, 0.3, 0.2], ptz: [0.18, 0.25, 0.18], atem_pro: [0.46, 0.4, 0.45], ...GHOST_LIGHT };
 const FOCUS_ALL = { ...FOCUS, ...FOCUS_EXTRA, analog_mixer: { y: 0.07, dist: 0.85 }, digital_mixer: { y: 0.1, dist: 1.05 },
   audio_interface: { y: 0.03, dist: 0.5 }, wireless_mic: { y: 0.08, dist: 0.7 }, di_box: { y: 0.03, dist: 0.5 }, headphones: { y: 0.12, dist: 0.6 },
-  mirrorless: { y: 0.2, dist: 0.6 }, ptz: { y: 0.12, dist: 0.6 }, atem_pro: { y: 0.12, dist: 0.95 } };
+  mirrorless: { y: 0.2, dist: 0.6 }, ptz: { y: 0.12, dist: 0.6 }, atem_pro: { y: 0.12, dist: 0.95 }, ...FOCUS_LIGHT };
 const RADIUS_ALL = { ...SELECT_RADIUS, ...SELECT_RADIUS_EXTRA };
 
 // 책상 위 마이크(데스크 암·강대상 구즈넥): 마이크 머리 높이 H
@@ -51,7 +58,14 @@ function deskMicPorts(type, H) {
 // 자리 종류 × 장비 종류 → 받침(랙·삼각대) 높이와 크기
 export function mountOf(slot, type) {
   if (!slot) return { y: 0, scale: 1, base: null };
+  if (slot.kind === 'truss') {
+    if (HANGING.has(type)) return { y: 0, scale: 1, base: 'clamp' };
+    if (type === 'ptz') return { y: 0, scale: 1, base: 'clamp', flip: true }; // 천장에 거꾸로 매단 PTZ
+    return { y: -0.5, scale: 1, base: 'clamp' };
+  }
+  if (HANGING.has(type) && slot.kind !== 'truss') return { y: type === 'projector' ? 1.2 : 2.3, scale: 1, base: 'lightstand', h: type === 'projector' ? 1.2 : 2.3 };
   if (slot.deskMic && MIC_TYPES.has(type)) return { y: 0, scale: 1, base: 'deskMic', H: slot.deskMic };
+  if (type === 'led_wall') return { y: 0, scale: 1, base: null };
   if (slot.kind === 'floor' && !FLOOR_NATIVE.has(type)) {
     if (type === 'mirrorless') return { y: 1.15, scale: 1, base: 'tripod' };
     if (type === 'ptz') return { y: 1.6, scale: 1, base: 'tripod', h: 1.6 };
@@ -151,18 +165,14 @@ function Shelf() {
 }
 
 /* ---------------------------- OBS 화면 (v2) ---------------------------- */
-const CAM_SCENE = (type, i) => (type === 'mirrorless' ? 'cam1' : type === 'ptz' ? 'cam2' : i % 2 ? 'cam2' : 'cam1');
-function drawObs2(ctx, w, h, { scene, obs, audioLv, live, viewers, overlay }) {
+const mvKey = (st, sim) => JSON.stringify(Object.values(sim.video.camAt).map((c) => [c, sim.ptz?.[c]?.framing, st.dev[c]?.clean, st.dev[c]?.layers, sim.video.dark]));
+function drawObs2(ctx, w, h, { src, obs, audioLv, live, viewers }) {
   ctx.fillStyle = '#1b1c22'; ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = '#2a2c35'; ctx.fillRect(0, 0, w, 34);
   ctx.fillStyle = '#cbd5e1'; ctx.font = `600 18px ${FONT}`; ctx.fillText('OBS Studio  —  장면: 메인 라이브', 14, 23);
   const px = 24, py = 46, pw = w - 48, ph = 360;
   ctx.fillStyle = '#000'; ctx.fillRect(px - 2, py - 2, pw + 4, ph + 4);
-  drawScene(ctx, scene, px, py, pw, ph);
-  if (overlay) {
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(px, py, pw, 34); ctx.fillRect(px, py + ph - 34, pw, 34);
-    ctx.fillStyle = '#fff'; ctx.font = `600 18px ${FONT}`; ctx.fillText('4K 30p  ▮▮▮▯ 87%   F2.8  1/60  ISO800', px + 10, py + 24);
-  }
+  drawSource(ctx, src, px, py, pw, ph);
   if (obs.streaming) {
     ctx.fillStyle = live ? '#dc2626' : '#78350f'; ctx.fillRect(px + pw - 160, py + 12, 146, 36);
     ctx.fillStyle = '#fff'; ctx.font = `800 22px ${FONT}`; ctx.fillText(live ? '● LIVE' : '● 문제 있음', px + pw - 148, py + 38);
@@ -237,7 +247,7 @@ function BackWall({ z, color = '#262f40', h = 5, tiles = false }) {
   );
 }
 
-function VenueRoom({ venueId, live, talking, performing }) {
+function VenueRoom({ venueId, live, talking, performing, hasFixtures }) {
   const v = VENUES[venueId];
   const people = v.people.map((p) => (
     <Person key={p.id} position={p.pos} rotation={p.rot} pose={p.pose ?? 'stand'} shirt={p.shirt}
@@ -302,13 +312,24 @@ function VenueRoom({ venueId, live, talking, performing }) {
           <group position={[0, P_LS, -3.45]}><StageBackdrop width={7.6} height={4.2} live={performing} /></group>
           <group position={[v.platform.x, 0, v.platform.z]}><StagePlatform width={v.platform.w} depth={v.platform.d} height={v.platform.h} color="#1c1c1f" edge="#64748b" /></group>
           <group position={[0.2, P_LS, -2.9]}><DrumKit performing={performing} /></group>
-          <group position={[0, 0, -1.3]}><LightTruss width={7.8} height={3.6} live={performing} /></group>
+          <group position={[0, 0, -1.3]}><LightTruss width={7.8} height={3.6} live={performing && !hasFixtures} lights={!hasFixtures} /></group>
           <Audience seats={crowd} seated={false} />
           {desks}
           {people}
         </group>
       );
     }
+    case 'sandbox':
+      return (
+        <group>
+          <Floor color="#1f2633" />
+          <BackWall z={-3.7} color="#222a38" tiles />
+          <group position={[v.platform.x, 0, v.platform.z]}><StagePlatform width={v.platform.w} depth={v.platform.d} height={v.platform.h} color="#2b2f3a" edge="#38bdf8" /></group>
+          <OnAirSign live={live} position={[2.6, 3.0, -3.6]} />
+          {desks}
+          {people}
+        </group>
+      );
     case 'lecture_hall':
     default:
       return (
@@ -338,9 +359,15 @@ function cableRoute(A, B, venue, lane) {
       const bz = E.back?.[1] ?? e1.z - 0.25;
       return [V([e1.x, top, s < 0 ? Math.min(e1.z, bz + 0.03) : Math.max(e1.z, bz - 0.03)]), V([e1.x, top - 0.12, bz + s * 0.04]), V([e1.x, fy, bz + s * 0.22])];
     }
+    if (E.truss != null) return [V([e1.x, E.truss + 0.06, e1.z - 0.05]), V([e1.x, fy + 0.3, e1.z - 0.08]), V([e1.x, fy, e1.z])];
     const n = V(E.n);
     return [V([e1.x + n.x * 0.04, Math.max(fy + 0.25, e1.y * 0.5), e1.z + n.z * 0.04 + 0.03]), V([e1.x + n.x * 0.08, fy, e1.z + n.z * 0.08 + 0.1])];
   };
+  // 트러스에 매달린 장비끼리: 트러스를 따라 살짝 처지게
+  if (A.truss != null && B.truss != null) {
+    const m = a1.clone().lerp(b1, 0.5); m.y = Math.min(a1.y, b1.y) - 0.18;
+    return [a, a1, m, b1, b];
+  }
   // 같은 책상 위 장비끼리는 책상 위로 바로 잇는다
   if (A.surface && B.surface && A.deskKey && A.deskKey === B.deskKey) {
     const m = a1.clone().lerp(b1, 0.5); m.y = A.surfaceY + 0.012;
@@ -600,7 +627,7 @@ function CameraRig({ venue, resetKey, focus, portWorld }) {
 export default function Venue3D({
   st, sim, venueId, interactive = true, autoRotate = false, fallback, talking, performing, selectedChannel = 0,
   pending, selectedCable, selectedDevice, labels = false, resetKey, focusRequest, lockView = false, follow = false, action, viewers = 0, highlight,
-  onPortClick, onSelectDevice, onDisconnect, onPlace, onCancelPending,
+  onPortClick, onSelectDevice, onDisconnect, onPlace, onCancelPending, sandboxApi,
 }) {
   const venue = VENUES[venueId] ?? VENUES.lecture_hall;
   const pointerRef = useRef(null);
@@ -608,7 +635,14 @@ export default function Venue3D({
   const [focus, setFocus] = useState(null);
   useEffect(() => { setFocus(null); }, [resetKey]);
   const devices = st.devices;
-  const slotOf = (id) => venue.slots[devices[id]?.slot] ?? null;
+  // 자리(slot)가 없으면 자유 배치 좌표(pos)로 가상의 자리를 만든다 (스튜디오 모드)
+  const slotOf = (id) => {
+    const d = devices[id];
+    if (!d) return null;
+    if (d.slot && venue.slots[d.slot]) return venue.slots[d.slot];
+    if (d.pos) return { pos: d.pos, rot: d.rot ?? 0, kind: d.surface === 'desk' ? 'desk' : 'floor', label: '자유 배치', free: true };
+    return null;
+  };
 
   const deskOfSlot = (slot) => {
     if (!slot || slot.kind !== 'desk' || (slot.deskMic && slot.onPlatform)) return null;
@@ -623,12 +657,13 @@ export default function Venue3D({
   const portWorld = (d, pid) => {
     const w = worldOf(d);
     if (!w) return null;
-    const def = portLocal(devices[d].type, pid, w.mount);
-    if (!def) return null;
+    const def0 = portLocal(devices[d].type, pid, w.mount);
+    if (!def0) return null;
+    const def = w.mount.flip ? { p: [def0.p[0], -def0.p[1], -def0.p[2]], n: [def0.n[0], -def0.n[1], -def0.n[2]] } : def0;
     const lp = rotY(def.p.map((v) => v * w.scale), w.rot);
     const p = [w.pos[0] + lp[0], w.pos[1] + lp[1], w.pos[2] + lp[2]];
     const slot = w.slot;
-    const floorY = slot.floorY ?? (slot.kind === 'floor' ? slot.pos[1] : slot.kind === 'wall' ? 0 : 0);
+    const floorY = slot.floorY ?? (slot.kind === 'floor' ? slot.pos[1] : 0);
     const deskIdx = deskOfSlot(slot);
     const desk = deskIdx != null && deskIdx >= 0 ? venue.desks[deskIdx] : null;
     const surface = (w.mount.base === 'rack' || desk || slot.kind === 'wall' || (slot.deskMic && slot.onPlatform));
@@ -638,6 +673,7 @@ export default function Venue3D({
     return {
       p, n: rotY(def.n, w.rot), floorY, surface: !!surface, surfaceY: slot.kind === 'wall' ? p[1] - 0.05 : surfaceY,
       back, deskKey: desk ? `desk${deskIdx}` : null, zone: zoneOfSlot(venueId, slot, devices[d].slot),
+      truss: slot.kind === 'truss' ? slot.pos[1] : null,
     };
   };
 
@@ -662,15 +698,39 @@ export default function Venue3D({
     if (!action) return;
     const c = resolveCue(action);
     if (c) setCue({ ...c, key: action.key, speed: action.speed });
-    if (follow && action.device && action.device !== 'overview' && devices[action.device]?.placed) {
-      const tgt = action.ctl?.kind === 'cable' ? action.ctl.to?.d : action.device;
-      if (tgt && devices[tgt]?.placed) focusDevice(tgt, { silent: true, zoom: action.zoom ?? 1 });
+    if (follow && action.device && devices[action.device]?.placed) {
+      // 조작 따라가기: 장소 기본 시점 방향을 유지한 채 조작 지점으로 다가간다 (화면이 휙 돌지 않게)
+      const kind = action.ctl?.kind;
+      let tgt = action.device;
+      let at = null;
+      if (kind === 'cable') {
+        const A = portWorld(action.ctl.from.d, action.ctl.from.p), B = portWorld(action.ctl.to.d, action.ctl.to.p);
+        if (A && B) at = A.p.map((v, i) => (v + B.p[i]) / 2);
+        tgt = action.ctl.to.d;
+      }
+      const w = worldOf(tgt);
+      if (w) {
+        const type = devices[tgt].type;
+        const f = FOCUS_ALL[type] ?? { y: 0.5, dist: 1.5 };
+        const target = at ?? [w.pos[0], w.pos[1] + f.y * w.scale, w.pos[2]];
+        let dist;
+        if (kind === 'cable') {
+          const A = portWorld(action.ctl.from.d, action.ctl.from.p), B = portWorld(action.ctl.to.d, action.ctl.to.p);
+          dist = Math.max(1.8, Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1], A.p[2] - B.p[2]) * 1.15);
+        } else if (kind === 'place') dist = Math.max(2.6, f.dist * 2.2);
+        else if (kind === 'mixer' || kind === 'master' || kind === 'light') dist = type === 'digital_mixer' ? 1.15 : type === 'lighting_console' ? 1.2 : 0.95;
+        else dist = Math.max(1.3, f.dist * 1.6);
+        const cam = venue.camera;
+        const dir = [cam.pos[0] - cam.target[0], cam.pos[1] - cam.target[1], cam.pos[2] - cam.target[2]];
+        setFocus({ target, dist, dir, key: `${action.key}-f` });
+      }
     }
   }, [action?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function toWorld(id, local) {
+  function toWorld(id, local0) {
     const w = worldOf(id);
     if (!w) return null;
+    const local = w.mount.flip ? [local0[0], -local0[1], -local0[2]] : local0;
     const lp = rotY(local.map((v) => v * w.scale), w.rot);
     return [w.pos[0] + lp[0], w.pos[1] + lp[1], w.pos[2] + lp[2]];
   }
@@ -695,6 +755,8 @@ export default function Venue3D({
       const via = type === 'digital_mixer' && ctl.kind === 'mixer' && selKeys.includes(key) && ctl.needSelect ? toWorld(a.device, consoleControl(type, 'select', ctl.ch)) : null;
       return { kind, at, from, via, dir: (ctl.value ?? 0) >= (ctl.prev ?? 0) ? 1 : -1 };
     }
+    if (ctl.kind === 'light') return { kind: /level$|^gm$/.test(ctl.key ?? '') ? 'slide' : 'press', at: toWorld(a.device, lightConsoleControl(ctl.key, ctl.value)), from: /level$|^gm$/.test(ctl.key ?? '') ? toWorld(a.device, lightConsoleControl(ctl.key, 0)) : null };
+    if (ctl.kind === 'joystick') return { kind: ctl.act === 'aim' ? 'turn' : 'press', at: toWorld(a.device, ctl.act === 'aim' ? [0.1, 0.17, 0.02] : [-0.1, 0.06, 0.06]) };
     const local = DEVICE_POINT[type]?.(ctl) ?? [0, (GHOST_ALL[type]?.[1] ?? 0.3) * 0.8, 0];
     const w = worldOf(a.device);
     const at = w.mount.base === 'deskMic' ? toWorld(a.device, [0, w.mount.H, 0]) : toWorld(a.device, local);
@@ -719,26 +781,41 @@ export default function Venue3D({
     if (Number(n) === st.atem.preview) return 'pvw';
     return null;
   };
-  const camIndex = (id) => Object.values(devices).filter((d) => ['camera', 'mirrorless', 'ptz'].includes(d.type)).findIndex((d) => d.id === id);
-  const sceneOf = (camId) => (camId ? CAM_SCENE(devices[camId].type, camIndex(camId)) : 'black');
-  const obsScene = sim.stream.obsVideoOk || (st.obs.video === 'atem' && sim.video.atemUsbToPc) ? sceneOf(sim.video.programCam) : 'nosignal';
+  const obsSrc = st.obs.video === 'atem' && sim.video.atemUsbToPc ? sourceOf(st, sim, sim.video.programCam) : { kind: 'nosignal' };
+  const obsKey = JSON.stringify(obsSrc);
   const obsLv = Object.values(sim.heard.stream).reduce((m, h) => Math.max(m, h.level), -99);
   const obsTex = useCanvasTexture(1024, 576, (ctx, w, h) => drawObs2(ctx, w, h, {
-    scene: obsScene, obs: st.obs, audioLv: obsLv > -99 ? obsLv + (talking ? Math.random() * 3 : 0) : null, live: sim.stream.obsLive, viewers, overlay: sim.video.overlay,
-  }), [obsScene, st.obs.streaming, st.obs.audio, st.obs.muted, st.obs.video, Math.round(obsLv / 3), sim.stream.obsLive, viewers, sim.video.overlay, talking]);
+    src: obsSrc, obs: st.obs, audioLv: obsLv > -99 ? obsLv + (talking ? Math.random() * 3 : 0) : null, live: sim.stream.obsLive, viewers,
+  }), [obsKey, st.obs.streaming, st.obs.audio, st.obs.muted, st.obs.video, Math.round(obsLv / 3), sim.stream.obsLive, viewers, talking]);
   const mvTex = useCanvasTexture(1024, 576, (ctx, w, h) => {
     // 멀티뷰: 연결된 카메라에 맞춰 장면을 그린다
-    const map = { 1: 'nosignal', 2: 'nosignal', 3: 'nosignal', 4: 'nosignal' };
-    Object.entries(sim.video.camAt).forEach(([n, c]) => { map[n] = sceneOf(c); });
+    const map = { 1: { kind: 'nosignal' }, 2: { kind: 'nosignal' }, 3: { kind: 'nosignal' }, 4: { kind: 'nosignal' } };
+    Object.entries(sim.video.camAt).forEach(([n, c]) => { map[n] = sourceOf(st, sim, c); });
     drawMultiviewMapped(ctx, w, h, { map, program: st.atem.program, preview: st.atem.preview, pip: st.atem.pip, streaming: sim.stream.proLive, recording: st.atem.recording });
-  }, [JSON.stringify(sim.video.camAt), st.atem.program, st.atem.preview, st.atem.pip, sim.stream.proLive, st.atem.recording]);
+  }, [mvKey(st, sim), st.atem.program, st.atem.preview, st.atem.pip, sim.stream.proLive, st.atem.recording]);
   const laptopTex = useCanvasTexture(512, 320, (ctx, w, h) => drawLaptop(ctx, w, h, { playing: Object.values(devices).some((d) => d.type === 'laptop' && st.dev[d.id]?.playing) }),
     [Object.values(devices).some((d) => d.type === 'laptop' && st.dev[d.id]?.playing)]);
 
+  // 화면 장비(프로젝터·LED)에 나가는 그림
+  const displayKey = JSON.stringify(Object.entries(sim.displays).map(([id, r]) => [id, r.ok, r.scaled, r.layers, r.program]));
+  const displayTex = useDisplayTextures(st, sim, displayKey);
+  // 실제 스포트라이트는 켜진 조명 6개까지만 (성능)
+  const lightSlots = Object.entries(sim.light.fixtures).filter(([, r]) => r.intensity > 0.05).slice(0, 6).map(([id]) => id);
+  const fixtureAim = (w) => {
+    const aim = w.slot.aim;
+    if (!aim) return { tilt: 0.5, len: 3.2 };
+    const dx = aim[0] - w.pos[0], dz = aim[2] - w.pos[2], dy = w.pos[1] - aim[1];
+    const dh = Math.hypot(dx, dz);
+    return { tilt: Math.atan2(dh, Math.max(0.1, dy)), len: Math.hypot(dh, dy) };
+  };
+  const hasFixtures = Object.values(devices).some((d) => d.placed && FIXTURES.has(d.type));
   const connLive = (c) => {
     const ft = devices[c.from.d]?.type;
     if (['camera', 'mirrorless', 'ptz'].includes(ft)) return c.cable !== 'eth';
     if (ft === 'atem' || ft === 'atem_pro') return c.from.p === 'eth' ? sim.stream.proLive : !!sim.video.programCam;
+    if (ft === 'lighting_console' || FIXTURES.has(ft)) return !!sim.light.fixtures[c.to.d]?.receiving;
+    if (ft === 'media_server') return !!st.dev[c.from.d]?.playing;
+    if (ft === 'ptz_controller' || ft === 'ptz') return c.cable === 'eth' ? Object.values(sim.ptz).some((r) => r.reachable) : true;
     const lv = sim.outLevel(c.from.d, c.from.p);
     return lv != null && lv > -60;
   };
@@ -803,12 +880,32 @@ export default function Venue3D({
       case 'keyboard': return <KeyboardModel performing={performing} />;
       case 'laptop': return <LaptopModel playing={!!s.playing} screenTex={laptopTex} />;
       case 'router': return <RouterModel linked={st.connections.some((c) => c.to.d === d.id)} />;
+      case 'par_led':
+      case 'moving_head': {
+        const r = sim.light.fixtures[d.id] ?? {};
+        const aim = fixtureAim(w);
+        const lit = r.intensity ?? 0;
+        const useLight = lightSlots.includes(d.id);
+        return d.type === 'par_led'
+          ? <ParLedModel intensity={lit} color={r.color} flicker={r.flicker} power={s.power} terminated={s.terminated} aimTilt={aim.tilt} beamLength={aim.len} light={useLight} />
+          : <MovingHeadModel intensity={lit} color={r.color} pan={r.pan ?? 0} tilt={r.tilt ?? 0} flicker={r.flicker} power={s.power} terminated={s.terminated} aimTilt={aim.tilt * 0.7} beamLength={aim.len} light={useLight} />;
+      }
+      case 'lighting_console': return <LightingConsoleModel cs={s} lightRes={sim.light} />;
+      case 'media_server': return <MediaServerModel m={s} />;
+      case 'projector': return <ProjectorModel power={!!s.power} on={!!sim.displays[d.id]?.ok} />;
+      case 'led_wall': {
+        const lw = w.slot.ledWall ?? { w: 4.2, h: 2.25 };
+        return <LedWallModel w={lw.w} h={lw.h} tex={displayTex[d.id]} on={!!sim.displays[d.id] && (sim.displays[d.id].layers.length > 0 || sim.displays[d.id].program)} power={!!s.power} />;
+      }
+      case 'ptz_controller': return <JoyWrap st={st} sim={sim} id={d.id} />;
       default: return null;
     }
   };
 
   const mountBase = (w) => {
     if (w.mount.base === 'rack') return <Rack h={DT} />;
+    if (w.mount.base === 'clamp') return <mesh raycast={noRaycast} position={[0, 0.06, 0]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.025, 0.025, 0.7, 10]} /><meshStandardMaterial color="#9ca3af" metalness={0.8} roughness={0.3} /></mesh>;
+    if (w.mount.base === 'lightstand') return <LightStand h={w.mount.h} />;
     if (w.mount.base === 'tripod') return <TallTripod height={w.mount.h ?? 1.15} />;
     if (w.mount.base === 'shelf') return <Shelf />;
     return null;
@@ -857,7 +954,19 @@ export default function Venue3D({
       />
 
       <group onPointerMove={(e) => { if (pending) pointerRef.current = e.point.clone(); }}>
-        <VenueRoom venueId={venueId} live={sim.stream.live} talking={talking} performing={performing} />
+        <VenueRoom venueId={venueId} live={sim.stream.live} talking={talking} performing={performing} hasFixtures={hasFixtures} />
+        {sandboxApi?.placing && <PlaceCatcher venue={venue} placing={sandboxApi.placing} onPlaceAt={sandboxApi.onPlaceAt} />}
+        <TrussPipes venue={venue} venueId={venueId} />
+        {placed.filter((d) => d.type === 'projector' && slotOf(d.id)?.screen).map((d) => {
+          const sc = slotOf(d.id).screen;
+          const on = !!sim.displays[d.id]?.ok || (sim.displays[d.id]?.layers?.length > 0);
+          return (
+            <group key={`scr-${d.id}`}>
+              <group position={sc.pos} rotation={[0, sc.rot ?? 0, 0]}><ProjectedScreen w={sc.w} h={sc.h} tex={displayTex[d.id]} on={on} /></group>
+              {on && <ProjectorRay from={worldOf(d.id).pos} to={sc.pos} />}
+            </group>
+          );
+        })}
         <AfterFirstFrame>
           {placed.map((d) => {
             const w = worldOf(d.id);
@@ -866,7 +975,7 @@ export default function Venue3D({
             const ports = w.mount.base === 'deskMic' ? deskMicPorts(d.type, w.mount.H) : (PORTS_ALL[d.type] ?? {});
             const gh = GHOST_ALL[d.type] ?? [0.4, 0.4, 0.4];
             const labelY = w.mount.base === 'deskMic' ? w.mount.H + 0.2 : gh[1] * w.scale + 0.16;
-            const hi = highlight?.device === d.id;
+            const hi = highlight?.device === d.id || highlight?.device2 === d.id;
             return (
               <group key={d.id}>
                 <group position={[w.slot.pos[0], w.slot.pos[1], w.slot.pos[2]]} rotation={[0, w.rot, 0]}>{mountBase(w)}</group>
@@ -895,7 +1004,7 @@ export default function Venue3D({
                   const used = st.connections.some((c) => (c.from.d === d.id && c.from.p === pid) || (c.to.d === d.id && c.to.p === pid));
                   const isPending = pending && pending.d === d.id && pending.p === pid;
                   const candidate = pending && !isPending && pending.dir !== dir && pending.d !== d.id && !used;
-                  const hiPort = highlight?.port && highlight.device === d.id && highlight.port === pid;
+                  const hiPort = (highlight?.port && highlight.device === d.id && highlight.port === pid) || (highlight?.port2 && highlight.device2 === d.id && highlight.port2 === pid);
                   return (
                     <Port3D key={pid} p={pw.p} n={pw.n} port={port} label={SHORT_LABEL[`${d.type}:${pid}`] ?? port.label}
                       lift={(d.type === 'analog_mixer' || d.type === 'digital_mixer') && idx % 2 ? 0.035 : 0} used={used} isPending={isPending} candidate={candidate || hiPort}
@@ -979,22 +1088,22 @@ function chainHas(st, d, src) {
 function drawMultiviewMapped(ctx, w, h, { map, program, preview, pip, streaming, recording }) {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
   const top = h * 0.6, half = w / 2;
-  drawScene(ctx, map[preview] ?? 'black', 4, 4, half - 8, top - 8);
-  drawScene(ctx, program ? map[program] ?? 'black' : 'black', half + 4, 4, half - 8, top - 8);
-  if (pip) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; drawScene(ctx, 'cam2', w - 4 - half * 0.32, top - 4 - top * 0.32, half * 0.3, top * 0.3); ctx.strokeRect(w - 4 - half * 0.32, top - 4 - top * 0.32, half * 0.3, top * 0.3); }
+  drawSource(ctx, map[preview] ?? null, 4, 4, half - 8, top - 8);
+  drawSource(ctx, program ? map[program] ?? null : null, half + 4, 4, half - 8, top - 8);
+  if (pip) { const pw = half * 0.3, ph = top * 0.3; drawSource(ctx, map[2] ?? null, w - 4 - pw - 8, top - 12 - ph, pw, ph); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(w - 4 - pw - 8, top - 12 - ph, pw, ph); }
   ctx.lineWidth = 6; ctx.strokeStyle = '#22c55e'; ctx.strokeRect(4, 4, half - 8, top - 8);
   ctx.strokeStyle = '#ef4444'; ctx.strokeRect(half + 4, 4, half - 8, top - 8);
-  ctx.font = `700 26px ${FONT}`; ctx.fillStyle = '#fff';
+  ctx.font = `700 26px ${SFONT}`; ctx.fillStyle = '#fff';
   ctx.fillText('PREVIEW', 16, top - 18); ctx.fillText('PROGRAM', half + 16, top - 18);
   const cw = w / 4;
   [1, 2, 3, 4].forEach((n, i) => {
     const x = i * cw + 4, y = top + 4, ww = cw - 8, hh = h - top - 50;
-    drawScene(ctx, map[n], x, y, ww, hh);
+    drawSource(ctx, map[n], x, y, ww, hh);
     ctx.lineWidth = 5; ctx.strokeStyle = n === program ? '#ef4444' : n === preview ? '#22c55e' : '#334155'; ctx.strokeRect(x, y, ww, hh);
-    ctx.fillStyle = '#e2e8f0'; ctx.font = `600 20px ${FONT}`; ctx.fillText(`${n}  ${map[n] === 'nosignal' ? '입력 없음' : `CAM ${n}`}`, x + 6, h - 16);
+    ctx.fillStyle = '#e2e8f0'; ctx.font = `600 20px ${SFONT}`; ctx.fillText(`${n}  ${map[n]?.label ?? (map[n]?.kind === 'vj' ? '미디어 서버' : '입력 없음')}`, x + 6, h - 16);
   });
-  if (streaming) { ctx.fillStyle = '#dc2626'; ctx.fillRect(w - 170, 14, 150, 34); ctx.fillStyle = '#fff'; ctx.font = `800 22px ${FONT}`; ctx.fillText('● ON AIR', w - 156, 39); }
-  if (recording) { ctx.fillStyle = '#dc2626'; ctx.fillRect(w - 330, 14, 150, 34); ctx.fillStyle = '#fff'; ctx.font = `800 22px ${FONT}`; ctx.fillText('● REC', w - 300, 39); }
+  if (streaming) { ctx.fillStyle = '#dc2626'; ctx.fillRect(w - 170, 14, 150, 34); ctx.fillStyle = '#fff'; ctx.font = `800 22px ${SFONT}`; ctx.fillText('● ON AIR', w - 156, 39); }
+  if (recording) { ctx.fillStyle = '#dc2626'; ctx.fillRect(w - 330, 14, 150, 34); ctx.fillStyle = '#fff'; ctx.font = `800 22px ${SFONT}`; ctx.fillText('● REC', w - 300, 39); }
 }
 
 function zoneOfSlot(venueId, slot, slotName) {
@@ -1026,3 +1135,117 @@ const DEVICE_POINT = {
 };
 
 export { DEVICE_POINT, FOCUS_ALL, GHOST_ALL };
+
+// 트러스(조명 바) 자리: 장식용 파이프
+function TrussPipes({ venue, venueId }) {
+  if (venueId === 'live_stage') return null;
+  const bars = Object.values(venue.slots).filter((sl) => sl.kind === 'truss');
+  return (
+    <group>
+      {bars.map((sl, i) => (
+        <group key={i} position={[sl.pos[0], sl.pos[1] + 0.06, sl.pos[2]]}>
+          <mesh raycast={noRaycast} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.024, 0.024, 1.2, 10]} /><meshStandardMaterial color="#9ca3af" metalness={0.8} roughness={0.3} /></mesh>
+          <mesh raycast={noRaycast} position={[0, (4.6 - sl.pos[1]) / 2, 0]}><cylinderGeometry args={[0.006, 0.006, Math.max(0.1, 4.6 - sl.pos[1]), 6]} /><meshStandardMaterial color="#4b5563" /></mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+function LightStand({ h }) {
+  return (
+    <group>
+      {[0, 2.094, 4.188].map((a) => <mesh key={a} raycast={noRaycast} position={[Math.sin(a) * 0.25, 0.12, Math.cos(a) * 0.25]} rotation={[Math.cos(a) * 1.0, 0, -Math.sin(a) * 1.0]}><cylinderGeometry args={[0.012, 0.012, 0.6, 6]} /><meshStandardMaterial color="#1c1f24" /></mesh>)}
+      <mesh raycast={noRaycast} position={[0, h / 2, 0]}><cylinderGeometry args={[0.018, 0.022, h, 10]} /><meshStandardMaterial color="#1c1f24" metalness={0.5} /></mesh>
+      <mesh raycast={noRaycast} position={[0, h + 0.06, 0]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.02, 0.02, 0.6, 8]} /><meshStandardMaterial color="#9ca3af" metalness={0.8} /></mesh>
+    </group>
+  );
+}
+function ProjectorRay({ from, to }) {
+  const geo = useMemo(() => {
+    const a = new THREE.Vector3(from[0], from[1] - 0.18, from[2]), b = new THREE.Vector3(...to);
+    const len = a.distanceTo(b);
+    const g = new THREE.CylinderGeometry(0.6, 0.03, len, 4, 1, true);
+    g.translate(0, len / 2, 0);
+    return { g, a, b, len };
+  }, [from.join(), to.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => geo.g.dispose(), [geo]);
+  const q = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), geo.a.clone().sub(geo.b).normalize()), [geo]);
+  return (
+    <mesh raycast={noRaycast} geometry={geo.g} position={geo.b} quaternion={q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI))}>
+      <meshBasicMaterial color="#e0f2fe" transparent opacity={0.05} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+// 프로젝터·LED에 나가는 그림을 장비별 캔버스 텍스처로 만든다
+function useDisplayTextures(st, sim, key) {
+  const cache = useRef({});
+  const out = {};
+  Object.entries(sim.displays).forEach(([id, r]) => {
+    let entry = cache.current[id];
+    if (!entry) {
+      const c = document.createElement('canvas'); c.width = 640; c.height = 360;
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      entry = cache.current[id] = { c, t, key: null };
+    }
+    if (entry.key !== key) {
+      const ctx = entry.c.getContext('2d');
+      const src = r.source ? st.devices[r.source] : null;
+      if (r.layers.length) {
+        drawComposition(ctx, r.layers, 0, 0, 640, 360, 0, { master: st.dev[r.source]?.master ?? 100 });
+        if (r.scaled) { ctx.drawImage(entry.c, 0, 0, 640, 360, 0, 0, 640, 420); ctx.fillStyle = 'rgba(239,68,68,.85)'; ctx.fillRect(0, 0, 640, 34); ctx.fillStyle = '#fff'; ctx.font = `700 20px ${SFONT}`; ctx.fillText('해상도 불일치 — 화면이 늘어남', 12, 24); }
+      } else if (r.program && src) {
+        drawSource(ctx, sourceOf(st, sim, sim.video.programCam ?? (st.devices[r.source] && ['camera', 'mirrorless', 'ptz'].includes(src.type) ? r.source : null)), 0, 0, 640, 360);
+      } else { ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, 640, 360); ctx.fillStyle = '#475569'; ctx.font = `600 26px ${SFONT}`; ctx.fillText(r.power ? '신호 없음' : '', 230, 190); }
+      entry.t.needsUpdate = true;
+      entry.key = key;
+    }
+    out[id] = entry.t;
+  });
+  return out;
+}
+function JoyWrap({ st, sim, id }) {
+  const cs = st.dev[id] ?? {};
+  const camAtIdx = (i) => Object.entries(sim.ptz).find(([, r]) => r.reachable && r.index === i + 1)?.[0];
+  const tallies = [0, 1, 2, 3].map((i) => {
+    const cam = camAtIdx(i);
+    if (!cam) return null;
+    if (sim.video.programCam === cam) return 'pgm';
+    if (sim.video.previewCam === cam) return 'pvw';
+    return null;
+  });
+  const sel = camAtIdx(cs.selected ?? 0);
+  const lcd = useCanvasTexture(400, 120, (ctx, w, h) => drawPtzLcd(ctx, w, h, { selected: cs.selected ?? 0, ip: cs.cams?.[cs.selected ?? 0], reach: !!sel, framing: sel ? sim.ptz[sel].framing : null }),
+    [cs.selected, cs.cams?.join(), sel, sel ? sim.ptz[sel].framing : null]);
+  return <PtzControllerModel selected={cs.selected ?? 0} tallies={tallies} lcdTex={lcd} />;
+}
+
+// 자유 배치: 바닥·책상·무대 위를 가리키면 놓일 자리를 보여 주고, 클릭하면 놓는다
+function PlaceCatcher({ venue, placing, onPlaceAt }) {
+  const ghost = useRef();
+  const [pt, setPt] = useState(null);
+  const surfaces = [
+    ...venue.desks.map((d) => ({ kind: 'desk', y: DT, x: d.x, z: d.z, w: d.w, d: d.d })),
+    ...(venue.platform ? [{ kind: 'floor', y: venue.platform.h, x: venue.platform.x, z: venue.platform.z, w: venue.platform.w, d: venue.platform.d }] : []),
+  ];
+  const move = (e, kind) => { e.stopPropagation(); setPt({ p: [e.point.x, e.point.y, e.point.z], kind }); };
+  const click = (e, kind) => { e.stopPropagation(); if (e.delta > 8) return; onPlaceAt?.([+e.point.x.toFixed(2), +e.point.y.toFixed(3), +e.point.z.toFixed(2)], kind); };
+  const size = GHOST_ALL[placing.type] ?? [0.4, 0.4, 0.4];
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]} onPointerMove={(e) => move(e, 'floor')} onClick={(e) => click(e, 'floor')}>
+        <planeGeometry args={[30, 30]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {surfaces.map((sf, i) => (
+        <mesh key={i} position={[sf.x, sf.y + 0.003, sf.z]} rotation={[-Math.PI / 2, 0, 0]} onPointerMove={(e) => move(e, sf.kind)} onClick={(e) => click(e, sf.kind)}>
+          <planeGeometry args={[sf.w, sf.d]} /><meshBasicMaterial color="#38bdf8" transparent opacity={0.07} depthWrite={false} />
+        </mesh>
+      ))}
+      {pt && (
+        <group ref={ghost} position={pt.p}>
+          <mesh position={[0, size[1] / 2, 0]} raycast={noRaycast}><boxGeometry args={size} /><meshBasicMaterial color="#facc15" wireframe transparent opacity={0.6} /></mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} raycast={noRaycast}><ringGeometry args={[Math.max(size[0], size[2]) * 0.55, Math.max(size[0], size[2]) * 0.62, 40]} /><meshBasicMaterial color="#facc15" transparent opacity={0.8} /></mesh>
+        </group>
+      )}
+    </group>
+  );
+}

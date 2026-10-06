@@ -239,7 +239,7 @@ export function DrumKit({ performing }) {
   );
 }
 
-export function LightTruss({ width = 7, height = 3.2, live = false, colors = ['#f472b6', '#60a5fa', '#facc15', '#34d399'] }) {
+export function LightTruss({ width = 7, height = 3.2, live = false, lights = true, colors = ['#f472b6', '#60a5fa', '#facc15', '#34d399'] }) {
   const heads = useRef([]);
   const count = 8;
   useFrame(({ clock }) => {
@@ -260,7 +260,7 @@ export function LightTruss({ width = 7, height = 3.2, live = false, colors = ['#
         </group>
       ))}
       <mesh {...NR} position={[0, height, 0]}><boxGeometry args={[width, 0.25, 0.25]} /><meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.4} wireframe /></mesh>
-      {Array.from({ length: count }, (_, i) => {
+      {lights && Array.from({ length: count }, (_, i) => {
         const x = -width / 2 + 0.6 + (i * (width - 1.2)) / (count - 1);
         const c = colors[i % colors.length];
         return (
