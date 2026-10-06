@@ -1,4 +1,4 @@
-import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv } from 'lucide-react';
+import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar } from 'lucide-react';
 
 /* =====================================================================
  * 방송장비 마스터 — 게임 데이터 & 신호 계산 엔진
@@ -21,14 +21,14 @@ export const CABLES = {
 };
 
 export const PORT_ACCEPTS = {
-  xlr: ['xlr'], trs: ['trs'], combo: ['xlr', 'trs'], hdmi: ['hdmi'], sdi: ['sdi'], usb: ['usb'],
+  xlr: ['xlr'], trs: ['trs'], combo: ['xlr', 'trs'], hdmi: ['hdmi'], sdi: ['sdi'], usb: ['usb'], eth: ['eth'], mini: ['mini'],
 };
 export const PORT_KIND_LABEL = {
   xlr: 'XLR 단자', trs: '6.3mm TRS 단자', combo: 'XLR/TRS 콤보 단자',
-  hdmi: 'HDMI 단자', sdi: 'BNC(SDI) 단자', usb: 'USB-C 단자',
+  hdmi: 'HDMI 단자', sdi: 'BNC(SDI) 단자', usb: 'USB-C 단자', eth: 'RJ45 LAN 단자', mini: '3.5mm 미니잭',
 };
 export const PORT_COLOR = {
-  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80',
+  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80', eth: '#2dd4bf', mini: '#f472b6',
 };
 export const MISMATCH_TIP = {
   xlr: 'XLR 단자는 3핀 캐논 커넥터라서 XLR 케이블만 들어갑니다.',
@@ -78,6 +78,45 @@ export const DEVICE_TYPES = {
     ins: [1, 2, 3, 4].map((n) => ({ id: `in${n}`, label: `HDMI IN ${n}`, kind: 'hdmi' })),
     outs: [{ id: 'usb', label: 'USB WEBCAM', kind: 'usb' }, { id: 'hdmiout', label: 'HDMI OUT', kind: 'hdmi' }],
     info: '여러 카메라 중 지금 송출할 화면을 고르는 장비입니다. PVW(프리뷰)에 다음 화면을 준비하고 CUT(즉시) 또는 AUTO(디졸브)로 PGM(프로그램, 실제 송출)과 맞바꿉니다. USB 출력은 PC에서 웹캠으로 인식됩니다.',
+  },
+  // ---- 교육 모드에서 다루는 장비 ----
+  audio_interface: {
+    name: '오디오 인터페이스', model: 'USB 2in/2out', icon: AudioLines, w: 220,
+    ins: [{ id: 'in1', label: 'INPUT 1 (MIC/INST)', kind: 'combo' }, { id: 'in2', label: 'INPUT 2 (MIC/INST)', kind: 'combo' }],
+    outs: [{ id: 'usb', label: 'USB-C (PC)', kind: 'usb' }, { id: 'monL', label: 'MONITOR L', kind: 'trs' }, { id: 'monR', label: 'MONITOR R', kind: 'trs' }, { id: 'phones', label: 'HEADPHONES', kind: 'trs' }],
+    info: '마이크·악기 소리를 디지털로 바꿔 USB로 PC에 넣고, PC 소리를 다시 아날로그로 바꿔 스피커·헤드폰으로 내보내는 장비입니다. 마이크 프리앰프(GAIN), +48V 팬텀, 악기 입력(INST)이 들어 있는 작은 믹서 겸 사운드카드라고 보면 됩니다.',
+  },
+  wireless_mic: {
+    name: '무선 마이크 시스템', model: 'UHF 핸드헬드 + 수신기', icon: Radio, w: 200,
+    ins: [], outs: [{ id: 'af', label: 'AF OUT (XLR)', kind: 'xlr' }],
+    info: '마이크(송신기)가 소리를 전파(RF)로 보내고, 수신기가 받아 XLR로 믹서에 넘깁니다. 송신기와 수신기의 주파수(채널)가 같아야 하고, 배터리와 전파 상태(RF)를 늘 확인해야 합니다.',
+  },
+  di_box: {
+    name: 'DI 박스', model: 'Direct Injection Box', icon: Guitar, w: 170,
+    ins: [{ id: 'input', label: 'INPUT (TS)', kind: 'trs' }],
+    outs: [{ id: 'thru', label: 'THRU (TS)', kind: 'trs' }, { id: 'out', label: 'OUTPUT (XLR)', kind: 'xlr' }],
+    info: '기타·키보드 같은 악기의 언밸런스드 신호(TS)를 밸런스드 마이크 레벨(XLR)로 바꿔, 긴 케이블로도 잡음 없이 믹서에 보낼 수 있게 해 줍니다. THRU로는 원래 신호를 앰프에 그대로 보냅니다.',
+  },
+  headphones: {
+    name: '모니터 헤드폰', model: '밀폐형 (Closed-back)', icon: Headphones, w: 170,
+    ins: [{ id: 'plug', label: 'PLUG (TRS)', kind: 'trs' }], outs: [],
+    info: '운영자가 송출되는 소리를 정확히 듣는 장비입니다. 밀폐형은 바깥 소리를 막고 소리가 새지 않아 현장 모니터링에 적합합니다.',
+  },
+  mirrorless: {
+    name: '미러리스 카메라', model: '렌즈 교환식', icon: Camera, w: 170,
+    ins: [], outs: [{ id: 'hdmi', label: 'HDMI OUT', kind: 'hdmi' }],
+    info: '큰 센서와 교환 렌즈로 배경이 흐려지는 고화질 영상을 만드는 카메라입니다. 방송에 쓰려면 화면 정보가 없는 "클린 HDMI" 출력, 장시간 촬영용 전원(더미 배터리), 발열 관리를 챙겨야 합니다.',
+  },
+  ptz: {
+    name: 'PTZ 카메라', model: 'Pan · Tilt · Zoom 리모트', icon: Cctv, w: 170,
+    ins: [], outs: [{ id: 'hdmi', label: 'HDMI OUT', kind: 'hdmi' }, { id: 'sdi', label: 'SDI OUT', kind: 'sdi' }, { id: 'lan', label: 'LAN (제어/NDI)', kind: 'eth' }],
+    info: '카메라맨 없이 원격으로 좌우(Pan)·상하(Tilt)·확대(Zoom)를 조종하는 카메라입니다. 미리 저장한 위치(프리셋)를 불러와 한 사람이 여러 대를 운영할 수 있어 교회·강의실·회의실 중계에 많이 씁니다.',
+  },
+  atem_pro: {
+    name: 'ATEM Mini Pro', model: '스트리밍·녹화 내장 스위처', icon: Tv, w: 230,
+    ins: [1, 2, 3, 4].map((n) => ({ id: `in${n}`, label: `HDMI IN ${n}`, kind: 'hdmi' })).concat([{ id: 'mic1', label: 'MIC 1', kind: 'mini' }, { id: 'mic2', label: 'MIC 2', kind: 'mini' }]),
+    outs: [{ id: 'usb', label: 'USB-C (웹캠/녹화)', kind: 'usb' }, { id: 'eth', label: 'ETHERNET (스트리밍)', kind: 'eth' }, { id: 'hdmiout', label: 'HDMI OUT (멀티뷰)', kind: 'hdmi' }],
+    info: 'ATEM Mini에 인터넷 직접 송출(ETHERNET), USB 디스크 녹화, 멀티뷰 출력이 더해진 모델입니다. PC 없이도 유튜브로 바로 방송할 수 있고, HDMI OUT에 모니터를 연결하면 모든 입력과 PVW/PGM을 한 화면에서 볼 수 있습니다.',
   },
   pc: {
     name: '스트리밍 PC', model: 'OBS Studio', icon: Monitor, w: 230, statusH: 98,

@@ -3,9 +3,9 @@
  * kind: 'device'(3D 장비 뷰어) · 'cable'(3D 커넥터) · 'concept'(그림 설명)
  * ===================================================================== */
 
-export const EDU_CATEGORIES = ['마이크', '믹서', '스피커', '영상', '송출', '케이블', '기초 개념'];
+export const EDU_CATEGORIES = ['마이크', '음향 장비', '카메라', 'ATEM · 스위처', '송출', '케이블', '기초 개념'];
 
-export const EDU_ITEMS = [
+const BASE_ITEMS = [
   /* ---------------------------- 마이크 ---------------------------- */
   {
     id: 'dynamic_mic', cat: '마이크', kind: 'device', type: 'dynamic_mic',
@@ -42,7 +42,7 @@ export const EDU_ITEMS = [
 
   /* ---------------------------- 믹서 ---------------------------- */
   {
-    id: 'analog_mixer', cat: '믹서', kind: 'device', type: 'analog_mixer',
+    id: 'analog_mixer', cat: '음향 장비', kind: 'device', type: 'analog_mixer',
     title: '아날로그 믹서', subtitle: 'Analog Mixing Console',
     summary: '여러 소리를 모아 크기와 음색을 다듬은 뒤 하나로 내보내는 장비. 노브 하나가 기능 하나라 원리를 배우기 좋습니다.',
     how: [
@@ -58,7 +58,7 @@ export const EDU_ITEMS = [
     stage: 2,
   },
   {
-    id: 'digital_mixer', cat: '믹서', kind: 'device', type: 'digital_mixer',
+    id: 'digital_mixer', cat: '음향 장비', kind: 'device', type: 'digital_mixer',
     title: '디지털 믹서', subtitle: 'Digital Console · 예: Behringer X32 / Midas M32',
     summary: '소리를 디지털로 처리하는 믹서. 장면 저장, 다채널 USB 녹음, 자유로운 라우팅이 가능하지만 "패치"를 알아야 소리가 납니다.',
     how: [
@@ -76,7 +76,7 @@ export const EDU_ITEMS = [
 
   /* ---------------------------- 스피커 ---------------------------- */
   {
-    id: 'speaker', cat: '스피커', kind: 'device', type: 'speaker',
+    id: 'speaker', cat: '음향 장비', kind: 'device', type: 'speaker',
     title: '액티브 스피커', subtitle: 'Powered PA Speaker',
     summary: '앰프가 내장된 스피커. 믹서의 라인 레벨 신호를 받아 큰 소리로 바꿔 청중에게 들려줍니다.',
     how: [
@@ -94,7 +94,7 @@ export const EDU_ITEMS = [
 
   /* ---------------------------- 영상 ---------------------------- */
   {
-    id: 'camera', cat: '영상', kind: 'device', type: 'camera',
+    id: 'camera', cat: '카메라', kind: 'device', type: 'camera',
     title: '방송용 카메라', subtitle: 'Camcorder · 탈리 램프',
     summary: '피사체를 촬영해 HDMI(또는 SDI)로 영상을 내보내는 장비. 탈리 램프로 송출 상태를 알려줍니다.',
     how: [
@@ -110,7 +110,7 @@ export const EDU_ITEMS = [
     stage: 3,
   },
   {
-    id: 'atem', cat: '영상', kind: 'device', type: 'atem',
+    id: 'atem', cat: 'ATEM · 스위처', kind: 'device', type: 'atem',
     title: '비디오 스위처', subtitle: 'Video Switcher · 예: Blackmagic ATEM Mini',
     summary: '여러 카메라 중 지금 내보낼 화면을 고르는 장비. 영상의 믹서라고 생각하면 됩니다.',
     how: [
@@ -262,7 +262,7 @@ export const EDU_ITEMS = [
     quiz: { q: '하울링을 줄이는 방법이 아닌 것은?', options: ['스피커를 마이크 뒤쪽(앞을 향하게)으로 옮긴다', '문제 주파수를 EQ로 깎는다', '마이크를 스피커 쪽으로 돌린다'], answer: 2, explain: '마이크가 스피커를 향하면 피드백 루프가 더 강해집니다.' },
   },
   {
-    id: 'pgmpvw', cat: '기초 개념', kind: 'concept', concept: 'pgmpvw',
+    id: 'pgmpvw', cat: 'ATEM · 스위처', kind: 'concept', concept: 'pgmpvw',
     title: 'PGM과 PVW', subtitle: 'Program / Preview',
     summary: '영상 스위칭의 기본. 지금 나가는 화면(PGM)과 다음에 나갈 화면(PVW)을 따로 관리합니다.',
     how: [
@@ -275,3 +275,180 @@ export const EDU_ITEMS = [
     quiz: { q: 'AUTO 버튼의 역할은?', options: ['PGM과 PVW를 효과와 함께 맞바꾼다', '녹화를 시작한다', '오디오를 음소거한다'], answer: 0, explain: 'AUTO는 디졸브 등 전환 효과로 PVW 화면을 PGM으로 보냅니다.' },
   },
 ];
+
+/* ---------------------------- 추가 장비 / 개념 ---------------------------- */
+const MORE_ITEMS = [
+  {
+    id: 'wireless_mic', cat: '마이크', kind: 'device', type: 'wireless_mic',
+    title: '무선 마이크 시스템', subtitle: 'Wireless Microphone · UHF 송신기 + 수신기',
+    summary: '선 없이 움직이며 말할 수 있는 마이크. 송신기가 소리를 전파로 보내고 수신기가 받아 믹서로 넘깁니다.',
+    how: [
+      '핸드헬드(또는 벨트팩) 송신기가 마이크 소리를 UHF 전파(RF)에 실어 보냅니다.',
+      '수신기는 같은 주파수(채널)로 맞춰져 있어야 신호를 받습니다. 받은 소리는 AF OUT(XLR)으로 믹서에 들어갑니다.',
+      '안테나 두 개로 더 강한 신호를 골라 받는 "다이버시티" 방식이 끊김을 줄입니다. 수신기 화면의 RF 막대가 전파 세기, AF 막대가 소리 크기입니다.',
+    ],
+    specs: [['전송', 'UHF 전파 (예: 500~600 MHz대)'], ['출력', 'AF OUT XLR (마이크/라인)'], ['전원', 'AA 배터리 또는 충전식'], ['확인', 'RF · AF · 배터리 · 채널']],
+    tips: ['행사 전에 새 배터리로 교체하고, 예비 배터리를 꼭 준비하세요.', '여러 대를 쓸 때는 수신기의 자동 스캔으로 겹치지 않는 채널을 고릅니다.', '수신기 안테나는 가리지 말고 무대가 보이는 곳에 둡니다.'],
+    mistakes: ['송신기와 수신기 채널이 달라 소리가 안 남', '배터리 잔량을 확인하지 않아 행사 중 꺼짐', '두 마이크가 같은 주파수를 써서 서로 간섭'],
+    where: '행사 MC, 강연, 공연 보컬, 예배, 방송 진행',
+    quiz: { q: '무선 마이크 수신기에서 RF 막대가 거의 비어 있습니다. 무엇을 뜻할까요?', options: ['소리가 너무 크다', '전파 신호가 약하거나 송신기가 꺼져 있다', 'XLR 케이블이 길다'], answer: 1, explain: 'RF는 전파 세기입니다. 송신기 전원, 거리, 채널, 안테나 상태를 확인하세요.' },
+  },
+  {
+    id: 'audio_interface', cat: '음향 장비', kind: 'device', type: 'audio_interface',
+    title: '오디오 인터페이스', subtitle: 'Audio Interface · 예: Focusrite Scarlett 2i2',
+    summary: '마이크와 악기를 PC에 연결해 주는 고음질 외장 사운드카드. 1인 방송, 팟캐스트, 홈레코딩의 핵심 장비입니다.',
+    how: [
+      '마이크 프리앰프(GAIN)로 작은 마이크 신호를 키운 뒤, AD 변환기가 디지털로 바꿔 USB로 PC에 보냅니다.',
+      '반대로 PC의 소리는 DA 변환기가 아날로그로 바꿔 MONITOR(스피커)와 HEADPHONES로 내보냅니다.',
+      'GAIN 노브 주변의 링(헤일로)이 초록이면 적당, 주황이면 큼, 빨강이면 클리핑입니다. 콘덴서 마이크용 +48V, 기타용 INST 버튼이 있습니다.',
+    ],
+    specs: [['입력', 'XLR/TRS 콤보 ×2 (마이크/라인/악기)'], ['출력', 'USB-C, MONITOR L/R, 헤드폰'], ['변환', '24bit / 48~192kHz'], ['기능', '+48V, INST, 다이렉트 모니터']],
+    tips: ['말할 때 링이 초록과 주황 사이에서 깜빡이는 정도로 GAIN을 맞추세요.', '"다이렉트 모니터"를 켜면 PC를 거치지 않고 내 목소리를 지연 없이 들을 수 있습니다.', 'OBS·DAW에서 입력 장치를 인터페이스로 선택해야 합니다.'],
+    mistakes: ['콘덴서 마이크를 연결하고 48V를 켜지 않음', '기타를 연결하고 INST를 켜지 않아 소리가 작고 탁함', 'PC 내장 사운드로 출력 장치를 둬서 헤드폰에 소리가 안 나옴'],
+    where: '1인 방송·유튜브, 팟캐스트, 홈레코딩, 온라인 강의',
+    quiz: { q: '오디오 인터페이스의 GAIN 링이 빨갛게 켜집니다. 어떻게 해야 할까요?', options: ['GAIN을 낮춘다', '48V를 켠다', '모니터 볼륨을 올린다'], answer: 0, explain: '빨강은 입력이 너무 커서 찌그러진다는 뜻입니다. GAIN을 낮춰 초록~주황으로 맞춥니다.' },
+  },
+  {
+    id: 'di_box', cat: '음향 장비', kind: 'device', type: 'di_box',
+    title: 'DI 박스', subtitle: 'Direct Injection Box',
+    summary: '기타·키보드 같은 악기 신호를 믹서의 마이크 입력에 깨끗하게 넣어 주는 작은 변환 상자입니다.',
+    how: [
+      '악기 출력은 언밸런스드(TS)이고 임피던스가 높아, 긴 케이블을 쓰면 잡음이 늘고 고음이 줄어듭니다.',
+      'DI 박스가 이것을 밸런스드 마이크 레벨(XLR)로 바꿔 무대에서 믹서까지 수십 미터를 깨끗하게 보냅니다.',
+      'GROUND LIFT는 "웅—" 하는 험(접지 루프) 잡음을 끊고, PAD는 너무 큰 신호를 줄입니다. THRU 단자로는 원래 신호를 앰프에 보낼 수 있습니다.',
+    ],
+    specs: [['입력', 'TS (악기/라인)'], ['출력', 'XLR (밸런스드, 마이크 레벨)'], ['스위치', 'GROUND LIFT, PAD'], ['종류', '패시브 / 액티브(팬텀 전원 사용)']],
+    tips: ['험 잡음이 들리면 GROUND LIFT를 눌러 보세요.', '액티브 DI는 믹서의 +48V로 동작합니다.'],
+    mistakes: ['악기를 긴 TS 케이블로 믹서까지 바로 연결해 잡음 발생'],
+    where: '공연 무대의 기타·베이스·키보드, 노트북 음원 연결',
+    quiz: { q: 'DI 박스가 하는 일은?', options: ['영상 신호를 SDI로 바꾼다', '악기의 언밸런스드 신호를 밸런스드 XLR로 바꾼다', '무선 신호를 증폭한다'], answer: 1, explain: '악기 신호를 밸런스드 마이크 레벨로 바꿔 긴 거리도 깨끗하게 보냅니다.' },
+  },
+  {
+    id: 'headphones', cat: '음향 장비', kind: 'device', type: 'headphones',
+    title: '모니터 헤드폰', subtitle: 'Monitoring Headphones · 밀폐형',
+    summary: '방송에 나가는 소리를 운영자가 정확히 확인하는 도구. "귀로 확인하지 않은 소리는 내보내지 않는다"가 원칙입니다.',
+    how: [
+      '밀폐형(Closed-back)은 바깥 소리를 막고 소리가 새지 않아, 마이크 근처나 시끄러운 현장에서 씁니다.',
+      '믹서의 PHONES 출력이나 오디오 인터페이스의 헤드폰 단자(6.3mm TRS)에 연결합니다.',
+      '믹서의 PFL/SOLO 버튼으로 특정 채널만 골라 들으면 문제 채널을 빨리 찾을 수 있습니다.',
+    ],
+    specs: [['형식', '밀폐형 (차음 · 누음 적음)'], ['단자', '6.3mm / 3.5mm TRS'], ['특성', '평탄한 주파수 응답'], ['용도', '송출음 확인 · 문제 채널 찾기']],
+    tips: ['볼륨을 너무 크게 하지 말고 장시간 쓸 때는 쉬어 가며 들으세요.', '송출 PC의 소리를 따로 들으면 시청자가 듣는 소리를 그대로 확인할 수 있습니다.'],
+    mistakes: ['스피커 소리만 듣고 방송 송출음을 확인하지 않음'],
+    where: '방송 운영석, 녹음실, 공연 FOH, 1인 방송',
+    quiz: { q: '방송 운영자가 밀폐형 헤드폰을 쓰는 이유는?', options: ['멋있어서', '바깥 소리를 막고 소리가 새지 않아 송출음을 정확히 듣기 위해', '무선이라서'], answer: 1, explain: '밀폐형은 차음이 좋아 현장 소음 속에서도 송출되는 소리를 정확히 확인할 수 있습니다.' },
+  },
+  {
+    id: 'mirrorless', cat: '카메라', kind: 'device', type: 'mirrorless',
+    title: '미러리스 카메라', subtitle: 'Mirrorless Camera · 렌즈 교환식',
+    summary: '큰 이미지 센서와 교환 렌즈로 배경이 부드럽게 흐려지는 영상을 만듭니다. 1인 방송과 인터뷰 촬영에서 인기가 많습니다.',
+    how: [
+      '센서가 커서 어두운 곳에 강하고, 조리개를 열면(f값을 낮추면) 배경이 흐려지는 얕은 심도를 얻습니다.',
+      '스위처에 연결하려면 HDMI 출력에서 촬영 정보(배터리, ISO 등)를 숨기는 "클린 HDMI"를 켜야 합니다.',
+      '장시간 방송에서는 배터리 대신 전원 어댑터(더미 배터리)를 쓰고, 발열로 꺼지지 않는지 확인합니다.',
+    ],
+    specs: [['출력', 'HDMI (마이크로·미니·풀 사이즈)'], ['렌즈', '교환식 · 단렌즈/줌렌즈'], ['방송 설정', '클린 HDMI, 자동 꺼짐 해제'], ['전원', '더미 배터리 / USB-PD']],
+    tips: ['카메라의 자동 전원 꺼짐과 화면 정보 표시를 끄세요.', '얼굴 인식 자동 초점(AF)을 켜면 진행자가 움직여도 초점이 따라갑니다.'],
+    mistakes: ['클린 HDMI를 안 켜서 방송 화면에 배터리 표시와 초점 상자가 나감', '30분 뒤 녹화 제한이나 발열로 카메라가 꺼짐'],
+    where: '1인 방송, 인터뷰, 강의 촬영, 소규모 라이브',
+    quiz: { q: '미러리스 카메라를 ATEM에 연결했더니 화면에 배터리 표시가 같이 나옵니다. 무엇을 켜야 할까요?', options: ['클린 HDMI 출력', '손떨림 보정', '타임랩스'], answer: 0, explain: '클린 HDMI를 켜면 촬영 정보 없이 깨끗한 영상만 출력됩니다.' },
+  },
+  {
+    id: 'ptz', cat: '카메라', kind: 'device', type: 'ptz',
+    title: 'PTZ 카메라', subtitle: 'Pan · Tilt · Zoom Remote Camera',
+    summary: '리모컨이나 프로그램으로 방향과 확대를 조종하는 카메라. 한 사람이 여러 대를 운영할 수 있습니다.',
+    how: [
+      'Pan은 좌우 회전, Tilt는 위아래 회전, Zoom은 확대·축소입니다. 모터가 카메라 머리를 움직입니다.',
+      '자주 쓰는 구도를 프리셋(1, 2, 3…)으로 저장해 두고 버튼 하나로 불러옵니다.',
+      'HDMI/SDI로 영상을 보내고, LAN 케이블로 원격 제어나 NDI(네트워크 영상) 전송을 합니다.',
+    ],
+    specs: [['조작', 'Pan · Tilt · Zoom · 프리셋'], ['영상 출력', 'HDMI, SDI, NDI(LAN)'], ['제어', 'IP(LAN), RS-232/422, 조이스틱'], ['설치', '천장·벽·삼각대']],
+    tips: ['송출 중(빨간 탈리)인 PTZ 카메라는 움직이지 말고, 대기(PVW) 카메라를 움직여 구도를 잡은 뒤 전환하세요.', '프리셋 이동 속도를 느리게 하면 화면에 움직임이 나가도 자연스럽습니다.'],
+    mistakes: ['PGM으로 나가는 중인 카메라를 급하게 움직여 시청자가 어지러움을 느낌'],
+    where: '교회·강당 중계, 강의실, 회의실, 원격 스튜디오',
+    quiz: { q: 'PTZ에서 "Tilt"는 무엇을 뜻할까요?', options: ['좌우 회전', '위아래 회전', '확대·축소'], answer: 1, explain: 'Pan = 좌우, Tilt = 위아래, Zoom = 확대·축소입니다.' },
+  },
+  {
+    id: 'camsettings', cat: '카메라', kind: 'concept', concept: 'camsettings',
+    title: '노출과 화이트밸런스', subtitle: '조리개 · 셔터 · ISO · 색온도',
+    summary: '영상의 밝기와 색을 결정하는 네 가지 설정. 여러 카메라를 같은 값으로 맞춰야 전환해도 화면이 튀지 않습니다.',
+    how: [
+      '조리개(f값): 숫자가 작을수록 빛이 많이 들어와 밝아지고 배경이 흐려집니다.',
+      '셔터 속도: 느릴수록 밝아지지만 움직임이 번집니다. 30p 영상은 보통 1/60초(프레임레이트의 2배)를 씁니다.',
+      'ISO: 높이면 밝아지지만 노이즈(자글자글함)가 늘어납니다. 화이트밸런스는 조명 색(실내 3200K, 햇빛 5600K)에 맞춰 흰색이 흰색으로 보이게 합니다.',
+    ],
+    tips: ['먼저 셔터 속도를 정하고, 조명과 조리개로 밝기를 맞춘 뒤, 마지막으로 ISO를 조절하세요.', '모든 카메라의 화이트밸런스를 같은 K값으로 수동 고정하세요.'],
+    mistakes: ['자동 화이트밸런스로 두어 카메라마다 색이 다르게 나옴', '어둡다고 ISO만 크게 올려 노이즈가 심해짐'],
+    quiz: { q: '30p로 촬영할 때 일반적으로 권장하는 셔터 속도는?', options: ['1/30초', '1/60초', '1/2000초'], answer: 1, explain: '프레임레이트의 2배(180도 셔터 규칙)인 1/60초가 자연스러운 움직임을 만듭니다.' },
+  },
+  {
+    id: 'atem_pro', cat: 'ATEM · 스위처', kind: 'device', type: 'atem_pro',
+    title: 'ATEM Mini Pro', subtitle: 'Blackmagic Design · 스트리밍·녹화 내장',
+    summary: 'PC 없이도 유튜브로 바로 송출하고 USB 디스크에 녹화할 수 있는 스위처. HDMI OUT에는 멀티뷰 화면을 띄울 수 있습니다.',
+    how: [
+      'ETHERNET 단자를 인터넷에 연결하고 ATEM Software Control에서 플랫폼과 스트림 키를 입력하면, ON AIR 버튼으로 바로 송출합니다.',
+      'USB-C에 외장 SSD를 꽂으면 방송을 그대로 녹화하고, PC에 꽂으면 웹캠으로도 쓸 수 있습니다.',
+      'HDMI OUT을 "멀티뷰"로 설정하면 입력 4개, PVW, PGM, 오디오 미터, 송출 상태를 한 화면에서 봅니다. MIC 1·2(3.5mm)로 마이크도 바로 넣을 수 있습니다.',
+      'PIP(화면 속 화면)·업스트림 키어로 슬라이드 위에 진행자 얼굴을 작게 띄울 수 있습니다.',
+    ],
+    specs: [['입력', 'HDMI ×4, 3.5mm MIC ×2'], ['출력', 'HDMI(멀티뷰/PGM), USB-C'], ['송출', 'ETHERNET 직접 스트리밍 (RTMP)'], ['기능', 'PIP, 키어, 매크로, 녹화']],
+    tips: ['송출 전에 멀티뷰에서 모든 입력이 들어오는지 확인하세요.', '자주 쓰는 PIP 구성은 매크로로 저장해 버튼 하나로 부릅니다.', '오디오는 ATEM 내장 Fairlight 믹서에서 입력별 레벨을 맞춥니다.'],
+    mistakes: ['ON AIR 버튼을 눌렀는데 인터넷이 연결되지 않아 송출 실패', '녹화용 USB 디스크를 포맷하지 않아 REC가 안 됨'],
+    where: '교회·학교 생중계, 웨비나, 소규모 라이브 커머스',
+    quiz: { q: 'ATEM Mini Pro가 PC 없이 유튜브로 송출할 때 쓰는 단자는?', options: ['HDMI OUT', 'ETHERNET', 'MIC 1'], answer: 1, explain: 'ETHERNET으로 인터넷에 연결해 RTMP 스트리밍을 직접 합니다.' },
+    stage: 3,
+  },
+  {
+    id: 'multiview', cat: 'ATEM · 스위처', kind: 'concept', concept: 'multiview',
+    title: '멀티뷰', subtitle: 'Multiview Monitoring',
+    summary: '모든 카메라 입력과 PVW·PGM을 한 화면에 모아 보는 모니터 화면. 스위처 운영자의 계기판입니다.',
+    how: [
+      '위쪽 큰 화면은 PVW(초록 테두리, 다음 화면)와 PGM(빨간 테두리, 송출 중)입니다.',
+      '아래 작은 화면은 각 입력입니다. 송출 중인 입력은 빨간 테두리, 대기 중인 입력은 초록 테두리로 표시됩니다(탈리).',
+      '입력 화면을 보고 다음 장면을 고르고, PVW에서 확인한 뒤 CUT이나 AUTO로 내보냅니다.',
+    ],
+    tips: ['멀티뷰 모니터는 운영자 정면, 눈높이에 두세요.'],
+    mistakes: ['PGM만 보고 운영해 다음 카메라 구도를 준비하지 못함'],
+    quiz: { q: '멀티뷰에서 빨간 테두리로 표시된 입력은?', options: ['지금 송출 중인 입력', '신호가 끊긴 입력', '녹화 중인 입력'], answer: 0, explain: '빨강은 PGM(송출 중), 초록은 PVW(대기 중)입니다.' },
+  },
+  {
+    id: 'transitions', cat: 'ATEM · 스위처', kind: 'concept', concept: 'transitions',
+    title: '전환 효과와 PIP', subtitle: 'CUT · MIX · DIP · WIPE · Picture in Picture',
+    summary: '화면을 바꾸는 방법과 화면 위에 다른 화면을 겹치는 방법. 내용의 흐름에 맞는 전환을 고르는 것이 연출입니다.',
+    how: [
+      'CUT: 즉시 바뀝니다. 대화·인터뷰처럼 빠른 흐름에 씁니다.',
+      'MIX(디졸브): 두 화면이 겹치며 천천히 바뀝니다. 장면이나 시간의 변화를 부드럽게 보여 줍니다.',
+      'DIP: 검정(또는 색)으로 잠깐 사라졌다가 나타납니다. 코너가 바뀔 때 씁니다. WIPE: 선이 지나가며 화면을 밀어냅니다.',
+      'PIP(화면 속 화면): 슬라이드 위에 진행자 얼굴을 작게 띄웁니다. ATEM에서는 업스트림 키어/DVE로 만듭니다.',
+    ],
+    tips: ['한 방송 안에서는 전환 효과를 1~2가지로 통일하면 깔끔합니다.'],
+    mistakes: ['모든 전환에 화려한 WIPE를 써서 산만해짐'],
+    quiz: { q: '두 화면이 서서히 겹치며 바뀌는 전환은?', options: ['CUT', 'MIX(디졸브)', 'DIP'], answer: 1, explain: 'MIX는 두 화면을 겹쳐 부드럽게 바꿉니다.' },
+  },
+  {
+    id: 'levels', cat: '기초 개념', kind: 'concept', concept: 'levels',
+    title: '신호 레벨', subtitle: '마이크 · 악기 · 라인 · 스피커 레벨',
+    summary: '장비마다 내보내는 소리 신호의 크기가 다릅니다. 레벨이 맞는 단자에 연결해야 소리가 너무 작거나 찌그러지지 않습니다.',
+    how: [
+      '마이크 레벨(약 -50 dBu)은 가장 작아서 프리앰프(GAIN)로 크게 키워야 합니다. 그래서 믹서·오디오 인터페이스의 MIC 입력을 씁니다.',
+      '악기 레벨은 마이크보다 크지만 임피던스가 높아 INST 입력이나 DI 박스가 필요합니다.',
+      '라인 레벨은 장비 사이의 표준 크기입니다. 프로 장비는 +4 dBu, PC·가정용 기기는 -10 dBV를 씁니다. 스피커 레벨은 앰프에서 나온 큰 전력으로, 스피커에만 연결합니다.',
+    ],
+    tips: ['PC나 키보드처럼 라인 레벨 장비를 MIC 입력에 넣었다면 GAIN을 거의 0으로 내리거나 PAD를 쓰세요.'],
+    mistakes: ['라인 레벨 출력을 마이크 입력에 넣어 소리가 찌그러짐', '파워앰프 스피커 출력을 믹서 입력에 연결 (장비 고장 위험)'],
+    quiz: { q: '가장 작은 신호 레벨은?', options: ['라인 레벨', '마이크 레벨', '스피커 레벨'], answer: 1, explain: '마이크 레벨이 가장 작아 프리앰프로 수십 dB를 키워야 합니다.' },
+  },
+];
+
+// 배우기 좋은 순서 (목록 표시와 이전/다음 이동 순서가 같다)
+const ORDER = [
+  'dynamic_mic', 'condenser_mic', 'wireless_mic',
+  'audio_interface', 'di_box', 'analog_mixer', 'digital_mixer', 'speaker', 'headphones',
+  'camera', 'mirrorless', 'ptz', 'camsettings',
+  'atem', 'pgmpvw', 'atem_pro', 'multiview', 'transitions',
+  'pc',
+  'cable_xlr', 'cable_trs', 'cable_hdmi', 'cable_sdi', 'cable_usb',
+  'flow', 'levels', 'gain', 'feedback',
+];
+const ALL = Object.fromEntries([...BASE_ITEMS, ...MORE_ITEMS].map((x) => [x.id, x]));
+export const EDU_ITEMS = ORDER.map((id) => ALL[id]);

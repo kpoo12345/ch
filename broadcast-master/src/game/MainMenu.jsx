@@ -16,7 +16,7 @@ function MenuBackdrop() {
   const sig = useMemo(() => computeSignal(st, true), []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Studio3D
-      stageId="studio" layoutKey="sandbox" interactive={false} autoRotate
+      stageId="studio" layoutKey="sandbox" interactive={false} autoRotate fallback={null}
       devices={sys.devices} connections={sys.connections} mixer={sys.mixer} speaker={sys.speaker} atem={sys.atem} obs={sys.obs}
       actual={sig} nominal={sig} talking jitter={-4} viewers={1280}
       pending={null} selectedCable={null} selectedDevice={null} labels={false} resetKey="menu"
@@ -36,7 +36,7 @@ export default function MainMenu({ onSelect }) {
   const modes = [
     {
       key: 'edu', step: 1, icon: BookOpen, title: '교육 모드', tag: '장비 백과',
-      desc: '마이크, 믹서, 스피커, 카메라, 스위처, 케이블을 3D로 돌려 보고 원리와 단자를 배웁니다. 노브와 페이더를 직접 움직여 보고 퀴즈로 확인하세요.',
+      desc: '마이크·오디오 인터페이스·믹서부터 미러리스·PTZ 카메라, ATEM 스위처, 케이블까지 3D로 돌려 보고 원리와 단자를 배웁니다. 직접 만져 보고 퀴즈로 확인하세요.',
       progress: `이해도 체크 ${quiz}/${EDU_ITEMS.length}`, cls: 'from-emerald-600/90 to-emerald-900/90 border-emerald-400', btn: 'bg-emerald-500 text-slate-950',
     },
     {

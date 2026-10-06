@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useCallback } from 'react';
-import { AlertCircle, Monitor, User, Users } from 'lucide-react';
+import { AlertCircle, Monitor, User, Users, Presentation } from 'lucide-react';
 import { clamp } from './engine.js';
 
 /* =====================================================================
@@ -136,6 +136,7 @@ export function Scene({ src, label = true, fade }) {
     cam1: { cls: 'bg-gradient-to-br from-sky-700 via-indigo-800 to-slate-900', icon: User, text: '진행자 클로즈업' },
     cam2: { cls: 'bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-900', icon: Users, text: '스튜디오 와이드샷' },
     facecam: { cls: 'bg-gradient-to-br from-stone-500 to-stone-800', icon: Monitor, text: 'PC 내장 웹캠 (저화질)' },
+    slides: { cls: 'bg-slate-100', icon: Presentation, text: 'PC 슬라이드', dark: true },
     black: { cls: 'bg-black', icon: null, text: 'PGM: BLACK' },
     nosignal: { cls: 'bg-slate-950', icon: AlertCircle, text: 'NO SIGNAL' },
     none: { cls: 'bg-slate-950', icon: null, text: '영상 소스 없음' },
@@ -144,16 +145,12 @@ export function Scene({ src, label = true, fade }) {
   const Icon = s.icon;
   return (
     <div className={`relative w-full h-full flex flex-col items-center justify-center ${s.cls} transition-opacity duration-500 ${fade ? 'opacity-40' : 'opacity-100'}`}>
-      {Icon && <Icon className="text-white/80" size={label ? 28 : 16} />}
-      {label && <span className="text-[10px] text-white/70 mt-1">{s.text}</span>}
+      {Icon && <Icon className={s.dark ? 'text-blue-800' : 'text-white/80'} size={label ? 28 : 16} />}
+      {label && <span className={`text-[10px] mt-1 ${s.dark ? 'text-slate-700' : 'text-white/70'}`}>{s.text}</span>}
       {src === 'cam1' || src === 'cam2' ? <span className="absolute bottom-1 left-1.5 text-[8px] text-white/60 font-mono">● REC</span> : null}
     </div>
   );
 }
-
-/* =====================================================================
- * 메인 컴포넌트
- * ===================================================================== */
 
 // 진도 저장 (브라우저 저장소, 실패해도 게임은 정상 동작)
 export const loadProgress = (key, fallback) => {

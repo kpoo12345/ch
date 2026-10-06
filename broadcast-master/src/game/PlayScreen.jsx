@@ -9,7 +9,7 @@ import {
 import {
   CANVAS_W, CANVAS_H, HEADER_H, ROW_H, CABLES, PORT_ACCEPTS, PORT_KIND_LABEL, PORT_COLOR, MISMATCH_TIP, DEVICE_TYPES, deviceRows, deviceHeight, portPos, findPort, faderDb, fmtDb, clamp, conn, FAULTS, buildStage, computeSignal, buildTrace, faultFixed, STAGES, CHAT_BAD, CHAT_GOOD, CHAT_NAMES,
 } from './engine.js';
-import Studio3D from './Studio3D.jsx';
+import Studio3D, { hasWebGL, NoWebGL } from './Studio3D.jsx';
 import { useSfx, Meter, Slider, ToggleBtn, Section, Scene, loadProgress, saveProgress } from './ui.jsx';
 import { buildFullSystem, SANDBOX_CABLES } from './engine.js';
 
@@ -46,7 +46,7 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
   const [viewers, setViewers] = useState(0);
   const [chat, setChat] = useState([]);
   const [scale, setScale] = useState(0.8);
-  const [view, setView] = useState('3d');
+  const [view, setView] = useState(() => (hasWebGL() ? '3d' : '2d'));
   const [showLabels, setShowLabels] = useState(true);
   const [camReset, setCamReset] = useState(0);
   const [focusReq, setFocusReq] = useState(null);
@@ -972,6 +972,7 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
                 pending={pending} selectedCable={selectedCable} selectedDevice={selectedDevice} labels={showLabels} resetKey={`${currentStage}-${camReset}`} focusRequest={focusReq}
                 onPortClick={handlePortClick} onSelectDevice={setSelectedDevice} onDisconnect={disconnect}
                 onPlace={placeDevice} onCancelPending={() => setPending(null)}
+                fallback={<NoWebGL hint="위쪽의 '배선도' 탭을 누르면 같은 게임을 2D 배선도로 계속할 수 있습니다." />}
               />
               <div className="pointer-events-none absolute bottom-2 left-3 right-3 text-[11px] text-slate-400 drop-shadow">
                 드래그: 회전 · 휠/핀치: 확대 · 장비 더블클릭: 가까이 보기 · 단자 클릭 → 반대쪽 단자 클릭: 연결 · 케이블 클릭: 분리

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, BookOpen, CheckCircle2, XCircle, Lightbulb, AlertTriangle, MapPin, Cpu, Plug, Play,
-  Mic, SlidersHorizontal, Speaker, Video, MonitorPlay, Cable, GraduationCap, ArrowRight,
+  Mic, SlidersHorizontal, Camera, Tv, MonitorPlay, Cable, GraduationCap, ArrowRight,
 } from 'lucide-react';
 import { DEVICE_TYPES, PORT_KIND_LABEL, PORT_COLOR, CABLES, MIXER_DEFAULT, MIC_LEVEL, faderDb, fmtDb } from './engine.js';
 import { EquipmentViewer, CableShowcase } from './Studio3D.jsx';
@@ -12,7 +12,7 @@ import { EDU_CATEGORIES, EDU_ITEMS } from './eduContent.js';
  * 교육 모드 — 장비를 3D로 돌려 보고, 직접 만져 보고, 퀴즈로 확인한다
  * ===================================================================== */
 
-const CAT_ICON = { 마이크: Mic, 믹서: SlidersHorizontal, 스피커: Speaker, 영상: Video, 송출: MonitorPlay, 케이블: Cable, '기초 개념': GraduationCap };
+const CAT_ICON = { 마이크: Mic, '음향 장비': SlidersHorizontal, 카메라: Camera, 'ATEM · 스위처': Tv, 송출: MonitorPlay, 케이블: Cable, '기초 개념': GraduationCap };
 
 const DEMO_DEFAULT = {
   talking: true,
@@ -20,7 +20,18 @@ const DEMO_DEFAULT = {
   power: true, feedback: false, tally: 'pgm',
   atem: { program: 1, preview: 2, transitioning: false },
   obsVideo: 'cam1', streaming: true,
+  // 오디오 인터페이스
+  inst: false, air: false, monitor: 60, direct: true,
+  // 무선 마이크
+  txPower: true, rf: 80, battery: 70, channel: 3,
+  // DI 박스
+  groundLift: false, pad: false,
+  // 카메라 (미러리스 / PTZ)
+  clean: false, rec: true, zoom: 0.3, pan: 0, tilt: 0,
+  // ATEM Mini Pro
+  pip: false, recording: false,
 };
+const PTZ_PRESETS = { 1: { pan: 0, tilt: 0, zoom: 0.2, name: '정면 와이드' }, 2: { pan: -35, tilt: 8, zoom: 0.8, name: '진행자 클로즈업' }, 3: { pan: 40, tilt: -6, zoom: 0.5, name: '객석' } };
 
 /* ---------------------------- 체험 컨트롤 ---------------------------- */
 function DemoControls({ type, demo, set }) {
@@ -113,6 +124,109 @@ function DemoControls({ type, demo, set }) {
           ))}
           <ToggleBtn on={demo.streaming} onClick={() => set({ ...demo, streaming: !demo.streaming })}>LIVE</ToggleBtn>
           {talk}
+        </div>
+      );
+    case 'audio_interface':
+      return (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {talk}
+            <ToggleBtn on={demo.mixer.phantom} color="amber" onClick={() => mix('phantom', !demo.mixer.phantom)}>+48V</ToggleBtn>
+            <ToggleBtn on={demo.inst} onClick={() => set({ ...demo, inst: !demo.inst })}>INST (악기)</ToggleBtn>
+            <ToggleBtn on={demo.air} color="amber" onClick={() => set({ ...demo, air: !demo.air })}>AIR</ToggleBtn>
+            <ToggleBtn on={demo.direct} color="green" onClick={() => set({ ...demo, direct: !demo.direct })}>다이렉트 모니터</ToggleBtn>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Slider id="edu-ai-gain" label="GAIN (링 색이 바뀝니다)" value={demo.mixer.gain} min={0} max={60} onChange={(v) => mix('gain', v)} display={`+${demo.mixer.gain} dB`} accent="accent-red-400" />
+            <Slider id="edu-ai-mon" label="MONITOR (스피커/헤드폰 볼륨)" value={demo.monitor} min={0} max={100} onChange={(v) => set({ ...demo, monitor: v })} display={`${demo.monitor}%`} />
+          </div>
+          <p className="text-xs text-slate-400">GAIN 링: <span className="text-green-400">초록 = 적당</span> · <span className="text-amber-300">주황 = 큼</span> · <span className="text-red-400">빨강 = 클리핑</span></p>
+        </div>
+      );
+    case 'wireless_mic':
+      return (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <ToggleBtn on={demo.txPower} color="green" onClick={() => set({ ...demo, txPower: !demo.txPower })}>송신기 전원</ToggleBtn>
+            {talk}
+            <label htmlFor="edu-ch" className="text-xs text-slate-400 flex items-center gap-1.5">채널
+              <select id="edu-ch" value={demo.channel} onChange={(e) => set({ ...demo, channel: Number(e.target.value) })}
+                className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-100">
+                {[1, 2, 3, 4].map((c) => <option key={c} value={c}>CH {c}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Slider id="edu-rf" label="전파 세기 (거리·장애물)" value={demo.rf} min={0} max={100} onChange={(v) => set({ ...demo, rf: v })} display={`${demo.rf}%`} />
+            <Slider id="edu-bat" label="송신기 배터리" value={demo.battery} min={0} max={100} onChange={(v) => set({ ...demo, battery: v })} display={`${demo.battery}%`} accent="accent-green-400" />
+          </div>
+          <p className="text-xs text-slate-400">수신기 화면(LCD)에 채널·주파수, RF(전파)·AF(소리) 막대, 배터리가 표시됩니다. 전파가 15% 아래로 떨어지면 소리가 끊깁니다.</p>
+        </div>
+      );
+    case 'di_box':
+      return (
+        <div className="flex flex-wrap gap-2 items-center">
+          <ToggleBtn on={demo.groundLift} onClick={() => set({ ...demo, groundLift: !demo.groundLift })}>GROUND LIFT</ToggleBtn>
+          <ToggleBtn on={demo.pad} color="amber" onClick={() => set({ ...demo, pad: !demo.pad })}>PAD -20dB</ToggleBtn>
+          <span className="text-xs text-slate-400">{demo.groundLift ? '접지를 끊어 "웅—" 하는 험 잡음을 없앱니다.' : demo.pad ? '입력 신호를 20dB 줄여 큰 신호의 찌그러짐을 막습니다.' : '스위치를 눌러 레버가 움직이는 것을 확인하세요.'}</span>
+        </div>
+      );
+    case 'headphones':
+      return <p className="text-xs text-slate-400">드래그로 돌려 보면 6.3mm TRS 플러그와 밀폐형 이어컵 구조를 볼 수 있습니다.</p>;
+    case 'mirrorless':
+      return (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <ToggleBtn on={demo.clean} color="green" onClick={() => set({ ...demo, clean: !demo.clean })}>클린 HDMI</ToggleBtn>
+            <ToggleBtn on={demo.rec} onClick={() => set({ ...demo, rec: !demo.rec })}>REC</ToggleBtn>
+          </div>
+          <Slider id="edu-zoom" label="줌 (렌즈가 길어집니다)" value={Math.round(demo.zoom * 100)} min={0} max={100} onChange={(v) => set({ ...demo, zoom: v / 100 })} display={`${Math.round(24 + demo.zoom * 46)}mm`} />
+          <p className="text-xs text-slate-400">옆으로 펼친 액정을 보세요. 클린 HDMI를 켜면 배터리·ISO 같은 촬영 정보가 사라진 깨끗한 화면이 출력됩니다.</p>
+        </div>
+      );
+    case 'ptz':
+      return (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-slate-400">프리셋:</span>
+            {Object.entries(PTZ_PRESETS).map(([n, pr]) => (
+              <button key={n} type="button" onClick={() => set({ ...demo, pan: pr.pan, tilt: pr.tilt, zoom: pr.zoom })}
+                className="px-3 py-1.5 rounded border text-xs font-bold bg-slate-800 border-slate-600 hover:bg-slate-700">{n}. {pr.name}</button>
+            ))}
+            {[[null, '탈리 끔'], ['pvw', 'PVW'], ['pgm', 'PGM']].map(([v, t]) => (
+              <button key={t} type="button" onClick={() => set({ ...demo, tally: v })}
+                className={`px-2.5 py-1.5 rounded border text-xs font-bold ${demo.tally === v ? 'bg-sky-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>{t}</button>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Slider id="edu-pan" label="Pan (좌우)" value={demo.pan} min={-90} max={90} onChange={(v) => set({ ...demo, pan: v })} display={`${demo.pan}°`} />
+            <Slider id="edu-tilt" label="Tilt (상하)" value={demo.tilt} min={-30} max={30} onChange={(v) => set({ ...demo, tilt: v })} display={`${demo.tilt}°`} />
+            <Slider id="edu-pzoom" label="Zoom" value={Math.round(demo.zoom * 100)} min={0} max={100} onChange={(v) => set({ ...demo, zoom: v / 100 })} display={`×${(1 + demo.zoom * 19).toFixed(0)}`} />
+          </div>
+        </div>
+      );
+    case 'atem_pro':
+      return (
+        <div className="space-y-2">
+          {[['PGM', 'program', 'bg-red-600 border-red-400'], ['PVW', 'preview', 'bg-green-600 border-green-400']].map(([lbl, key, onCls]) => (
+            <div key={key} className="flex items-center gap-1.5 flex-wrap">
+              <span className="w-9 text-[11px] font-bold text-slate-400">{lbl}</span>
+              {[1, 2, 3, 4].map((n) => (
+                <button key={n} type="button" onClick={() => set({ ...demo, atem: { ...demo.atem, [key]: n } })}
+                  className={`w-9 h-9 rounded border text-sm font-bold ${demo.atem[key] === n ? onCls : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}`}>{n}</button>
+              ))}
+              {key === 'program' && (
+                <button type="button" onClick={() => set({ ...demo, atem: { ...demo.atem, program: demo.atem.preview, preview: demo.atem.program } })}
+                  className="ml-2 px-4 h-9 rounded bg-slate-200 text-slate-900 font-black">CUT</button>
+              )}
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <ToggleBtn on={demo.streaming} onClick={() => set({ ...demo, streaming: !demo.streaming })}>ON AIR (스트리밍)</ToggleBtn>
+            <ToggleBtn on={demo.recording} onClick={() => set({ ...demo, recording: !demo.recording })}>REC (USB 녹화)</ToggleBtn>
+            <ToggleBtn on={demo.pip} color="green" onClick={() => set({ ...demo, pip: !demo.pip })}>PIP</ToggleBtn>
+          </div>
+          <p className="text-xs text-slate-400">뒤쪽 모니터가 HDMI OUT의 멀티뷰 화면입니다. 입력 3은 PC 슬라이드, 4는 신호 없음입니다.</p>
         </div>
       );
     default: return null;
@@ -213,7 +327,179 @@ function PgmPvwVisual() {
   );
 }
 
-const CONCEPT = { flow: FlowVisual, gain: GainVisual, feedback: FeedbackVisual, pgmpvw: PgmPvwVisual };
+const LEVEL_ROWS = [
+  ['마이크 레벨', -50, '다이나믹 마이크 출력', 'bg-sky-400'],
+  ['악기 레벨', -20, '전기기타·베이스 픽업', 'bg-amber-400'],
+  ['라인 레벨 (가정용 -10 dBV)', -8, 'PC·스마트폰·키보드 출력', 'bg-violet-400'],
+  ['라인 레벨 (프로 +4 dBu)', 4, '믹서 MAIN OUT, 오디오 장비 사이', 'bg-emerald-400'],
+  ['스피커 레벨', 32, '파워앰프 → 패시브 스피커 (수십 V)', 'bg-red-400'],
+];
+const LEVEL_PATHS = {
+  마이크: ['마이크 (마이크 레벨)', '프리앰프 GAIN: 믹서 MIC 입력 또는 오디오 인터페이스', '라인 레벨로 처리·출력'],
+  전기기타: ['기타 (악기 레벨)', 'DI 박스 또는 인터페이스 INST 입력', '믹서 MIC 입력 (XLR)'],
+  키보드: ['키보드 (라인, 언밸런스드)', '무대가 멀면 DI 박스로 밸런스드 변환', '믹서 입력'],
+  'PC 음원': ['PC 헤드폰 출력 (가정용 라인)', '3.5mm → TRS/RCA 케이블', '믹서 LINE 입력 (GAIN 낮게)'],
+};
+function LevelsVisual() {
+  const [src, setSrc] = useState('마이크');
+  const pos = (db) => ((db + 60) / 100) * 100;
+  return (
+    <div className="p-6 space-y-5">
+      <div className="space-y-2.5">
+        {LEVEL_ROWS.map(([name, db, ex, color]) => (
+          <div key={name}>
+            <div className="flex justify-between text-xs"><span className="text-slate-200 font-semibold">{name}</span><span className="text-slate-400 font-mono">{db > 0 ? '+' : ''}{db} dBu · {ex}</span></div>
+            <div className="h-3 rounded bg-slate-800 overflow-hidden mt-1"><div className={`h-full ${color}`} style={{ width: `${pos(db)}%` }} /></div>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div className="text-xs text-slate-400 mb-1.5">이 소스는 어디에 연결할까?</div>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {Object.keys(LEVEL_PATHS).map((k) => (
+            <button key={k} type="button" onClick={() => setSrc(k)} className={`px-3 py-1.5 rounded border text-xs font-bold ${src === k ? 'bg-sky-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>{k}</button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+          {LEVEL_PATHS[src].map((step, i) => (
+            <React.Fragment key={step}>
+              {i > 0 && <ArrowRight size={14} className="text-slate-500" />}
+              <span className="px-2.5 py-1.5 rounded bg-slate-800 border border-slate-600">{step}</span>
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const F_STOPS = [1.8, 2.8, 4, 5.6, 8, 11, 16];
+const SHUTTERS = [30, 60, 125, 250, 500, 1000];
+const ISOS = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
+function CamSettingsVisual() {
+  const [fi, setFi] = useState(1);
+  const [si, setSi] = useState(1);
+  const [ii, setIi] = useState(2);
+  const [wb, setWb] = useState(5600);
+  const f = F_STOPS[fi], sh = SHUTTERS[si], iso = ISOS[ii];
+  const ev = Math.log2(iso / 400) + Math.log2(60 / sh) + 2 * Math.log2(2.8 / f); // 0 = 적정
+  const bright = Math.min(2.6, Math.max(0.12, 2 ** (ev * 0.55)));
+  const bgBlur = Math.max(0, (5.6 / f - 0.6) * 3.5);
+  const motionBlur = Math.max(0, (60 / sh) * 2.5 - 1);
+  const noise = Math.min(0.55, Math.max(0, Math.log2(iso / 400) * 0.13));
+  const wbShift = (wb - 5600) / 2400; // + 따뜻함(주황), - 차가움(파랑)
+  const status = ev > 0.8 ? ['너무 밝음 (과다 노출)', 'text-amber-300'] : ev < -0.8 ? ['너무 어두움 (노출 부족)', 'text-sky-300'] : ['적정 노출', 'text-green-400'];
+  return (
+    <div className="p-5 space-y-4">
+      <style>{`@keyframes bm-wave { 0%,100% { transform: translateX(0) } 50% { transform: translateX(46px) } } .bm-wave { animation: bm-wave 1.2s ease-in-out infinite; }`}</style>
+      <div className="relative mx-auto w-full max-w-md aspect-video rounded-lg overflow-hidden border border-slate-600" style={{ filter: `brightness(${bright})` }}>
+        <div className="absolute inset-0" style={{ filter: `blur(${bgBlur}px)`, background: 'linear-gradient(180deg,#334155,#1e293b 60%,#3f3a33 60%)' }}>
+          {[12, 30, 52, 70, 86].map((x, i) => <span key={x} className="absolute rounded-full" style={{ left: `${x}%`, top: `${14 + (i % 2) * 10}%`, width: 18, height: 18, background: i % 2 ? '#fde68a' : '#fca5a5', opacity: 0.8 }} />)}
+          <div className="absolute left-[8%] right-[8%] top-[52%] h-[8%] bg-slate-500/50" />
+        </div>
+        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-[34%] h-[78%]">
+          <div className="absolute left-1/2 -translate-x-1/2 top-0 w-[46%] aspect-square rounded-full bg-[#e0b896]" />
+          <div className="absolute left-1/2 -translate-x-1/2 top-0 w-[48%] h-[22%] rounded-t-full bg-[#3f2a1d]" />
+          <div className="absolute bottom-0 left-0 right-0 h-[52%] rounded-t-[40%] bg-[#3b5b8f]" />
+          <div className="absolute right-[-18%] top-[34%] w-[26%] aspect-square rounded-full bg-[#e0b896] bm-wave" style={{ filter: `blur(${motionBlur}px)` }} />
+        </div>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: wbShift > 0 ? `rgba(255,140,30,${Math.min(0.5, wbShift * 0.45)})` : `rgba(40,120,255,${Math.min(0.5, -wbShift * 0.45)})`, mixBlendMode: 'overlay' }} />
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: noise }} aria-hidden="true">
+          <filter id="bm-noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
+          <rect width="100%" height="100%" filter="url(#bm-noise)" />
+        </svg>
+      </div>
+      <p className={`text-center font-bold ${status[1]}`}>{status[0]}{bgBlur > 3 ? ' · 배경 흐림' : ''}{motionBlur > 2 ? ' · 손 움직임 번짐' : ''}{noise > 0.25 ? ' · 노이즈 많음' : ''}</p>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Slider id="cs-f" label="조리개 (f값)" value={fi} min={0} max={F_STOPS.length - 1} onChange={setFi} display={`f/${f}`} />
+        <Slider id="cs-s" label="셔터 속도" value={si} min={0} max={SHUTTERS.length - 1} onChange={setSi} display={`1/${sh}초`} />
+        <Slider id="cs-i" label="ISO 감도" value={ii} min={0} max={ISOS.length - 1} onChange={setIi} display={`ISO ${iso}`} />
+        <Slider id="cs-wb" label="화이트밸런스 (조명: 5600K)" value={wb} min={3200} max={7500} step={100} onChange={setWb} display={`${wb}K`} accent="accent-amber-300" />
+      </div>
+    </div>
+  );
+}
+
+const MV_SRC = { 1: 'cam1', 2: 'cam2', 3: 'slides', 4: 'nosignal' };
+function MultiviewVisual() {
+  const [pgm, setPgm] = useState(1);
+  const [pvw, setPvw] = useState(2);
+  const [mix, setMix] = useState(false);
+  const auto = () => { setMix(true); setTimeout(() => { setPgm(pvw); setPvw(pgm); setMix(false); }, 700); };
+  return (
+    <div className="p-4 space-y-3">
+      <div className="bg-black rounded-lg p-1.5 grid grid-cols-2 gap-1.5 max-w-xl mx-auto">
+        {[['PREVIEW', pvw, 'border-green-500'], ['PROGRAM', pgm, 'border-red-500']].map(([t, n, b]) => (
+          <div key={t} className={`relative aspect-video border-4 ${b}`}>
+            <Scene src={MV_SRC[n]} fade={t === 'PROGRAM' && mix} />
+            <span className="absolute left-1.5 bottom-1 text-[10px] font-bold text-white drop-shadow">{t}</span>
+          </div>
+        ))}
+        <div className="col-span-2 grid grid-cols-4 gap-1.5">
+          {[1, 2, 3, 4].map((n) => (
+            <button key={n} type="button" onClick={() => setPvw(n)} aria-label={`입력 ${n}을 PVW로`}
+              className={`relative aspect-video border-[3px] ${n === pgm ? 'border-red-500' : n === pvw ? 'border-green-500' : 'border-slate-700'}`}>
+              <Scene src={MV_SRC[n]} label={false} />
+              <span className="absolute left-1 bottom-0.5 text-[9px] font-bold text-white drop-shadow">{n}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-center gap-2">
+        <button type="button" onClick={() => { setPgm(pvw); setPvw(pgm); }} className="px-5 py-2 rounded bg-slate-200 text-slate-900 font-black">CUT</button>
+        <button type="button" onClick={auto} className="px-5 py-2 rounded bg-amber-600 hover:bg-amber-500 font-black">AUTO</button>
+      </div>
+      <p className="text-xs text-slate-400 text-center">아래 입력 화면을 누르면 PVW로 올라갑니다. CUT/AUTO로 PGM과 맞바꿔 보세요.</p>
+    </div>
+  );
+}
+
+function TransitionsVisual() {
+  const [cur, setCur] = useState('cam1');
+  const [next, setNext] = useState('slides');
+  const [anim, setAnim] = useState(null); // { type, key }
+  const [pip, setPip] = useState(false);
+  const run = (type) => {
+    if (anim) return;
+    if (type === 'CUT') { setCur(next); setNext(cur); return; }
+    setAnim({ type, key: Date.now() });
+    setTimeout(() => { setCur(next); setNext(cur); setAnim(null); }, 1000);
+  };
+  const cls = anim ? { MIX: 'bm-t-mix', DIP: 'bm-t-dipin', WIPE: 'bm-t-wipe' }[anim.type] : '';
+  return (
+    <div className="p-5 space-y-3">
+      <style>{`
+        @keyframes bm-t-mix { from { opacity: 0 } to { opacity: 1 } } .bm-t-mix { animation: bm-t-mix 1s linear forwards; }
+        @keyframes bm-t-dipin { 0%,50% { opacity: 0 } 100% { opacity: 1 } } .bm-t-dipin { animation: bm-t-dipin 1s linear forwards; }
+        @keyframes bm-t-dip { 0% { opacity: 0 } 50% { opacity: 1 } 100% { opacity: 0 } } .bm-t-dip { animation: bm-t-dip 1s linear forwards; }
+        @keyframes bm-t-wipe { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } } .bm-t-wipe { animation: bm-t-wipe 1s ease-in-out forwards; }
+      `}</style>
+      <div className="relative mx-auto w-full max-w-md aspect-video rounded-lg overflow-hidden border-4 border-red-500">
+        <div className="absolute inset-0"><Scene src={cur} /></div>
+        {anim && <div key={anim.key} className={`absolute inset-0 ${cls}`} style={{ opacity: anim.type === 'WIPE' ? 1 : 0 }}><Scene src={next} /></div>}
+        {anim?.type === 'DIP' && <div key={`d${anim.key}`} className="absolute inset-0 bg-black bm-t-dip" />}
+        {pip && (
+          <div className="absolute right-2 bottom-2 w-[32%] aspect-video border-2 border-white rounded overflow-hidden shadow-lg">
+            <Scene src="cam1" label={false} />
+          </div>
+        )}
+        <span className="absolute left-2 top-1.5 text-[10px] font-bold bg-red-600 px-1.5 rounded">PGM</span>
+      </div>
+      <div className="flex flex-wrap justify-center gap-2">
+        {['CUT', 'MIX', 'DIP', 'WIPE'].map((t) => (
+          <button key={t} type="button" onClick={() => run(t)} className={`px-4 py-2 rounded font-black ${t === 'CUT' ? 'bg-slate-200 text-slate-900' : 'bg-amber-600 hover:bg-amber-500'}`}>{t}</button>
+        ))}
+        <ToggleBtn on={pip} color="green" onClick={() => setPip(!pip)}>PIP (진행자 작은 화면)</ToggleBtn>
+      </div>
+      <p className="text-xs text-slate-400 text-center">다음 화면: {next === 'slides' ? 'PC 슬라이드' : next === 'cam1' ? '진행자 클로즈업' : next}</p>
+    </div>
+  );
+}
+
+const CONCEPT = {
+  flow: FlowVisual, gain: GainVisual, feedback: FeedbackVisual, pgmpvw: PgmPvwVisual,
+  levels: LevelsVisual, camsettings: CamSettingsVisual, multiview: MultiviewVisual, transitions: TransitionsVisual,
+};
 
 /* ---------------------------- 퀴즈 ---------------------------- */
 function Quiz({ item, solved, onSolve }) {
@@ -268,7 +554,8 @@ export default function EduMode({ onExit, onNavigate }) {
   const levels = useMemo(() => {
     const m = demo.mixer;
     const needsPhantom = item.type === 'condenser_mic';
-    if (!demo.talking || (needsPhantom && !m.phantom)) return { chLevel: null, mainLevel: null };
+    const rfDown = item.type === 'wireless_mic' && (!demo.txPower || demo.rf <= 15);
+    if (!demo.talking || (needsPhantom && !m.phantom) || rfDown) return { chLevel: null, mainLevel: null };
     const ch = MIC_LEVEL + m.gain + jitter;
     const post = m.chMute || m.chFader <= 0 ? null : ch + faderDb(m.chFader);
     const main = post == null || m.mainMute || m.mainFader <= 0 ? null : post + faderDb(m.mainFader);
