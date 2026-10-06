@@ -16,10 +16,12 @@ import Sandbox from './game/v2/Sandbox.jsx';
 import { getAudio } from './game/audio.js';
 
 export default function BroadcastMasterGame() {
-  // 주소에 ?stage=light-2 처럼 주면 그 스테이지로 바로 (?auto=1 이면 정답 자동 진행)
+  // 주소에 ?stage=light-2 처럼 주면 그 스테이지로 바로 (?auto=1 이면 정답 자동 진행), ?tutorial=1 은 튜토리얼 파트 1
   const [screen, setScreen] = useState(() => {
     const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const stage = q?.get('stage');
+    // ?tutorial=1 → 튜토리얼 파트 1 바로 시작
+    if (q?.get('tutorial')) return { mode: 'tutorial', part: Number(q.get('tutorial')) - 1, key: 0 };
     return stage ? { mode: 'story', stage, auto: q.get('auto') === '1', key: 0 } : { mode: 'menu', key: 0 };
   });
   const open = (mode, stage) => {
@@ -30,7 +32,7 @@ export default function BroadcastMasterGame() {
   const toMenu = () => open('menu');
 
   if (screen.mode === 'edu') return <EduMode key={screen.key} onExit={toMenu} onNavigate={(m, st) => open(m === 'studio' ? 'studio' : m, st)} />;
-  if (screen.mode === 'tutorial') return <TutorialMode key={screen.key} onExit={toMenu} onStory={() => open('story')} />;
+  if (screen.mode === 'tutorial') return <TutorialMode key={screen.key} startPart={screen.part} onExit={toMenu} onStory={() => open('story')} />;
   // 교육 모드의 "실습" 버튼은 예전 스테이지 번호(1~4)를 넘긴다
   const V1_STAGE = { 1: 'seminar-1', 2: 'seminar-3', 3: 'lecture-1', 4: 'crisis-2' };
   if (screen.mode === 'story') return <StoryMode key={screen.key} onExit={toMenu} startStage={typeof screen.stage === 'number' ? V1_STAGE[screen.stage] : screen.stage ?? null} autoStart={screen.auto} />;

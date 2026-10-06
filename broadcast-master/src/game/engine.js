@@ -1,4 +1,4 @@
-import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar, Piano, Laptop, Router, Volume1, Lightbulb, Spotlight, PanelsTopLeft, Projector, Grid3x3, Clapperboard, Joystick } from 'lucide-react';
+import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar, Piano, Laptop, Router, Volume1, Lightbulb, Spotlight, PanelsTopLeft, Projector, Grid3x3, Clapperboard, Joystick, Drum } from 'lucide-react';
 
 /* =====================================================================
  * 방송장비 마스터 — 게임 데이터 & 신호 계산 엔진
@@ -132,6 +132,36 @@ export const DEVICE_TYPES = {
     name: '모니터 스피커', model: '바닥형 웨지', icon: Volume1, w: 170,
     ins: [{ id: 'in', label: 'INPUT', kind: 'combo' }], outs: [],
     info: '무대 위 연주자·설교자가 자기 소리를 듣는 스피커입니다. 믹서의 AUX(모니터) 출력으로 따로 섞은 소리를 받아, 청중용 메인 스피커와 다른 음량·구성으로 들려줍니다.',
+  },
+  drum_kit: {
+    name: '드럼 세트', model: '어쿠스틱 5기통', icon: Drum, w: 170,
+    ins: [], outs: [],
+    info: '킥(베이스 드럼)·스네어·탐·심벌로 이루어진 어쿠스틱 악기입니다. 전기 출력이 없어서 믹서·방송으로 보내려면 마이크로 잡아야 합니다. 생소리가 워낙 커서 작은 공연장에서는 마이크 없이도 객석에 크게 들리지만, 방송(송출)에는 마이크로 잡은 소리만 나갑니다.',
+  },
+  kick_mic: {
+    name: '킥 드럼 마이크', model: 'Beta 52 타입 (다이나믹)', icon: Mic, w: 160,
+    ins: [], outs: [{ id: 'out', label: 'XLR OUT', kind: 'xlr' }],
+    info: '베이스 드럼의 "쿵" 하는 낮은 소리를 잡는 대형 다이나믹 마이크입니다. 아주 큰 소리를 견디고 저음이 잘 나오게 만들어졌습니다. 킥 드럼 앞 구멍(포트) 안쪽이나 바로 앞에 둡니다.',
+  },
+  snare_mic: {
+    name: '스네어 마이크', model: 'SM57 타입 (다이나믹)', icon: Mic, w: 160,
+    ins: [], outs: [{ id: 'out', label: 'XLR OUT', kind: 'xlr' }],
+    info: '스네어·탐처럼 가까이에서 아주 큰 소리를 잡는 악기용 다이나믹 마이크입니다. 지향성이 좁아 옆 악기 소리를 덜 받습니다. 기타 앰프를 잡을 때도 같은 마이크를 씁니다.',
+  },
+  overhead_mic: {
+    name: '오버헤드 마이크', model: '소형 콘덴서 (펜슬형)', icon: Mic, w: 160,
+    ins: [], outs: [{ id: 'out', label: 'XLR OUT', kind: 'xlr' }],
+    info: '드럼 위쪽에서 심벌과 드럼 전체를 잡는 콘덴서 마이크입니다. 콘덴서라 +48V 팬텀 전원이 필요합니다. 보통 두 대를 왼쪽·오른쪽(L/R)으로 둡니다.',
+  },
+  digital_piano: {
+    name: '디지털 피아노', model: '88건반 스테이지 피아노', icon: Piano, w: 170,
+    ins: [], outs: [{ id: 'outL', label: 'OUT L/MONO (TS)', kind: 'trs' }, { id: 'outR', label: 'OUT R (TS)', kind: 'trs' }],
+    info: '스테레오(L/R) 라인 출력이 있는 전자 피아노입니다. 자체 생소리가 거의 없어서 믹서를 거쳐야 들립니다. 두 출력을 믹서 스테레오 채널의 L/R 단자에 넣는 것이 정석이고, 채널이 부족하면 L/MONO 하나만 써도 됩니다. 무대에서 멀면 스테레오 DI(또는 DI 두 대)로 보냅니다.',
+  },
+  bass_guitar: {
+    name: '베이스 기타', model: '패시브 4현', icon: Guitar, w: 160,
+    ins: [], outs: [{ id: 'out', label: 'OUT (TS)', kind: 'trs' }],
+    info: '낮은 음을 맡는 현악기입니다. 일렉 기타처럼 높은 임피던스의 작은 신호를 TS로 내보내므로 DI 박스를 거쳐 믹서의 MIC(XLR) 단자로 보냅니다. 저음이 많아 LOW CUT(HPF)은 켜지 않습니다.',
   },
   e_guitar: {
     name: '일렉 기타', model: '패시브 픽업', icon: Guitar, w: 160,

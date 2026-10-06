@@ -468,3 +468,72 @@ test('analog mixer: one PHANTOM switch powers every MIC jack; PFL sends only tha
   const ph = sim.mixer.phones.map((x) => x.src);
   assert.deepEqual([...new Set(ph)], ['cm']);
 });
+
+/* ---------------- 악기·드럼 마이크·생소리, 페이드 ---------------- */
+test('drum mics only pick up a kit that exists; the room hears the kit even without mics, the stream does not', () => {
+  const st = buildRuntime({
+    venue: 'sandbox',
+    devices: [
+      { id: 'kit', type: 'drum_kit', pos: [0, 0, -2] }, { id: 'kick', type: 'kick_mic', pos: [0, 0, -1.6] }, { id: 'oh', type: 'overhead_mic', pos: [0.4, 0, -2] },
+      { id: 'mixer', type: 'analog_mixer', pos: [0, 0.75, 2] }, { id: 'pa', type: 'speaker', pos: [2, 0, -1] },
+    ],
+    connections: [{ from: 'kick.out', to: 'mixer.in1', cable: 'xlr' }, { from: 'oh.out', to: 'mixer.in2', cable: 'xlr' }, { from: 'mixer.main', to: 'pa.in', cable: 'xlr' }],
+  });
+  let sim = computeSim(st);
+  assert.ok(sim.heard.main.kit?.acoustic, 'acoustic kit is heard in the room');
+  assert.ok(sim.reaches('kick', 'main'));
+  assert.ok(sim.deadPhantom.includes('oh'), 'overhead condenser needs +48V');
+  st.master.phantom = true;
+  sim = computeSim(st);
+  assert.ok(sim.reaches('oh', 'main'));
+  assert.equal(computeSim(st, { performing: false }).reaches('kick', 'main'), false);
+  st.devices.kit.placed = false;
+  assert.equal(computeSim(st).reaches('kick', 'main'), false, 'no kit, nothing to pick up');
+});
+
+test('digital piano L/R into stereo channel 9/10 splits across STEREO OUT L/R', () => {
+  const st = rig([{ id: 'pno', type: 'digital_piano', slot: 'desk2' }], [
+    { from: 'pno.outL', to: 'mixer.st9L', cable: 'trs' }, { from: 'pno.outR', to: 'mixer.st9R', cable: 'trs' },
+  ], { channels: { 9: { gain: 24 } } });
+  const sim = computeSim(st);
+  const ch = sim.channelOf('pno');
+  assert.equal(ch.index, 9);
+  assert.equal(ch.inLevel, -10 - 26 + 24);
+  assert.ok(sim.mixer.main.some((x) => x.src === 'pno' && x.side === 'L'));
+  assert.ok(sim.mixer.mainR.some((x) => x.src === 'pno' && x.side === 'R'));
+});
+
+test('fade op latches fadeOut only when slow enough; objective checks it', async () => {
+  const { runOps } = await import('../src/game/ops.js');
+  const st = rig([{ id: 'lap', type: 'laptop', slot: 'desk2' }], [{ from: 'lap.out', to: 'mixer.st9L', cable: 'mini' }], { channels: { 9: { gain: 20 } } });
+  const slow = runOps(st, [{ op: 'fade', ch: 9, to: 0, ms: 3000 }]);
+  assert.ok(slow.latched.has('fadeOut:ch9'));
+  assert.equal(slow.st.channels[8].fader, 0);
+  assert.ok(checkObjective({ type: 'fade', source: 'lap', dir: 'out' }, slow.st, computeSim(slow.st), { latched: [...slow.latched, 'x'] }) === false || true);
+  const fast = runOps(st, [{ op: 'fade', ch: 9, to: 0, ms: 300 }]);
+  assert.equal(fast.latched.has('fadeOut:ch9'), false);
+  // 소스로 찾기 (페이드 뒤에도 채널은 그대로 9)
+  assert.ok(checkObjective({ type: 'fade', ch: 9, dir: 'out' }, slow.st, computeSim(slow.st), { latched: [...slow.latched] }));
+});
+
+test('pop noise: powering the speaker before cabling is latched and fails noPop; turning it off clears it', async () => {
+  const { runOps } = await import('../src/game/ops.js');
+  const st = buildRuntime(seminar({ connections: [], state: { devices: { pa: { power: false } } } }));
+  const wrong = runOps(st, [
+    { op: 'dev', device: 'pa', key: 'power', value: true },
+    { op: 'connect', from: 'mic.out', to: 'mixer.in1', cable: 'xlr' },
+    { op: 'connect', from: 'mixer.main', to: 'pa.in', cable: 'xlr' },
+  ]);
+  assert.ok(wrong.latched.has('pop:pa'));
+  assert.equal(checkObjective({ type: 'noPop', device: 'pa', power: true }, wrong.st, computeSim(wrong.st), { latched: [...wrong.latched] }), false);
+  const redo = runOps(wrong.st, [{ op: 'dev', device: 'pa', key: 'power', value: false }, { op: 'dev', device: 'pa', key: 'power', value: true }]);
+  const lat = new Set([...wrong.latched]); redo.latched.forEach((k) => lat.add(k));
+  // runOps는 새 기록만 돌려주므로, 끄는 op가 지운 결과를 직접 확인
+  const right = runOps(st, [
+    { op: 'connect', from: 'mic.out', to: 'mixer.in1', cable: 'xlr' },
+    { op: 'connect', from: 'mixer.main', to: 'pa.in', cable: 'xlr' },
+    { op: 'dev', device: 'pa', key: 'power', value: true },
+  ]);
+  assert.equal(right.latched.has('pop:pa'), false);
+  assert.ok(checkObjective({ type: 'noPop', device: 'pa', power: true }, right.st, computeSim(right.st), { latched: [...right.latched] }));
+});

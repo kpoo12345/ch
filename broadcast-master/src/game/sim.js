@@ -159,6 +159,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     outgoing[`${c.from.d}.${c.from.p}`] = c;
   });
   const zone = (id) => zoneOf(st.venue, devices[id]?.slot);
+  const drumKit = Object.values(devices).find((d) => d.placed && d.type === 'drum_kit')?.id ?? null;
+  const drumsHere = !!drumKit || st.venue === 'live_stage';
   const memo = new Map();
   const notes = { thin: new Set(), humSources: new Set(), deadPhantom: new Set() };
 
@@ -190,6 +192,12 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
         break;
       }
       case 'e_guitar': r = [{ src: d, kind: 'inst', level: performing ? -20 : null, hiZ: true }]; break;
+      case 'bass_guitar': r = [{ src: d, kind: 'inst', level: performing ? -18 : null, hiZ: true, bass: true }]; break;
+      case 'digital_piano': r = [{ src: d, kind: 'line', level: performing ? -10 : null }]; break;
+      // 드럼 마이크: 드럼 세트가 있을 때만(공연장 무대에는 기본으로 있다) 드럼 소리를 받는다
+      case 'kick_mic': r = [{ src: d, kind: 'drum', part: 'kick', level: performing && drumsHere ? -30 : null }]; break;
+      case 'snare_mic': r = [{ src: d, kind: 'drum', part: 'snare', level: performing && drumsHere ? -32 : null }]; break;
+      case 'overhead_mic': r = [{ src: d, kind: 'drum', part: 'overhead', level: performing && drumsHere ? -38 : null, needsPhantom: true, condenser: true }]; break;
       case 'keyboard': r = [{ src: d, kind: 'line', level: performing ? -8 : null }]; break;
       case 'laptop': r = [{ src: d, kind: 'line', level: s.playing ? -8 : null }]; break;
       case 'di_box': {
@@ -321,7 +329,7 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const put = (loc, x) => {
     if (x.level == null || !Number.isFinite(x.level)) return;
     const cur = heard[loc][x.src];
-    if (!cur || x.level > cur.level) heard[loc][x.src] = { level: x.level, hum: !!x.hum };
+    if (!cur || x.level > cur.level) heard[loc][x.src] = { level: x.level, hum: !!x.hum, kind: x.kind, part: x.part, acoustic: !!x.acoustic };
   };
   const speakersHearing = []; // 피드백 계산용: [스피커 id, 위치항, 신호]
   Object.values(devices).forEach((d) => {
@@ -333,6 +341,10 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     }
     if (d.type === 'headphones') inputComps(d.id, 'plug').forEach((x) => put('headphones', x));
   });
+  // 생소리: 드럼은 마이크 없이도 객석·무대에 크게 들린다 (방송에는 마이크로 잡은 소리만 나간다)
+  const acoustic = [];
+  if (drumsHere && performing) acoustic.push({ src: drumKit ?? 'drums_acoustic', kind: 'drum', part: 'kit', level: -14, acoustic: true });
+  acoustic.forEach((x) => { put('main', x); put('monitor', { ...x, level: x.level + 4 }); });
   const mix = mixerCalc();
   mix.channels.forEach((c) => c.comps.forEach((x) => { if (x.inLevel != null) put('mixer', { ...x, level: x.inLevel }); }));
   Object.values(devices).filter((d) => d.placed && d.type === 'audio_interface').forEach((d) => {
@@ -477,7 +489,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
 
 /* ---------------------------- 소스 목록 ---------------------------- */
 export const voiceSources = (st) => Object.values(st.devices).filter((d) => d.placed && VOICE_TYPES.has(d.type)).map((d) => d.id);
-export const sourceKind = (type) => (VOICE_TYPES.has(type) ? 'voice' : type === 'e_guitar' ? 'inst' : (type === 'keyboard' || type === 'laptop') ? 'line' : null);
+export const sourceKind = (type) => (VOICE_TYPES.has(type) ? 'voice' : (type === 'e_guitar' || type === 'bass_guitar') ? 'inst' : (type === 'keyboard' || type === 'laptop' || type === 'digital_piano') ? 'line' : DRUM_MICS.has(type) ? 'drum' : null);
+export const DRUM_MICS = new Set(['kick_mic', 'snare_mic', 'overhead_mic']);
 
 /* ---------------------------- 채널 찾기 ---------------------------- */
 // 소스가 꽂힌(또는 꽂혀야 할) 믹서 채널 번호. 신호가 없더라도 케이블 경로로 찾는다.
@@ -534,8 +547,15 @@ export function checkObjective(check, st, sim, ctx = {}) {
     case 'program': return sim.video.programCam === check.camera;
     case 'live': return sim.stream.live;
     case 'recording': return !!st.atem.recording && sim.video.isPro;
-    case 'pip': return !!st.atem.pip;
+    case 'pip': return !!st.atem.pip && (!check.base || sim.video.programCam === check.base);
     case 'talkTest': return !!ctx.latched?.includes(`talk:${check.at}`);
+    // 디지털 믹서 입력 패치: 소스가 정해진 채널로 들어오는지
+    case 'onChannel': return channelIndexOf(st, check.source) === check.ch && sim.reaches(check.source, 'mixer');
+    // 스피커가 켜진 채로 케이블을 꽂거나 +48V를 바꿔 "퍽" 소리가 났는지
+    case 'noPop': return (!check.power || !!st.dev[check.device]?.power) && !ctx.latched?.includes(`pop:${check.device}`);
+    // 페이드: 그 채널(또는 메인) 페이더를 1.5초 이상에 걸쳐 끝까지 내렸는지/올렸는지
+    case 'fade': { const k = check.source ? `ch${channelIndexOf(st, check.source)}` : check.ch ? `ch${check.ch}` : 'main'; return !!ctx.latched?.includes(`${check.dir === 'in' ? 'fadeIn' : 'fadeOut'}:${k}`); }
+    case 'noCut': { const k = check.source ? `ch${channelIndexOf(st, check.source)}` : check.ch ? `ch${check.ch}` : 'main'; return !ctx.latched?.includes(`cutOut:${k}`); }
     case 'faultsFixed': return st.faults.every((f) => faultFixed(f, st, sim));
     // 조명
     case 'lit': { const r = sim.light.fixtures[check.device]; return !!r && r.intensity >= (check.min ?? 0.5) && !r.flicker && !r.wrong; }
@@ -644,7 +664,7 @@ export function faultFixed(f, st, sim) {
     case 'wirelessChannel': return st.dev[f.device]?.txChannel === st.dev[f.device]?.rxChannel;
     case 'wirelessBattery': return (st.dev[f.device]?.battery ?? 0) > 15;
     case 'groundLoop': return !!st.dev[f.device]?.groundLift;
-    case 'auxZero': return !!c && c.aux >= 40;
+    case 'auxZero': return !!c && c.aux > 0 && sim.reaches(f.source, 'monitor');
     case 'atemBlack': return !!sim.video.programCam;
     case 'cleanHdmiOff': return !!st.dev[f.device]?.clean;
     case 'gainHigh': { const comp = sim.channelOf(f.source)?.comps.find((x) => x.src === f.source); return !!comp && comp.inLevel != null && comp.inLevel <= -6; }
@@ -687,9 +707,9 @@ export const FAULT_TEXT = {
   fixturePower: (f) => `${f.device} 조명의 전원이 꺼져 있었습니다.`,
   ptzIp: (f) => `${f.device} PTZ 카메라의 IP가 다른 대역(${f.to ?? '192.168.0.x'})으로 바뀌어 조이스틱이 찾지 못했습니다.`,
   resolumeOutputOff: () => 'Resolume의 출력(Output)이 꺼져 있었습니다.',
-  layerZero: (f) => `Resolume ${f.layer ?? 1}번 레이어의 투명도(Opacity)가 0이었습니다.`,
+  layerZero: (f) => `Resolume ${f.layer ?? 1}번 레이어의 불투명도(Opacity)가 0이었습니다.`,
   displayOff: (f) => `${f.device} 화면 장비의 전원이 꺼져 있었습니다.`,
-  resMismatch: () => 'Resolume 컴포지션 해상도가 LED 전광판 해상도와 달라 화면이 늘어나 보였습니다.',
+  resMismatch: () => 'Resolume 컴포지션 해상도가 LED 전광판 해상도와 달라 화면이 확대되어 흐릿했습니다.',
 };
 
 // 색 이름 판정 (조명 목표용)

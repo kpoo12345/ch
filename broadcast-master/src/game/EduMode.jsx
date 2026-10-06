@@ -7,6 +7,7 @@ import { CLIPS } from './scenes.js';
 import { DEVICE_TYPES, PORT_KIND_LABEL, PORT_COLOR, CABLES, MIXER_DEFAULT, MIC_LEVEL, faderDb, fmtDb } from './engine.js';
 import { EquipmentViewer, CableShowcase, MixerSizeViewer } from './Studio3D.jsx';
 import AudioLab from './AudioLab.jsx';
+import FadeLab from './FadeLab.jsx';
 import { Meter, Slider, ToggleBtn, Scene, loadProgress, saveProgress } from './ui.jsx';
 import { EDU_CATEGORIES, EDU_ITEMS } from './eduContent.js';
 
@@ -932,6 +933,7 @@ export default function EduMode({ onExit, onNavigate }) {
             )}
             {item.kind === 'concept' && <div className="min-h-[300px] bg-[#131a27] flex items-center"><div className="w-full">{Concept && <Concept onOpen={setCurrentId} />}</div></div>}
             {item.kind === 'audiolab' && <div className="bg-[#131a27]"><AudioLab key={item.id} focus={item.lab} /></div>}
+            {item.kind === 'fadelab' && <div className="bg-[#131a27]"><FadeLab key={item.id} /></div>}
             {item.kind === 'mixersizes' && <MixerSizes item={item} />}
             {item.kind === 'device' && (
               <div className="p-3 border-t border-slate-700 bg-slate-900/60">

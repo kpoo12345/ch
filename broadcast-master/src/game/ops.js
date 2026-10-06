@@ -13,6 +13,7 @@
  *  { op:'lightRecord', device, index, label }    조명 프로그래머 → 플레이백 저장
  *  { op:'patchAdd', device, entry }              조명 패치 추가
  *  { op:'ptz', device, act:'select'|'aim'|'store'|'recall', value, pan, tilt, zoom }
+ *  { op:'fade', ch?, to, ms }                   페이더를 ms 동안 천천히 (ch가 없으면 메인)
  *  { op:'talk', on } · { op:'perform', on } · { op:'wait', ms }   (화면 쪽에서 처리)
  * ===================================================================== */
 import { canConnect, computeSim, connId, DEV_DEFAULTS } from './sim.js';
@@ -69,6 +70,8 @@ export function applyOp(stIn, op) {
       return st;
     }
     case 'ch': if (st.channels[op.ch - 1]) st.channels[op.ch - 1][op.key] = op.value; return st;
+    // 페이드: 최종 값만 반영 (천천히 움직이는 과정은 화면 쪽에서 보여 준다)
+    case 'fade': if (op.ch) { if (st.channels[op.ch - 1]) st.channels[op.ch - 1].fader = op.to; } else st.master.mainFader = op.to; return st;
     case 'master': st.master[op.key] = op.value; return st;
     case 'dev': if (st.dev[op.device]) setPath(st.dev[op.device], op.key, op.value); return st;
     case 'atem': {
@@ -181,12 +184,42 @@ export function runOps(st0, ops, { onStep } = {}) {
     else if (op.op === 'perform') performing = op.on;
     else if (op.op !== 'wait' && op.op !== 'say') {
       noteOnAirMove(st, op, latched);
+      notePop(st, op, latched);
+      if (op.op === 'fade' && (op.ms ?? 3000) >= 1500) {
+        const k = op.ch ? `ch${op.ch}` : 'main';
+        const from = op.ch ? st.channels[op.ch - 1]?.fader : st.master.mainFader;
+        if (from >= 35 && op.to <= 3) latched.add(`fadeOut:${k}`);
+        if (from <= 3 && op.to >= 50) latched.add(`fadeIn:${k}`);
+      }
       st = applyOp(st, op);
     }
     onStep?.(st, op, i, { talking, latched });
     latchTalk(st, talking, latched, performing);
   });
   return { st, latched, talking, performing };
+}
+
+// 켜진 스피커로 가는 길에 케이블을 꽂고 빼거나 +48V를 바꾸면 "퍽" (팝 노이즈) — 스피커 전원은 마지막에 켠다
+export function notePop(st, op, latched) {
+  if (op.op === 'dev' && op.key === 'power' && op.value === false) { latched.delete(`pop:${op.device}`); return null; }
+  const isCable = op.op === 'connect' || op.op === 'disconnect';
+  if (!isCable && !((op.op === 'ch' || op.op === 'master') && op.key === 'phantom')) return null;
+  const powered = Object.values(st.devices).filter((d) => d.placed && (d.type === 'speaker' || d.type === 'monitor') && st.dev[d.id]?.power);
+  if (!powered.length) return null;
+  const ends = isCable ? [String(op.from).split('.')[0], String(op.to).split('.')[0]] : [st.mixerId];
+  const hit = powered.filter((spk) => {
+    // 스피커에서 거꾸로 따라가며 신호 경로에 있는 장비들
+    const chain = new Set([spk.id]);
+    let cur = spk.id;
+    for (let k = 0; k < 5; k += 1) {
+      const c = st.connections.find((x) => x.to.d === cur);
+      if (!c || chain.has(c.from.d)) break;
+      chain.add(c.from.d); cur = c.from.d;
+    }
+    return ends.some((e) => chain.has(e));
+  }).map((d) => d.id);
+  hit.forEach((id) => latched.add(`pop:${id}`));
+  return hit.length ? hit : null;
 }
 
 // 방송 중(PGM)인 PTZ 카메라를 움직이면 기록 (방송 사고!)

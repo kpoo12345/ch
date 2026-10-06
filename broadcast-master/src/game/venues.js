@@ -18,8 +18,10 @@ export const VENUES = {
       desk1: { pos: [-0.1, DT, 0.12], rot: 0, kind: 'desk', label: '책상 1' },
       desk2: { pos: [0.72, DT, 0.22], rot: 0, kind: 'desk', label: '책상 2' },
       desk3: { pos: [1.3, DT, 0.05], rot: -0.2, kind: 'desk', label: '책상 3' },
-      pa_main: { pos: [-0.75, 0, -1.45], rot: 1.2, kind: 'floor', label: '메인 스피커 자리' },
-      pa_alt: { pos: [-1.15, 0, 0.8], rot: faceTo([-1.15, 0, 0.8], [-2.0, 0, -0.15]), kind: 'floor', label: '발표자 앞 자리' },
+      // 메인 스피커: 마이크보다 청중 쪽(앞)에서 청중을 향한다 → 마이크의 둔감한 뒤쪽이 스피커를 본다
+      pa_main: { pos: [-3.0, 0, 0.55], rot: 0.18, kind: 'floor', label: '메인 스피커 자리' },
+      // 나쁜 자리: 스피커가 마이크를 정면으로 겨눈다
+      pa_alt: { pos: [-1.15, 0, 0.8], rot: faceTo([-1.15, 0, 0.8], [-2.0, 0, -0.15]), kind: 'floor', label: '마이크를 겨눈 자리' },
       cam_back: { pos: [3.1, 0, 1.7], rot: faceTo([3.1, 0, 1.7], [-2.0, 0, -0.6]), kind: 'floor', label: '뒤쪽 카메라 자리' },
       proj_ceiling: { pos: [-1.7, 2.75, 0.9], rot: Math.PI, kind: 'truss', label: '천장 프로젝터 자리', screen: { pos: [-1.7, 1.5, -2.52], rot: 0, w: 2.3, h: 1.3 } },
       light_front: { pos: [-0.6, 2.9, 0.6], rot: faceTo([-0.6, 0, 0.6], [-2.0, 0, -0.6]), kind: 'truss', label: '앞 조명 자리', aim: [-2.0, 1.3, -0.6] },

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT } from '../sim.js';
-import { applyOp, opToAction, noteOnAirMove, getPath } from '../ops.js';
+import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind } from '../sim.js';
+import { applyOp, opToAction, noteOnAirMove, notePop, getPath } from '../ops.js';
 import { getAudio } from '../audio.js';
 import { MISMATCH_TIP, DEVICE_TYPES, CABLES } from '../engine.js';
 import { narrate, stopNarration, speechOk } from '../speech.js';
@@ -68,12 +68,52 @@ export function useGame(spec, { onClear } = {}) {
   }, []);
 
   /* ----- 조작 적용 ----- */
+  // 페이더 움직임 기록: 천천히 내렸는지(페이드) 한 번에 내렸는지(CUT) 판정
+  const faderMoves = useRef({});
+  const noteFader = (key, before, value) => {
+    const now = Date.now();
+    let g = faderMoves.current[key];
+    if (!g || now - g.tLast > 700) g = { t0: now, v0: before };
+    g.tLast = now; g.v = value;
+    faderMoves.current[key] = g;
+    const dt = now - g.t0;
+    const add = [];
+    if (g.v0 >= 35 && value <= 3) add.push(dt >= 1500 ? `fadeOut:${key}` : dt < 600 ? `cutOut:${key}` : null);
+    if (g.v0 <= 3 && value >= 50) add.push(dt >= 1500 ? `fadeIn:${key}` : null);
+    const fresh = add.filter(Boolean).filter((k) => !latchedRef.current.has(k));
+    if (fresh.length) setLatched((s0) => new Set([...s0, ...fresh]));
+  };
+  const applyRef = useRef(null);
   const apply = useCallback((op, { visual = true, prev, speed, quiet } = {}) => {
     const cur = stRef.current;
+    if (op.op === 'fade') {
+      // { op:'fade', ch | (없으면 메인), to, ms } — 페이더를 ms 동안 일정한 속도로 움직인다
+      const key = op.ch ? 'fader' : 'mainFader';
+      const from = op.ch ? cur.channels[op.ch - 1]?.fader ?? 0 : cur.master.mainFader;
+      const ms = op.ms ?? 3000;
+      const n = Math.max(10, Math.round(ms / 60));
+      const step = (k) => ({ ...(op.ch ? { op: 'ch', ch: op.ch } : { op: 'master' }), key, value: Math.round(from + ((op.to - from) * k) / n) });
+      if (visual) {
+        actKey.current += 1;
+        const a = opToAction(cur, step(n), actKey.current);
+        if (a) { if (a.ctl) a.ctl.prev = from; a.speed = speed; a.durMs = ms; setAction(a); }
+      }
+      for (let k = 1; k <= n; k += 1) setTimeout(() => applyRef.current?.(step(k), { visual: false, quiet: true }), (ms * k) / n);
+      return true;
+    }
     if (op.op === 'talk') { setScriptTalk(op.on ? true : null); return true; }
     if (op.op === 'perform') { setPerforming(!!op.on); return true; }
     if (op.op === 'wait' || op.op === 'say') return true;
     const lat = new Set();
+    // 팝 노이즈: 켜진 스피커 경로를 건드리면 기록, 스피커를 끄면 다시 할 수 있게 지운다
+    const popSet = new Set(latchedRef.current);
+    const popped = notePop(cur, op, popSet);
+    if (op.op === 'dev' && op.key === 'power' && op.value === false && latchedRef.current.has(`pop:${op.device}`)) setLatched((s0) => { const n = new Set(s0); n.delete(`pop:${op.device}`); return n; });
+    if (popped) {
+      setLatched((s0) => new Set([...s0, ...popped.map((id) => `pop:${id}`)]));
+      getAudio().pop?.();
+      notify('err', '퍽! 스피커가 켜진 채로 케이블을 꽂거나 +48V를 바꿨어요. 스피커 전원은 연결을 다 마친 뒤 마지막에 켭니다. (스피커를 껐다가 다시 순서대로 하면 됩니다)');
+    }
     if (noteOnAirMove(cur, op, lat)) {
       // 드래그 중 계속 경고가 쌓이지 않게 처음 한 번만 알린다
       const fresh = [...lat].some((k) => !latchedRef.current.has(k));
@@ -88,6 +128,8 @@ export function useGame(spec, { onClear } = {}) {
       getAudio().error();
       return false;
     }
+    if (op.op === 'ch' && op.key === 'fader') noteFader(`ch${op.ch}`, cur.channels[op.ch - 1]?.fader ?? 0, op.value);
+    if (op.op === 'master' && op.key === 'mainFader') noteFader('main', cur.master.mainFader, op.value);
     stRef.current = next;
     setSt(next);
     if (visual) {
@@ -106,6 +148,7 @@ export function useGame(spec, { onClear } = {}) {
     else au.click();
     return true;
   }, [notify]);
+  applyRef.current = apply;
 
   /* ----- 단자 클릭 (케이블 연결) ----- */
   const clickPort = useCallback((d, p) => {
@@ -192,103 +235,173 @@ export const speechMs = (text, speed = 1) => {
 const ACTION_MS = { connect: 2500, place: 1600, move: 1700, addDevice: 1600, ptz: 1700, talk: 300, perform: 300 };
 
 export function useScriptPlayer(game, { voiceOn = true } = {}) {
-  const [script, setScript] = useState(null); // { steps, i, playing, speed, practice, auto, done, awaitNext }
+  // script: { steps, i, playing, speed, practice, auto, done, ready, restart, onDone, onStep }
+  //  - ready: 이 단계의 설명과 동작이 모두 끝나 "다음"을 기다리는 중 (auto면 잠깐 뒤 저절로 넘어감)
+  //  - restart: 바뀌면 지금 단계를 처음부터 다시 시작 (재생·이전·다음)
+  const [script, setScriptState] = useState(null);
+  const scriptRef = useRef(null);
+  const setScript = (fn) => setScriptState((s) => { const n = typeof fn === 'function' ? fn(s) : fn; scriptRef.current = n; return n; });
   const [narration, setNarration] = useState(null);
-  const [waiting, setWaiting] = useState(null); // 연습 대기 중인 단계
+  const [waiting, setWaiting] = useState(null); // 연습: 플레이어가 직접 해야 하는 단계
+  const [speaking, setSpeaking] = useState(false);
+  const [praised, setPraised] = useState(false); // 연습 단계를 해냈을 때 잠깐 칭찬
+  const [tick, setTick] = useState(0);
+  const bump = () => setTick((t) => t + 1);
   const timers = useRef([]);
-  const run = useRef(0); // 단계마다 바뀌는 번호: 이전 단계의 늦게 도착한 콜백 무시
+  const cur = useRef({ i: -1, speech: true, action: true }); // 지금 단계의 진행 상황
+  const applied = useRef(new Set()); // 동작을 이미 적용한 단계 (같은 동작이 두 번 적용되지 않게)
+  const snaps = useRef({}); // 단계를 시작하기 직전의 상태 (이전 단계로 되돌리기)
   const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   const later = (fn, ms) => { timers.current.push(setTimeout(fn, ms)); };
-  const next = () => setScript((s) => (s ? { ...s, i: s.i + 1, awaitNext: false } : s));
+  const hasOp = (step) => !!step?.op && step.op !== 'say';
+  const clone = (o) => JSON.parse(JSON.stringify(o));
 
   const start = useCallback((steps, opts = {}) => {
-    clear();
-    setWaiting(null);
-    setScript({ steps, i: 0, playing: true, speed: opts.speed ?? 1, practice: !!opts.practice, auto: opts.auto ?? true, done: false, awaitNext: false, onDone: opts.onDone, onStep: opts.onStep });
-  }, []);
-  const stop = useCallback(() => { clear(); run.current += 1; setScript(null); setNarration(null); setWaiting(null); game.setScriptTalk(null); stopNarration(); }, [game]);
-  const pause = useCallback(() => { clear(); run.current += 1; setScript((s) => (s ? { ...s, playing: false } : s)); stopNarration(); }, []);
-  const resume = useCallback(() => setScript((s) => (s ? { ...s, playing: true, awaitNext: false } : s)), []);
-  const setSpeed = useCallback((speed) => setScript((s) => (s ? { ...s, speed } : s)), []);
-  const setPractice = useCallback((practice) => setScript((s) => (s ? { ...s, practice } : s)), []);
-  const setAuto = useCallback((auto) => setScript((s) => (s ? { ...s, auto, awaitNext: auto ? false : s.awaitNext } : s)), []);
-  const jump = useCallback((delta) => { clear(); run.current += 1; stopNarration(); setWaiting(null); setScript((s) => (s ? { ...s, i: Math.max(0, Math.min(s.steps.length, s.i + delta)), playing: true, awaitNext: false } : s)); }, []);
+    clear(); stopNarration();
+    applied.current = new Set(); snaps.current = {}; cur.current = { i: -1, speech: true, action: true };
+    setWaiting(null); setPraised(false); setNarration(null);
+    setScript({ steps, i: 0, playing: true, speed: opts.speed ?? 1, practice: !!opts.practice, auto: opts.auto ?? true, done: false, ready: false, restart: 0, onDone: opts.onDone, onStep: opts.onStep });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const stop = useCallback(() => { clear(); cur.current = { i: -1 }; setScript(null); setNarration(null); setWaiting(null); setSpeaking(false); game.setScriptTalk(null); stopNarration(); }, [game]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pause = useCallback(() => { clear(); stopNarration(); setSpeaking(false); setScript((s) => (s ? { ...s, playing: false } : s)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const resume = useCallback(() => setScript((s) => (s ? { ...s, playing: true, restart: s.restart + 1 } : s)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const setSpeed = useCallback((speed) => setScript((s) => (s ? { ...s, speed } : s)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const setAuto = useCallback((auto) => setScript((s) => (s ? { ...s, auto } : s)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 단계 실행: 내레이션이 끝나고 + 손 동작이 끝난 뒤에야 다음 단계로 넘어간다
+  // 유령 손이 지금 단계의 동작을 대신 한다
+  const ghostDo = (i, visual = true) => {
+    const s = scriptRef.current;
+    const step = s?.steps[i];
+    if (!step || !hasOp(step) || applied.current.has(i)) return false;
+    applied.current.add(i);
+    game.apply(step, { speed: s.speed, quiet: true, visual });
+    return true;
+  };
+  // 다음/이전: 건너뛰어도 그 단계의 동작은 적용, 뒤로 가면 그 단계를 시작하기 전 상태로 되돌린다
+  const jump = useCallback((delta) => {
+    const s = scriptRef.current;
+    if (!s) return;
+    clear(); stopNarration(); setWaiting(null); setPraised(false); setSpeaking(false);
+    if (delta > 0) {
+      if (s.i < s.steps.length) ghostDo(s.i, false);
+      setScript((x) => (x ? { ...x, i: Math.min(x.steps.length, x.i + 1), playing: true, ready: false, restart: x.restart + 1 } : x));
+      return;
+    }
+    const target = Math.max(0, s.i - 1);
+    if (snaps.current[target]) { const s1 = clone(snaps.current[target]); game.stRef.current = s1; game.setSt(s1); }
+    [...applied.current].forEach((k) => { if (k >= target) applied.current.delete(k); });
+    game.setScriptTalk(null);
+    setScript((x) => (x ? { ...x, i: target, playing: true, ready: false, done: false, restart: x.restart + 1 } : x));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const next = useCallback(() => jump(1), [jump]);
+  // 연습 중 "보여 주세요"
+  const showMe = useCallback(() => {
+    const s = scriptRef.current;
+    if (!s) return;
+    const i = s.i;
+    setWaiting(null);
+    if (ghostDo(i)) later(() => { if (cur.current.i === i) { cur.current.action = true; bump(); } }, (ACTION_MS[s.steps[i].op] ?? 1400) / s.speed);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const setPractice = useCallback((practice) => {
+    const s = scriptRef.current;
+    if (!s) return;
+    setScript((x) => (x ? { ...x, practice } : x));
+    // 기다리던 단계가 있으면: 끄면 유령 손이 대신 해 준다
+    if (!practice && waitingRef.current) showMe();
+  }, [showMe]); // eslint-disable-line react-hooks/exhaustive-deps
+  const waitingRef = useRef(null);
+  waitingRef.current = waiting;
+
+  // 단계 시작: 설명(음성)을 시작하고, 동작은 유령 손이 하거나(보기) 플레이어를 기다린다(연습)
   useEffect(() => {
-    if (!script || !script.playing) return undefined;
-    const { steps, i, speed } = script;
+    const sc = scriptRef.current;
+    if (!sc || !sc.playing) return undefined;
+    const { steps, i, speed } = sc;
     if (i >= steps.length) {
-      setNarration(null);
-      if (!script.done) { setScript((s) => ({ ...s, done: true, playing: false })); script.onDone?.(); }
+      setNarration(null); setWaiting(null);
+      if (!sc.done) { setScript((x) => ({ ...x, done: true, playing: false })); sc.onDone?.(); }
       return undefined;
     }
-    const token = ++run.current;
-    const alive = () => run.current === token;
     const step = steps[i];
-    script.onStep?.(step, i);
+    if (!snaps.current[i]) snaps.current[i] = clone(game.stRef.current);
+    sc.onStep?.(step, i);
     const text = step.say ?? null;
-    setNarration(text ? { text, i, n: steps.length } : null);
     const est = speechMs(text, speed);
-    const hasOp = !!step.op && step.op !== 'say';
-    let speechDone = !text, actionDone = !hasOp;
-    const finish = () => {
-      if (!alive() || !speechDone || !actionDone) return;
-      if (script.auto === false) { setScript((s) => (s ? { ...s, awaitNext: true } : s)); return; }
-      later(() => { if (alive()) next(); }, 700 / speed);
-    };
-    const speechEnd = () => { if (!alive() || speechDone) return; speechDone = true; finish(); };
+    // 대사가 없는 단계에서는 앞 대사를 그대로 띄워 둔다 (상자가 깜빡이지 않게)
+    if (text) setNarration({ text, i, n: steps.length, ms: est });
+    setPraised(false);
+    const c = { i, speech: !text, action: !hasOp(step) || applied.current.has(i) };
+    cur.current = c;
+    const speechEnd = () => { if (cur.current !== c || c.speech) return; c.speech = true; setSpeaking(false); bump(); };
     if (text) {
+      setSpeaking(true);
       if (voiceOn && speechOk()) {
         narrate(text, { rate: Math.max(0.6, Math.min(2, speed)), onEnd: speechEnd });
         later(speechEnd, est * 1.8 + 2500); // 음성 합성이 끝 신호를 안 줄 때 대비
       } else later(speechEnd, est);
-    }
-    if (hasOp && script.practice && step.practice) {
-      // 연습: 플레이어가 직접 할 때까지 대기 (설명은 계속 들림)
-      setWaiting(step);
-      return clear;
-    }
-    if (hasOp) {
-      if (step.op === 'wait') later(() => { if (alive()) { actionDone = true; finish(); } }, (step.ms ?? 1000) / speed);
+    } else setSpeaking(false);
+    if (!c.action) {
+      if (sc.practice && step.practice) setWaiting({ ...step, index: i });
+      else if (step.op === 'wait') later(() => { if (cur.current === c) { applied.current.add(i); c.action = true; bump(); } }, (step.ms ?? 1000) / speed);
       else {
+        setWaiting(null);
         // 설명을 어느 정도 들은 뒤(약 40%) 손이 움직이기 시작
         const startAt = text ? Math.max(900 / speed, est * 0.4) : 250 / speed;
         later(() => {
-          if (!alive()) return;
-          game.apply(step, { speed, quiet: true });
-          later(() => { if (alive()) { actionDone = true; finish(); } }, (ACTION_MS[step.op] ?? 1400) / speed);
+          if (cur.current !== c) return;
+          ghostDo(i);
+          later(() => { if (cur.current === c) { c.action = true; bump(); } }, step.op === 'fade' ? (step.ms ?? 3000) + 300 : (ACTION_MS[step.op] ?? 1400) / speed);
         }, startAt);
       }
-    }
-    finish();
+    } else setWaiting(null);
+    bump();
     return clear;
-  }, [script?.i, script?.playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [script?.i, script?.playing, script?.restart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 설명과 동작이 모두 끝나면 ready
+  useEffect(() => {
+    const sc = scriptRef.current;
+    const c = cur.current;
+    if (!sc || !sc.playing || sc.ready || c.i !== sc.i || !c.speech || !c.action) return;
+    setScript((x) => (x && x.i === c.i ? { ...x, ready: true } : x));
+  }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 자동 진행이면 잠깐 쉬고 다음 단계로
+  useEffect(() => {
+    // 대사가 없는 연결 단계(말하기 시작·잠깐 기다리기)는 수동 모드에서도 저절로 넘어간다
+    if (!script?.ready || !script.playing || (!script.auto && script.steps[script.i]?.say)) return undefined;
+    const i = script.i;
+    const t = setTimeout(() => { if (scriptRef.current?.i === i && scriptRef.current.ready) setScript((x) => ({ ...x, i: i + 1, ready: false })); }, (praised ? 1100 : 700) / script.speed);
+    return () => clearTimeout(t);
+  }, [script?.ready, script?.auto, script?.i, script?.playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 연습 단계 완료 감지
   useEffect(() => {
-    if (!waiting || !script) return;
-    if (opSatisfied(game.stRef.current, waiting, game)) {
+    if (!waiting || !scriptRef.current) return;
+    if (opSatisfied(game.stRef.current, waiting, game, snaps.current[waiting.index])) {
+      const i = waiting.index;
+      applied.current.add(i);
       setWaiting(null);
+      setPraised(true);
       getAudio().ok();
-      const token = run.current;
-      later(() => { if (run.current === token) next(); }, 900);
+      if (cur.current.i === i) { cur.current.action = true; bump(); }
     }
-  }, [game.st, game.talking, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [game.st, game.talking, game.latched, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => () => { clear(); stopNarration(); }, []);
-  return { script, narration, waiting, start, stop, pause, resume, setSpeed, setPractice, setAuto, jump };
+  useEffect(() => () => { clear(); stopNarration(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return { script, narration, waiting, speaking, praised, start, stop, pause, resume, setSpeed, setPractice, setAuto, jump, next, showMe };
 }
 
 // 연습 단계: 플레이어가 그 조작을 했는지 (수치는 근처면 인정)
-export function opSatisfied(st, op, game) {
+export function opSatisfied(st, op, game, before) {
   const near = (a, b, tol) => (typeof b === 'number' ? Math.abs((a ?? -999) - b) <= tol : a === b);
   switch (op.op) {
     case 'place': return !!st.devices[op.device]?.placed;
     case 'move': return st.devices[op.device]?.slot === op.slot;
     case 'connect': {
       const [fd, fp] = op.from.split('.'), [td, tp] = op.to.split('.');
-      return st.connections.some((c) => (c.from.d === fd && c.from.p === fp && c.to.d === td && c.to.p === tp) || (c.from.d === td && c.from.p === tp && c.to.d === fd && c.to.p === fp));
+      // 같은 두 장비를 같은 종류의 단자로 이었으면 인정 (예: PC USB 1 대신 USB 2)
+      const ok = (e, d, p) => e.d === d && (e.p === p || portKind(st.devices[d]?.type, e.p) === portKind(st.devices[d]?.type, p));
+      return st.connections.some((c) => (ok(c.from, fd, fp) && ok(c.to, td, tp)) || (ok(c.from, td, tp) && ok(c.to, fd, fp)));
     }
     case 'disconnect': {
       const [fd, fp] = op.from.split('.');
@@ -300,8 +413,10 @@ export function opSatisfied(st, op, game) {
       const v = getPath(st.dev[op.device], op.key);
       return Array.isArray(op.value) ? JSON.stringify(v) === JSON.stringify(op.value) : near(v, op.value, op.key.includes('gain') ? 6 : 5);
     }
-    case 'atem': return op.key === 'cut' || op.key === 'auto' ? true : st.atem[op.key] === op.value;
+    // CUT/AUTO: 단계를 시작할 때와 PGM이 바뀌었어야 인정
+    case 'atem': return op.key === 'cut' || op.key === 'auto' ? !!before && st.atem.program !== before.atem.program : st.atem[op.key] === op.value;
     case 'obs': return st.obs[op.key] === op.value;
+    case 'fade': { const k = op.ch ? `ch${op.ch}` : 'main'; return !!game?.latched?.has(`${op.to <= 3 ? 'fadeOut' : 'fadeIn'}:${k}`); }
     case 'talk': return game ? game.talking === !!op.on || !op.on : true;
     default: return true;
   }

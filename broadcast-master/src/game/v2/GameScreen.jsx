@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Lightbulb, Wand2, Music, Volume2, VolumeX, Mic, Tag, Lock, Unlock, Video, RotateCcw, CheckCircle2, Circle, Star, ChevronRight,
-  Play, Pause, SkipForward, SkipBack, X, SlidersHorizontal, Cable, ListChecks, Cpu, ScrollText, Ear, Hand, Guitar, MessageSquare,
+  SlidersHorizontal, Cable, ListChecks, Cpu, ScrollText, Ear, Guitar, MessageSquare,
 } from 'lucide-react';
 import Venue3D from '../Venue3D.jsx';
 import { hasWebGL, NoWebGL } from '../kit3d.jsx';
@@ -15,6 +15,8 @@ import { DevicePanel } from './DevicePanels.jsx';
 import PortBoard from './PortBoard.jsx';
 import { Seg, Toggle } from './controls.jsx';
 import { addDeviceOp } from '../ops.js';
+import Dialog from './Dialog.jsx';
+import ListenCompare from './ListenCompare.jsx';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -30,6 +32,7 @@ const PHRASES = {
   lecture_hall: ['안녕하세요, 오늘 강의를 시작하겠습니다.', '화면을 보시면서 따라와 주세요.', '질문은 채팅으로 남겨 주세요.'],
   sandbox: ['아, 아, 마이크 테스트.', '하나, 둘, 셋.', '잘 들리시나요?'],
 };
+const INSTRUMENTS = new Set(['e_guitar', 'keyboard', 'digital_piano', 'bass_guitar', 'drum_kit', 'kick_mic', 'snare_mic', 'overhead_mic']);
 const lvToVol = (lv) => (lv == null ? 0 : Math.max(0, Math.min(1, (lv + 42) / 32)));
 
 export default function GameScreen({
@@ -47,6 +50,7 @@ export default function GameScreen({
     return at[0] ?? (Object.values(st.devices).some((d) => d.type === 'speaker') ? 'main' : 'stream');
   }, [spec]); // eslint-disable-line react-hooks/exhaustive-deps
   const [listen, setListen] = useState(defaultListen);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [showBrief, setShowBrief] = useState(mode === 'story');
   const [hints, setHints] = useState(0);
   const [usedAuto, setUsedAuto] = useState(false);
@@ -106,10 +110,18 @@ export default function GameScreen({
     const fxCh = audible.map(([src]) => actual.channelOf(src)).filter(Boolean).map((c) => st.channels[c.index - 1]?.fx ?? 0);
     const reverb = fxCh.length ? (Math.max(...fxCh) / 100) * (st.master.fxReturn / 100) : 0;
     const inRoom = listen === 'main' || listen === 'monitor';
+    // 드럼: 생소리(객석·무대에서만) + 마이크로 잡은 부분 (킥 마이크 = 쿵, 스네어 마이크 = 딱, 오버헤드 = 심벌·전체)
+    const kit = 0.7 * Math.max(0, ...Object.values(heard).filter((h) => h.acoustic && h.kind === 'drum').map((h) => lvToVol(h.level)));
+    const kickM = byType(['kick_mic']), snareM = byType(['snare_mic']), ohM = byType(['overhead_mic']);
+    const perf = game.performing;
     getAudio().setStage({
-      guitar: game.performing ? byType(['e_guitar']) : 0,
-      keys: game.performing ? byType(['keyboard']) : 0,
-      drums: game.performing && st.venue === 'live_stage' && inRoom ? 0.35 : 0,
+      guitar: perf ? byType(['e_guitar']) : 0,
+      keys: perf ? byType(['keyboard']) : 0,
+      piano: perf ? byType(['digital_piano']) : 0,
+      bass: perf ? byType(['bass_guitar']) : 0,
+      kick: perf ? Math.max(kit, kickM, ohM * 0.45) : 0,
+      snare: perf ? Math.max(kit, snareM, ohM * 0.8) : 0,
+      hats: perf ? Math.max(kit * 0.9, ohM, snareM * 0.35) : 0,
       laptop: byType(['laptop']),
       hum: humAmt, thin, clip, reverb,
       feedback: talking && actual.feedback && (inRoom) ? 1 : talking && actual.ringing && inRoom ? 0.25 : 0,
@@ -132,7 +144,7 @@ export default function GameScreen({
 
   // 튜토리얼: 대본 자동 시작
   useEffect(() => {
-    if (tutorial?.steps) player.start(tutorial.steps, { practice: tutorial.practice, onDone: tutorial.onDone, onStep: tutorial.onStep });
+    if (tutorial?.steps) player.start(tutorial.steps, { practice: tutorial.practice, auto: !!tutorial.auto, onDone: tutorial.onDone, onStep: tutorial.onStep });
   }, [tutorial?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (initialAuto) startAuto(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -209,23 +221,9 @@ export default function GameScreen({
           </div>
           {/* 알림 */}
           {game.toast && <Toast toast={game.toast} onDone={() => game.setToast(null)} />}
-          {/* 내레이션 */}
-          {(player.narration || player.waiting) && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-3 w-[min(94%,640px)] rounded-xl border border-violet-400/50 bg-slate-950/90 backdrop-blur px-3 py-2 shadow-xl">
-              {player.narration && <div className="text-sm leading-relaxed text-slate-100">{player.narration.text}</div>}
-              {player.waiting && <div className="mt-1 text-sm font-bold text-amber-300 flex items-center gap-1"><Hand size={15} /> 직접 해 보세요: {player.waiting.practice}</div>}
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <button type="button" onClick={() => player.jump(-1)} className="p-1 rounded hover:bg-slate-800" aria-label="이전"><SkipBack size={15} /></button>
-                {player.script?.playing ? <button type="button" onClick={player.pause} className="p-1 rounded hover:bg-slate-800" aria-label="일시정지"><Pause size={15} /></button>
-                  : <button type="button" onClick={player.resume} className="p-1 rounded hover:bg-slate-800" aria-label="재생"><Play size={15} /></button>}
-                <button type="button" onClick={() => player.jump(1)} className="p-1 rounded hover:bg-slate-800" aria-label="다음"><SkipForward size={15} /></button>
-                <Seg small value={player.script?.speed ?? 1} options={[[1, '1x'], [1.5, '1.5x'], [2, '2x']]} onChange={player.setSpeed} />
-                {tutorial && <Toggle small on={!!player.script?.practice} color="amber" onClick={() => player.setPractice(!player.script?.practice)}>직접 해보기</Toggle>}
-                <span className="ml-auto text-[10px] text-slate-400 tabular-nums">{player.narration ? `${player.narration.i + 1}/${player.narration.n}` : ''}</span>
-                {!tutorial && <button type="button" onClick={player.stop} className="p-1 rounded hover:bg-slate-800" aria-label="자동 진행 끄기"><X size={15} /></button>}
-              </div>
-            </div>
-          )}
+          {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
+          {/* 대화 장면 (튜토리얼 · 정답 보기) */}
+          <Dialog player={player} tutorial={!!tutorial} />
         </div>
 
         {/* 사이드 패널 */}
@@ -280,11 +278,12 @@ export default function GameScreen({
               className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black select-none touch-none ${game.ptt ? 'bg-red-500 text-white shadow-[0_0_14px_rgba(239,68,68,.7)]' : 'bg-slate-700 text-slate-100 hover:bg-slate-600'}`}
               title="누르고 있는 동안 말합니다 (스페이스바)"><Mic size={14} /> 말하기</button>
             <Toggle small on={game.autoTalk} color="green" onClick={() => game.setAutoTalk(!game.autoTalk)} title="진행자가 계속 말하게 하기">자동 말하기</Toggle>
-            {Object.values(st.devices).some((d) => ['e_guitar', 'keyboard'].includes(d.type)) && (
+            {(st.venue === 'live_stage' || Object.values(st.devices).some((d) => INSTRUMENTS.has(d.type))) && (
               <Toggle small on={game.performing} color="green" onClick={() => game.setPerforming(!game.performing)} title="밴드 연주"><Guitar size={12} className="inline" /> 연주</Toggle>
             )}
             <span className="flex items-center gap-1 text-[11px] text-slate-400"><Ear size={14} /></span>
             <Seg small value={listen} options={LISTEN.filter(([k]) => k !== 'headphones' || Object.values(st.devices).some((d) => d.type === 'headphones'))} onChange={setListen} />
+            <Toggle small on={compareOpen} color="sky" onClick={() => setCompareOpen(!compareOpen)} title="현장(객석)에서 들리는 소리와 방송으로 나가는 소리를 나란히 비교합니다">A/B 비교</Toggle>
             {st.mixerId && st.devices[st.mixerId]?.placed && (
               <button type="button" onClick={() => setConsoleOpen(!consoleOpen)} className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold ${consoleOpen ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-100'}`}>
                 <SlidersHorizontal size={14} /> 믹서 콘솔

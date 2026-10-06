@@ -12,6 +12,9 @@ const NOTE = (n) => 440 * 2 ** ((n - 69) / 12); // MIDI → Hz
 const CHORDS = [[48, 55, 59, 64], [45, 52, 55, 60], [41, 48, 52, 57], [43, 50, 53, 59]];
 const BASS = [36, 33, 29, 31];
 const MELODY = [76, null, 74, 72, null, 67, 69, null, 72, null, 71, 67, null, 64, 67, null];
+// 무대 트랙: 악기·드럼 부분별로 따로 크기를 조절한다 (마이크로 잡은 부분만 방송에 들린다)
+const TRACKS = ['guitar', 'keys', 'kick', 'snare', 'hats', 'piano', 'bass', 'laptop'];
+const STAGE0 = { guitar: 0, keys: 0, kick: 0, snare: 0, hats: 0, piano: 0, bass: 0, laptop: 0, hum: 0, thin: 0, clip: 0, reverb: 0, feedback: 0 };
 
 let engine = null;
 export function getAudio() {
@@ -24,7 +27,7 @@ class AudioEngine {
     this.ctx = null;
     this.bgmVol = 0.5; this.bgmOn = true; this.sfxOn = true; this.duck = 1;
     this.song = 'menu';
-    this.stage = { guitar: 0, keys: 0, drums: 0, laptop: 0, hum: 0, thin: 0, clip: 0, reverb: 0, feedback: 0 };
+    this.stage = { ...STAGE0 };
     this.step = 0; this.nextTime = 0; this.timer = null;
   }
   unlock() {
@@ -45,7 +48,7 @@ class AudioEngine {
       this.shaper.connect(this.verbSend).connect(this.verb).connect(this.master);
       // 트랙별 게인
       this.tracks = {};
-      ['guitar', 'keys', 'drums', 'laptop'].forEach((k) => { const g = ctx.createGain(); g.gain.value = 0; g.connect(this.stageBus); this.tracks[k] = g; });
+      TRACKS.forEach((k) => { const g = ctx.createGain(); g.gain.value = 0; g.connect(this.stageBus); this.tracks[k] = g; });
       // 험 (60Hz + 배음)
       this.humGain = ctx.createGain(); this.humGain.gain.value = 0; this.humGain.connect(this.master);
       [60, 120, 180, 240].forEach((f, i) => { const o = ctx.createOscillator(); o.type = i ? 'sine' : 'triangle'; o.frequency.value = f; const g = ctx.createGain(); g.gain.value = [0.5, 0.3, 0.18, 0.1][i]; o.connect(g).connect(this.humGain); o.start(); });
@@ -89,7 +92,9 @@ class AudioEngine {
   }
   // 무대 소리 상태 (0~1). 값이 있으면 BGM은 자동으로 줄어든다
   setStage(s) {
-    this.stage = { guitar: 0, keys: 0, drums: 0, laptop: 0, hum: 0, thin: 0, clip: 0, reverb: 0, feedback: 0, ...s };
+    // 예전 이름: drums → 킥·스네어·하이햇 모두
+    const d = s.drums ?? 0;
+    this.stage = { ...STAGE0, kick: d, snare: d, hats: d, ...s };
     if (!this.ctx) return;
     const t = this.ctx.currentTime, on = this.sfxOn;
     Object.entries(this.tracks).forEach(([k, g]) => g.gain.setTargetAtTime(on ? (this.stage[k] ?? 0) * 0.5 : 0, t, 0.08));
@@ -98,7 +103,7 @@ class AudioEngine {
     this.stageHP.frequency.setTargetAtTime(this.stage.thin > 0 ? 900 : 20, t, 0.1);
     this.verbSend.gain.setTargetAtTime(this.stage.reverb * 0.8, t, 0.1);
     this.setDrive(on ? this.stage.clip : 0);
-    const loud = Math.max(this.stage.guitar, this.stage.keys, this.stage.drums, this.stage.laptop);
+    const loud = Math.max(...TRACKS.map((k) => this.stage[k] ?? 0));
     this.duck = loud > 0.05 ? 0.25 : 1;
     this.applyBgm();
   }
@@ -129,19 +134,46 @@ class AudioEngine {
       if (this.song === 'menu' && m && (bar % 2 === 0)) this.pluck(bgm, NOTE(m), t, spb * 2, 0.05, 'triangle');
       if (this.song === 'game' && m && bar === 3 && s < 8) this.pluck(bgm, NOTE(m - 12), t, spb * 2, 0.035, 'triangle');
     }
-    // ---- 무대 악기 (시뮬레이션 레벨로 볼륨 조절) ----
-    if (this.stage.drums > 0 || this.stage.guitar > 0 || this.stage.keys > 0) {
-      if (s === 0 || s === 6 || s === 8) this.kick(this.tracks.drums, t, 0.9);
-      if (s === 4 || s === 12) this.snare(this.tracks.drums, t, 0.5);
-      if (s % 2 === 0) this.hat(this.tracks.drums, t, 0.12);
+    // ---- 무대 악기 (시뮬레이션 레벨로 볼륨 조절) — 밴드가 같은 박자로 연주한다 ----
+    const S = this.stage;
+    const band = ['guitar', 'keys', 'kick', 'snare', 'hats', 'piano', 'bass'].some((k) => S[k] > 0);
+    if (band) {
+      if (s === 0 || s === 6 || s === 8) this.kick(this.tracks.kick, t, 0.9);
+      if (s === 4 || s === 12) this.snare(this.tracks.snare, t, 0.55);
+      if (s % 2 === 0) this.hat(this.tracks.hats, t, s % 4 === 2 ? 0.16 : 0.1);
+      if (s === 0 && bar === 0) this.crash(this.tracks.hats, t, 0.18);
       if (s % 2 === 0) this.pluck(this.tracks.guitar, NOTE(chord[s % 4 === 0 ? 1 : 2] + 12), t, spb * 1.6, 0.16, 'sawtooth', 1800);
       if (s === 0 || s === 8) chord.forEach((n, i) => this.pad(this.tracks.keys, NOTE(n + 12), t + i * 0.01, spb * 7, 0.09, 'triangle'));
+      // 피아노: 화음을 짧게 치고 멜로디를 얹는다
+      if (s === 0 || s === 6 || s === 10) chord.forEach((n, i) => this.piano(this.tracks.piano, NOTE(n + 12), t + i * 0.008, spb * 6, 0.07));
+      const m = MELODY[s];
+      if (m && bar % 2 === 1) this.piano(this.tracks.piano, NOTE(m), t, spb * 3, 0.09);
+      // 베이스: 근음을 8분음표로
+      if (s % 2 === 0) this.bassNote(this.tracks.bass, NOTE(BASS[bar] + (s === 14 ? 7 : 0)), t, spb * 1.8, 0.22);
     }
-    if (this.stage.laptop > 0) {
+    if (S.laptop > 0) {
       if (s === 0) chord.forEach((n) => this.pad(this.tracks.laptop, NOTE(n + 24), t, spb * 15, 0.05, 'sine'));
       const m = MELODY[s];
       if (m) this.pluck(this.tracks.laptop, NOTE(m), t, spb * 2.5, 0.12, 'sine');
     }
+  }
+  // 피아노 비슷한 소리: 빠른 어택 + 배음 두 개 + 서서히 줄어드는 소리
+  piano(out, f, t, dur, vol) {
+    const ctx = this.ctx, g = ctx.createGain(), lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(4200, t); lp.frequency.exponentialRampToValueAtTime(900, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(vol * 0.35, t + 0.18); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    [[1, 'triangle', 1], [2, 'sine', 0.35], [3, 'sine', 0.12]].forEach(([h, type, a]) => {
+      const o = ctx.createOscillator(), og = ctx.createGain();
+      o.type = type; o.frequency.value = f * h; o.detune.value = h === 1 ? 0 : 3; og.gain.value = a;
+      o.connect(og).connect(lp); o.start(t); o.stop(t + dur + 0.05);
+    });
+    lp.connect(g).connect(out);
+  }
+  crash(out, t, vol) {
+    const ctx = this.ctx, src = ctx.createBufferSource(), g = ctx.createGain(), hp = ctx.createBiquadFilter();
+    src.buffer = this.noise; hp.type = 'highpass'; hp.frequency.value = 5000;
+    this.env(g, t, 0.002, 1.2, vol);
+    src.connect(hp).connect(g).connect(out); src.start(t, Math.random() * 0.3, 1.3);
   }
   env(g, t, a, d, peak) {
     g.gain.setValueAtTime(0.0001, t);
@@ -194,6 +226,15 @@ class AudioEngine {
   }
   ok() { this.blip(880, 0.1); this.blip(1320, 0.16, 'sine', 0.08, 0.08); }
   error() { this.blip(130, 0.22, 'square', 0.04); }
+  // 팝 노이즈: 스피커가 켜진 채로 케이블을 꽂을 때의 "퍽"
+  pop() {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(30, t + 0.18);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.35);
+    this.blip(1200, 0.03, 'square', 0.05);
+  }
   plug() { this.blip(70, 0.12, 'sine', 0.3); this.blip(2400, 0.02, 'square', 0.03, 0.02); }
   click() { this.blip(1800, 0.03, 'square', 0.02); }
   clear() { [523, 659, 784, 1047].forEach((f, i) => this.blip(f, 0.28, 'triangle', 0.08, i * 0.12)); }
