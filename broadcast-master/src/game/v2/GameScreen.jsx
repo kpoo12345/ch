@@ -177,7 +177,7 @@ export default function GameScreen({
 
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
         {/* 3D */}
-        <div className="relative flex-1 min-h-[42vh] lg:min-h-0">
+        <div className={`relative flex-1 ${consoleOpen ? 'min-h-[26vh]' : 'min-h-[40vh]'} lg:min-h-0`}>
           {gl ? (
             <Venue3D st={st} sim={actual} venueId={st.venue} talking={talking} performing={game.performing} selectedChannel={game.selCh}
               pending={game.pending} selectedCable={game.cable} selectedDevice={game.selected} labels={labels} resetKey={resetKey}
@@ -215,7 +215,7 @@ export default function GameScreen({
         </div>
 
         {/* 사이드 패널 */}
-        <aside className="lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 flex flex-col min-h-0 h-[38vh] lg:h-auto">
+        <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 h-[38vh] lg:h-auto`}>
           <nav className="flex border-b border-slate-800 shrink-0" role="tablist">
             {[
               ...(mode === 'sandbox' ? [['add', '장비 추가', Cpu]] : [['mission', '미션', ListChecks]]),
@@ -233,7 +233,7 @@ export default function GameScreen({
               <MissionPanel spec={spec} game={game} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))} />
             )}
             {tab === 'device' && (game.selected && st.devices[game.selected]
-              ? <DevicePanel game={game} id={game.selected} />
+              ? <DevicePanel key={game.selected} game={game} id={game.selected} />
               : <DeviceList game={game} />)}
             {tab === 'device' && game.selected && <button type="button" onClick={() => game.setSelected(null)} className="text-xs text-slate-400 hover:text-slate-200">← 장비 목록</button>}
             {tab === 'ports' && <PortBoard game={game} />}
