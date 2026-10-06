@@ -124,9 +124,58 @@ export const FAULTS = {
   patch: { title: '입력 패치 오류', desc: 'CH01 입력 패치가 엉뚱한 입력(Local In 2)으로 바뀌어 있었습니다.' },
   usbRoute: { title: 'USB 라우팅 오류', desc: 'USB 출력이 아무것도 없는 Mix Bus 1로 라우팅되어 있었습니다.' },
   obsMute: { title: 'OBS 음소거', desc: 'OBS 오디오 믹서에서 X32 소스가 음소거되어 있었습니다.' },
+  spkPower: { title: '스피커 전원 OFF', desc: '액티브 스피커의 전원이 꺼져 있었습니다.' },
 };
+// 스토리 4스테이지에서 무작위로 고르는 고장 (스피커가 없는 송출 시스템용)
+const STAGE4_FAULTS = ['cable', 'phantom', 'chMute', 'fader', 'mainMute', 'patch', 'usbRoute', 'obsMute'];
+
+// 스튜디오(샌드박스) 모드: 모든 장비를 직접 설치하고 연결한다
+const SANDBOX_DEVICES = (placed) => toMap([
+  dev('mic', 'dynamic_mic', 30, 40, placed),
+  dev('mixer', 'digital_mixer', 290, 24, placed),
+  dev('speaker', 'speaker', 790, 120, placed),
+  dev('cam1', 'camera', 30, 215, placed, '카메라 1 · 클로즈업'),
+  dev('cam2', 'camera', 30, 385, placed, '카메라 2 · 와이드'),
+  dev('atem', 'atem', 290, 300, placed),
+  dev('pc', 'pc', 560, 300, placed),
+]);
+const INF = Number.POSITIVE_INFINITY;
+export const SANDBOX_CABLES = { xlr: INF, trs: INF, hdmi: INF, sdi: INF, usb: INF };
+
+// 완성된 하이브리드 시스템 (PA + 라이브 송출): 스튜디오 모드 "완성 시스템 불러오기"와 메인 메뉴 배경에 사용
+export function buildFullSystem() {
+  return {
+    devices: SANDBOX_DEVICES(true),
+    connections: [
+      conn('mic', 'out', 'mixer', 'local1', 'xlr'),
+      conn('mixer', 'main', 'speaker', 'in', 'xlr'),
+      conn('cam1', 'hdmi', 'atem', 'in1', 'hdmi'),
+      conn('cam2', 'hdmi', 'atem', 'in2', 'hdmi'),
+      conn('atem', 'usb', 'pc', 'usb1', 'usb'),
+      conn('mixer', 'usb', 'pc', 'usb2', 'usb'),
+    ],
+    cables: { ...SANDBOX_CABLES },
+    mixer: { ...MIXER_DEFAULT, gain: 28, mainFader: 70 },
+    speaker: { power: true, position: 'behind' },
+    atem: { program: 1, preview: 2, transitioning: false },
+    obs: { videoSource: 'atem', audioSource: 'x32', audioMuted: false, streaming: true },
+    faults: [],
+  };
+}
 
 export function buildStage(id) {
+  if (id === 'studio') {
+    return {
+      devices: SANDBOX_DEVICES(false),
+      connections: [],
+      cables: { ...SANDBOX_CABLES },
+      mixer: { ...MIXER_DEFAULT, mainFader: 0, chFader: 75 },
+      speaker: { power: false, position: 'behind' },
+      atem: { program: 0, preview: 1, transitioning: false },
+      obs: { videoSource: 'none', audioSource: 'none', audioMuted: false, streaming: false },
+      faults: [],
+    };
+  }
   const base = {
     mixer: { ...MIXER_DEFAULT },
     speaker: { power: false, position: 'behind' },
@@ -186,7 +235,7 @@ export function buildStage(id) {
     atem: { program: 1, preview: 2, transitioning: false },
     obs: { videoSource: 'atem', audioSource: 'x32', audioMuted: false, streaming: true },
   };
-  const pool = Object.keys(FAULTS).sort(() => Math.random() - 0.5).slice(0, 3);
+  const pool = [...STAGE4_FAULTS].sort(() => Math.random() - 0.5).slice(0, 3);
   pool.forEach((f) => {
     if (f === 'cable') { s.connections = s.connections.filter((c) => c.from.d !== 'mic'); s.cables = { ...s.cables, xlr: 1 }; }
     if (f === 'phantom') s.mixer.phantom = false;
@@ -260,53 +309,67 @@ export function computeSignal(st, talking) {
   };
 }
 
+// 신호 추적기: 시스템에 있는 장비에 따라 PA / 송출 오디오 / 비디오 체인을 만든다.
+// 각 체인은 앞에서부터 확인해 처음 끊긴 지점을 fail, 그 뒤는 idle로 표시한다.
 export function buildTrace(st, n) {
   const has = (id) => !!st.devices[id]?.placed;
   const m = st.mixer;
-  let audio;
-  if (!n.isDigital) {
-    audio = [
-      { label: '마이크', ok: has('mic') },
-      { label: 'XLR → CH1', ok: n.micAtCh },
-      { label: 'GAIN', ok: n.chIn != null && n.chIn > -40, warn: n.chIn > 0 ? '클리핑' : null },
-      { label: '채널(뮤트·페이더)', ok: n.chPost != null },
-      { label: 'MAIN OUT', ok: n.mainOut != null },
-      { label: '케이블 → 스피커', ok: n.speakerLinked },
-      { label: '스피커 전원', ok: n.spkOn },
-      { label: '소리 출력', ok: n.audible, warn: n.feedback ? '하울링' : null },
-    ];
-  } else {
-    audio = [
-      { label: '마이크', ok: has('mic') },
-      { label: 'XLR 케이블', ok: !!n.micConn },
-      { label: '입력 패치', ok: n.micAtCh },
-      ...(n.condenser ? [{ label: '+48V 팬텀', ok: m.phantom }] : []),
-      { label: 'GAIN', ok: n.chIn != null && n.chIn > -40, warn: n.chIn > 0 ? '클리핑' : null },
-      { label: 'CH01', ok: n.chPost != null },
-      { label: 'MAIN L/R', ok: n.mainOut != null },
-      { label: 'USB 라우팅', ok: m.usbOut === 'main' },
-      { label: 'USB → PC', ok: n.usbLinked },
-      { label: 'OBS 오디오', ok: st.obs.audioSource === 'x32' && !st.obs.audioMuted },
-      { label: '송출', ok: st.obs.streaming && n.audioOk },
-    ];
-  }
-  const video = n.isDigital ? [
-    { label: '카메라', ok: has('cam1') || has('cam2') },
-    { label: 'HDMI → ATEM', ok: Object.keys(n.camAt).length > 0 },
-    { label: 'PGM 선택', ok: !!n.programCam },
-    { label: 'USB → PC', ok: n.atemUsbLinked },
-    { label: 'OBS 영상', ok: st.obs.videoSource === 'atem' },
-    { label: '송출', ok: st.obs.streaming && n.videoOk },
-  ] : null;
-  const walk = (steps) => {
-    let broken = false;
-    return steps.map((s) => {
-      if (broken) return { ...s, status: 'idle' };
-      if (!s.ok) { broken = true; return { ...s, status: 'fail' }; }
-      return { ...s, status: s.warn ? 'warn' : 'ok' };
+  const front = n.isDigital
+    ? [{ label: '마이크', ok: has('mic') }, { label: 'XLR 케이블', ok: !!n.micConn }, { label: '입력 패치', ok: n.micAtCh }]
+    : [{ label: '마이크', ok: has('mic') }, { label: 'XLR → CH1', ok: n.micAtCh }];
+  const mixerSteps = [
+    ...front,
+    ...(n.condenser ? [{ label: '+48V 팬텀', ok: m.phantom }] : []),
+    { label: 'GAIN', ok: n.chIn != null && n.chIn > -40, warn: n.chIn > 0 ? '클리핑' : null },
+    { label: n.isDigital ? 'CH01' : '채널(뮤트·페이더)', ok: n.chPost != null },
+    { label: n.isDigital ? 'MAIN L/R' : 'MAIN OUT', ok: n.mainOut != null },
+  ];
+  const rows = [];
+  if (st.devices.speaker) {
+    rows.push({
+      name: st.devices.pc ? 'PA' : '오디오',
+      steps: [
+        ...mixerSteps,
+        { label: '케이블 → 스피커', ok: n.speakerLinked },
+        { label: '스피커 전원', ok: n.spkOn },
+        { label: '소리 출력', ok: n.audible, warn: n.feedback ? '하울링' : null },
+      ],
     });
-  };
-  return { audio: walk(audio), video: video ? walk(video) : null };
+  }
+  if (st.devices.pc) {
+    rows.push({
+      name: st.devices.speaker ? '송출 음성' : '오디오',
+      steps: [
+        ...mixerSteps,
+        { label: 'USB 라우팅', ok: n.isDigital && m.usbOut === 'main' },
+        { label: 'USB → PC', ok: n.usbLinked },
+        { label: 'OBS 오디오', ok: st.obs.audioSource === 'x32' && !st.obs.audioMuted },
+        { label: '송출', ok: st.obs.streaming && n.audioOk },
+      ],
+    });
+    rows.push({
+      name: '비디오',
+      steps: [
+        { label: '카메라', ok: has('cam1') || has('cam2') },
+        { label: 'HDMI → ATEM', ok: Object.keys(n.camAt).length > 0 },
+        { label: 'PGM 선택', ok: !!n.programCam },
+        { label: 'USB → PC', ok: n.atemUsbLinked },
+        { label: 'OBS 영상', ok: st.obs.videoSource === 'atem' },
+        { label: '송출', ok: st.obs.streaming && n.videoOk },
+      ],
+    });
+  }
+  return rows.map((r) => {
+    let broken = false;
+    return {
+      name: r.name,
+      steps: r.steps.map((x) => {
+        if (broken) return { ...x, status: 'idle' };
+        if (!x.ok) { broken = true; return { ...x, status: 'fail' }; }
+        return { ...x, status: x.warn ? 'warn' : 'ok' };
+      }),
+    };
+  });
 }
 
 export const faultFixed = (f, st, n) => {
@@ -319,6 +382,7 @@ export const faultFixed = (f, st, n) => {
     case 'patch': return n.micConn ? st.mixer.ch1Source === n.micPort : st.mixer.ch1Source === 'local1';
     case 'usbRoute': return st.mixer.usbOut === 'main';
     case 'obsMute': return !st.obs.audioMuted;
+    case 'spkPower': return st.speaker.power;
     default: return true;
   }
 };
@@ -423,6 +487,32 @@ export const STAGES = {
       '송출 전 체크리스트를 만들어 매번 확인하는 습관이 사고를 막습니다.',
     ],
   },
+};
+
+// 스튜디오 모드 도전 과제 (한 번 달성하면 계속 유지)
+STAGES.studio = {
+  title: '스튜디오 모드', tag: '마스터', focus: 'mixer', autoTalk: false, studio: true,
+  mission: '장비를 직접 골라 설치하고 연결해 PA와 라이브 송출을 동시에 운영해 보세요. 도전 과제를 모두 달성하면 방송장비 마스터!',
+  briefing: [
+    '여기는 나만의 방송 스튜디오입니다. 정답도, 시간 제한도, 감점도 없습니다.',
+    '하단 장비 카탈로그에서 장비를 골라 설치하세요. 마이크는 다이나믹/콘덴서, 믹서는 아날로그/디지털 중 선택할 수 있고 케이블은 무제한입니다. 실력이 붙으면 "돌발 상황 훈련"으로 숨겨진 고장을 찾아보세요.',
+  ],
+  objectives: [
+    { id: 'pa', label: 'PA 완성: 스피커로 마이크 소리 내기', latch: (c) => c.a.audible },
+    { id: 'gain', label: '게인 스테이징: 입력 -20 ~ -6 dB로 소리 내기', latch: (c) => c.a.audible && c.a.chIn >= -20 && c.a.chIn <= -6 },
+    { id: 'clean', label: '하울링·링잉 없이 PA 운영', latch: (c) => c.a.audible && !c.a.feedback && !c.a.ringing && c.a.chIn >= -20 },
+    { id: 'stream', label: '라이브 송출 성공 (영상 + 오디오)', latch: (c) => c.st.obs.streaming && c.a.videoOk && c.a.audioOk },
+    { id: 'switch', label: '카메라 2대를 모두 PGM으로 송출해 보기', latch: (c) => c.pgmSeen.includes('cam1') && c.pgmSeen.includes('cam2') },
+    { id: 'condenser', label: '콘덴서 마이크(+48V)로 송출하기', latch: (c) => c.n.condenser && c.st.obs.streaming && c.a.audioOk },
+    { id: 'hybrid', label: 'PA와 라이브 송출 동시 운영', latch: (c) => c.a.audible && !c.a.feedback && c.st.obs.streaming && c.a.audioOk && c.a.videoOk },
+    { id: 'drill', label: '돌발 상황 훈련에서 고장 찾아내기', latch: (c) => c.drillsDone > 0 },
+  ],
+  hints: [
+    '처음이라면 "완성 시스템 불러오기"로 완성된 연결을 먼저 살펴보세요. 그다음 "모두 철거"하고 직접 다시 만들어 보면 좋습니다.',
+    'PA는 마이크 → 믹서 → MAIN → 스피커, 송출은 마이크 → X32 → USB → PC(OBS), 영상은 카메라 → ATEM → USB → PC입니다. 아날로그 믹서에는 USB 출력이 없습니다.',
+    '도전 과제 "콘덴서 마이크"는 마이크를 철거한 뒤 종류를 콘덴서로 바꿔 다시 설치하고, 믹서에서 48V를 켜야 합니다.',
+  ],
+  lessons: [],
 };
 
 export const CHAT_BAD = ['소리 안 나와요', '음소거 됐나요??', '??? 소리', '저만 안 들려요?', '소리 ㅠㅠ', '입모양만 보여요', 'PD님 소리요!!', '새로고침 해도 안 나와요'];

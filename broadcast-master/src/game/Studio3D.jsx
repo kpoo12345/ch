@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useEffect, useState, useContext, createContext } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, RoundedBox, Html, Grid } from '@react-three/drei';
 import * as THREE from 'three';
@@ -37,6 +37,22 @@ const LAYOUTS = {
       cam2: { pos: [-3.25, 0, 1.45], rot: faceTo([-3.25, 0, 1.45], [-2.3, 0, -0.75]) },
     },
     camera: { pos: [-0.6, 2.5, 4.6], target: [-0.65, 0.9, 0.3], halfW: 3.75 },
+  },
+  // 스튜디오 모드: PA(스피커)와 송출 장비가 한 공간에
+  sandbox: {
+    desk: { x: 0.85, z: 0.15, w: 2.9, d: 0.85 },
+    presenter: [-2.3, 0, -0.75],
+    slots: {
+      mic: { pos: [-2.3, 0, -0.3], rot: 0 },
+      mixer: { pos: [0.0, DESK_TOP, 0.2], rot: 0 },
+      atem: { pos: [0.85, DESK_TOP, 0.38], rot: 0 },
+      pc: { pos: [1.72, DESK_TOP, 0.05], rot: -0.15 },
+      cam1: { pos: [-1.15, 0, 1.0], rot: faceTo([-1.15, 0, 1.0], [-2.3, 0, -0.75]) },
+      cam2: { pos: [-3.25, 0, 1.45], rot: faceTo([-3.25, 0, 1.45], [-2.3, 0, -0.75]) },
+      speaker: { pos: [2.85, 0, 0.95], rot: -0.45 },
+    },
+    speakerFront: { pos: [-1.8, 0, 0.55], rot: faceTo([-1.8, 0, 0.55], [-2.3, 0, -0.3]) },
+    camera: { pos: [0.0, 2.7, 5.0], target: [-0.25, 0.9, 0.3], halfW: 4.2 },
   },
 };
 
@@ -97,6 +113,27 @@ function rotY(v, a) {
 }
 function quatFromNormal(n) {
   return new THREE.Quaternion().setFromUnitVectors(UP, new THREE.Vector3(...n).normalize());
+}
+
+
+/* ---------------------------- 캔버스 / 라벨 래퍼 ----------------------------
+ * drei <Html> 라벨은 캔버스가 사라질 때 붙어 있던 부모를 잃어 removeChild 오류를 낸다.
+ * 캔버스 위에 고정 오버레이를 두고, 모든 라벨을 그 오버레이에 붙여 부모가 바뀌지 않게 한다. */
+const PortalCtx = createContext(null);
+function Label(props) {
+  const portal = useContext(PortalCtx);
+  return <Html portal={portal ?? undefined} {...props} />;
+}
+function CanvasShell({ children, ...canvasProps }) {
+  const portal = useMemo(() => ({ current: null }), []);
+  return (
+    <div className="relative w-full h-full">
+      <PortalCtx.Provider value={portal}>
+        <Canvas {...canvasProps}>{children}</Canvas>
+      </PortalCtx.Provider>
+      <div ref={(el) => { if (el) portal.current = el; }} className="absolute inset-0 pointer-events-none overflow-hidden" />
+    </div>
+  );
 }
 
 /* ---------------------------- 공용 부품 ---------------------------- */
@@ -239,6 +276,64 @@ function drawMeterBar(ctx, x, y, w, h, level) {
   const g = ctx.createLinearGradient(x, 0, x + w, 0);
   g.addColorStop(0, '#16a34a'); g.addColorStop(0.81, '#22c55e'); g.addColorStop(0.82, '#eab308'); g.addColorStop(0.9, '#eab308'); g.addColorStop(0.91, '#ef4444');
   ctx.fillStyle = g; ctx.fillRect(x, y, w * pct, h);
+}
+
+// OBS 모니터 화면
+function drawObsScreen(ctx, w, h, { obsVideo, obs, atem, obsAudioLv, viewers }) {
+  ctx.fillStyle = '#1b1c22'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#2a2c35'; ctx.fillRect(0, 0, w, 34);
+  ctx.fillStyle = '#cbd5e1'; ctx.font = `600 18px ${FONT}`;
+  ctx.fillText('OBS Studio  —  장면: 메인 라이브', 14, 23);
+  const px = 24, py = 46, pw = w - 48, ph = 360;
+  ctx.fillStyle = '#000'; ctx.fillRect(px - 2, py - 2, pw + 4, ph + 4);
+  drawScene(ctx, obsVideo, px, py, pw, ph);
+  if (atem.transitioning && obs.videoSource === 'atem') { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(px, py, pw, ph); }
+  if (obs.streaming) {
+    ctx.fillStyle = '#dc2626'; ctx.fillRect(px + pw - 120, py + 12, 106, 36);
+    ctx.fillStyle = '#fff'; ctx.font = `800 22px ${FONT}`; ctx.fillText('● LIVE', px + pw - 108, py + 38);
+  }
+  const ay = py + ph + 22;
+  ctx.fillStyle = '#23252d'; ctx.fillRect(px, ay, pw * 0.62, h - ay - 16);
+  ctx.fillStyle = '#94a3b8'; ctx.font = `600 17px ${FONT}`; ctx.fillText('오디오 믹서', px + 14, ay + 26);
+  ctx.fillStyle = '#e2e8f0'; ctx.font = `500 16px ${FONT}`;
+  ctx.fillText(obs.audioSource === 'x32' ? 'X32 USB Audio' : obs.audioSource === 'builtin' ? 'PC 내장 마이크' : '오디오 소스 없음', px + 14, ay + 58);
+  drawMeterBar(ctx, px + 14, ay + 70, pw * 0.62 - 90, 22, obsAudioLv);
+  ctx.fillStyle = obs.audioMuted ? '#dc2626' : '#475569'; ctx.fillRect(px + pw * 0.62 - 64, ay + 66, 50, 30);
+  ctx.fillStyle = '#fff'; ctx.font = `700 14px ${FONT}`; ctx.fillText(obs.audioMuted ? 'MUTE' : 'ON', px + pw * 0.62 - 58, ay + 86);
+  const bx = px + pw * 0.62 + 16, bw = pw * 0.38 - 16;
+  ctx.fillStyle = obs.streaming ? '#e2e8f0' : '#dc2626'; ctx.fillRect(bx, ay, bw, 50);
+  ctx.fillStyle = obs.streaming ? '#0f172a' : '#fff'; ctx.font = `700 20px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText(obs.streaming ? '방송 중지' : '방송 시작', bx + bw / 2, ay + 33);
+  ctx.fillStyle = '#94a3b8'; ctx.font = `500 16px ${FONT}`;
+  ctx.fillText(obs.streaming ? `시청자 ${viewers.toLocaleString()}명` : 'OFFLINE', bx + bw / 2, ay + 86);
+  ctx.textAlign = 'left';
+}
+
+// X32 라우팅/미터 화면
+function drawX32Screen(ctx, w, h, { mixer, micAtCh, condenser, chLv, mainLv }) {
+  ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#0ea5e9'; ctx.fillRect(0, 0, w, 44);
+  ctx.fillStyle = '#fff'; ctx.font = `700 28px ${FONT}`; ctx.fillText('X32  ROUTING / METERS', 16, 32);
+  const srcName = { local1: 'Local In 1', local2: 'Local In 2', aes50a1: 'AES50 A-1', off: 'Off' }[mixer.ch1Source];
+  const usbName = { main: 'Main L/R', bus1: 'Mix Bus 1', off: 'Off' }[mixer.usbOut];
+  const rows = [
+    ['CH01 입력', srcName, micAtCh],
+    ['USB 출력', usbName, mixer.usbOut === 'main'],
+    ['+48V', mixer.phantom ? 'ON' : 'OFF', mixer.phantom || !condenser],
+  ];
+  rows.forEach(([k, v, ok], i) => {
+    const y = 92 + i * 56;
+    ctx.fillStyle = '#94a3b8'; ctx.font = `500 28px ${FONT}`; ctx.fillText(k, 16, y);
+    ctx.fillStyle = ok ? '#4ade80' : '#f87171'; ctx.font = `700 32px ${FONT}`; ctx.fillText(v, 190, y);
+  });
+  ctx.fillStyle = '#94a3b8'; ctx.font = `500 26px ${FONT}`;
+  ctx.fillText('CH01', 520, 110); drawMeterBar(ctx, 600, 88, w - 620, 30, chLv);
+  ctx.fillText('MAIN', 520, 180); drawMeterBar(ctx, 600, 158, w - 620, 30, mainLv);
+  if (mixer.chMute || mixer.mainMute) {
+    ctx.fillStyle = '#dc2626'; ctx.fillRect(600, 206, 260, 38);
+    ctx.fillStyle = '#fff'; ctx.font = `700 24px ${FONT}`;
+    ctx.fillText(mixer.chMute && mixer.mainMute ? 'CH01 + MAIN MUTE' : mixer.chMute ? 'CH01 MUTE' : 'MAIN MUTE', 612, 234);
+  }
 }
 
 /* ---------------------------- 장비 모델 ---------------------------- */
@@ -638,9 +733,9 @@ function Cable3D({ A, B, layout, cable, live, onDisconnect }) {
       <Plug p={A.p} n={A.n} color={color} />
       <Plug p={B.p} n={B.n} color={color} />
       {hover && (
-        <Html position={curve.getPointAt(0.5)} center wrapperClass="bm-noevents">
+        <Label position={curve.getPointAt(0.5)} center wrapperClass="bm-noevents">
           <div className="whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[11px] text-white">{CABLES[cable].name} · 클릭하면 분리</div>
-        </Html>
+        </Label>
       )}
     </group>
   );
@@ -714,12 +809,12 @@ function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, label
         </mesh>
       </group>
       {(labels || hover || isPending || candidate) && (
-        <Html position={labelPos} center zIndexRange={[20, 0]} wrapperClass="bm-noevents">
+        <Label position={labelPos} center zIndexRange={[20, 0]} wrapperClass="bm-noevents">
           <div className={`whitespace-nowrap rounded px-1 py-[1px] font-mono text-[10px] leading-tight ${isPending ? 'bg-white text-slate-900' : candidate ? 'bg-sky-500 text-white' : 'bg-black/75 text-slate-100'} ${used ? 'opacity-70' : ''}`}
             style={{ borderLeft: `3px solid ${color}` }}>
             {isPending || hover || candidate ? port.label : label}
           </div>
-        </Html>
+        </Label>
       )}
     </group>
   );
@@ -822,19 +917,19 @@ function AfterFirstFrame({ children }) {
  * Studio3D
  * ===================================================================== */
 export default function Studio3D({
-  stageId, devices, connections, mixer, speaker, atem, obs, actual, nominal, talking, jitter, viewers,
+  stageId, layoutKey, interactive = true, autoRotate = false, devices, connections, mixer, speaker, atem, obs, actual, nominal, talking, jitter, viewers,
   pending, selectedCable, selectedDevice, labels, resetKey, focusRequest,
   onPortClick, onSelectDevice, onDisconnect, onPlace, onCancelPending,
 }) {
-  const studio = stageId >= 3;
-  const layout = studio ? LAYOUTS.studio : LAYOUTS.pa;
+  const layout = LAYOUTS[layoutKey] ?? (stageId >= 3 ? LAYOUTS.studio : LAYOUTS.pa);
+  const studio = !!layout.slots.pc;
   const pointerRef = useRef(null);
   const [focus, setFocus] = useState(null);
   useEffect(() => { setFocus(null); }, [resetKey]);
   const lv = (x) => (x == null ? null : x + (talking ? jitter : 0));
 
   const slotOf = (id) => {
-    if (id === 'speaker' && !studio && speaker.position === 'front') return layout.speakerFront;
+    if (id === 'speaker' && layout.speakerFront && speaker.position === 'front') return layout.speakerFront;
     return layout.slots[id];
   };
   const portWorld = (d, portId) => {
@@ -866,63 +961,13 @@ export default function Studio3D({
 
   // 화면 텍스처: OBS 모니터, X32 스크린
   const obsAudioLv = lv(actual.obsAudio);
-  const obsTex = useCanvasTexture(1024, 576, (ctx, w, h) => {
-    ctx.fillStyle = '#1b1c22'; ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#2a2c35'; ctx.fillRect(0, 0, w, 34);
-    ctx.fillStyle = '#cbd5e1'; ctx.font = `600 18px ${FONT}`;
-    ctx.fillText('OBS Studio  —  장면: 메인 라이브', 14, 23);
-    const px = 24, py = 46, pw = w - 48, ph = 360;
-    ctx.fillStyle = '#000'; ctx.fillRect(px - 2, py - 2, pw + 4, ph + 4);
-    drawScene(ctx, nominal.obsVideo, px, py, pw, ph);
-    if (atem.transitioning && obs.videoSource === 'atem') { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(px, py, pw, ph); }
-    if (obs.streaming) {
-      ctx.fillStyle = '#dc2626'; ctx.fillRect(px + pw - 120, py + 12, 106, 36);
-      ctx.fillStyle = '#fff'; ctx.font = `800 22px ${FONT}`; ctx.fillText('● LIVE', px + pw - 108, py + 38);
-    }
-    const ay = py + ph + 22;
-    ctx.fillStyle = '#23252d'; ctx.fillRect(px, ay, pw * 0.62, h - ay - 16);
-    ctx.fillStyle = '#94a3b8'; ctx.font = `600 17px ${FONT}`; ctx.fillText('오디오 믹서', px + 14, ay + 26);
-    ctx.fillStyle = '#e2e8f0'; ctx.font = `500 16px ${FONT}`;
-    ctx.fillText(obs.audioSource === 'x32' ? 'X32 USB Audio' : obs.audioSource === 'builtin' ? 'PC 내장 마이크' : '오디오 소스 없음', px + 14, ay + 58);
-    drawMeterBar(ctx, px + 14, ay + 70, pw * 0.62 - 90, 22, obsAudioLv);
-    ctx.fillStyle = obs.audioMuted ? '#dc2626' : '#475569'; ctx.fillRect(px + pw * 0.62 - 64, ay + 66, 50, 30);
-    ctx.fillStyle = '#fff'; ctx.font = `700 14px ${FONT}`; ctx.fillText(obs.audioMuted ? 'MUTE' : 'ON', px + pw * 0.62 - 58, ay + 86);
-    const bx = px + pw * 0.62 + 16, bw = pw * 0.38 - 16;
-    ctx.fillStyle = obs.streaming ? '#e2e8f0' : '#dc2626'; ctx.fillRect(bx, ay, bw, 50);
-    ctx.fillStyle = obs.streaming ? '#0f172a' : '#fff'; ctx.font = `700 20px ${FONT}`; ctx.textAlign = 'center';
-    ctx.fillText(obs.streaming ? '방송 중지' : '방송 시작', bx + bw / 2, ay + 33);
-    ctx.fillStyle = '#94a3b8'; ctx.font = `500 16px ${FONT}`;
-    ctx.fillText(obs.streaming ? `시청자 ${viewers.toLocaleString()}명` : 'OFFLINE', bx + bw / 2, ay + 86);
-    ctx.textAlign = 'left';
-  }, [nominal.obsVideo, obs.streaming, obs.audioSource, obs.audioMuted, obs.videoSource, atem.transitioning, Math.round((obsAudioLv ?? -99) / 2), viewers]);
+  const obsTex = useCanvasTexture(1024, 576, (ctx, w, h) => drawObsScreen(ctx, w, h, { obsVideo: nominal.obsVideo, obs, atem, obsAudioLv, viewers }),
+    [nominal.obsVideo, obs.streaming, obs.audioSource, obs.audioMuted, obs.videoSource, atem.transitioning, Math.round((obsAudioLv ?? -99) / 2), viewers]);
 
   const chLv = lv(actual.chIn);
   const mainLv = lv(actual.mainOut);
-  const x32Tex = useCanvasTexture(1024, 256, (ctx, w, h) => {
-    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#0ea5e9'; ctx.fillRect(0, 0, w, 44);
-    ctx.fillStyle = '#fff'; ctx.font = `700 28px ${FONT}`; ctx.fillText('X32  ROUTING / METERS', 16, 32);
-    const srcName = { local1: 'Local In 1', local2: 'Local In 2', aes50a1: 'AES50 A-1', off: 'Off' }[mixer.ch1Source];
-    const usbName = { main: 'Main L/R', bus1: 'Mix Bus 1', off: 'Off' }[mixer.usbOut];
-    const rows = [
-      ['CH01 입력', srcName, nominal.micAtCh],
-      ['USB 출력', usbName, mixer.usbOut === 'main'],
-      ['+48V', mixer.phantom ? 'ON' : 'OFF', mixer.phantom || devices.mic?.type !== 'condenser_mic'],
-    ];
-    rows.forEach(([k, v, ok], i) => {
-      const y = 92 + i * 56;
-      ctx.fillStyle = '#94a3b8'; ctx.font = `500 28px ${FONT}`; ctx.fillText(k, 16, y);
-      ctx.fillStyle = ok ? '#4ade80' : '#f87171'; ctx.font = `700 32px ${FONT}`; ctx.fillText(v, 190, y);
-    });
-    ctx.fillStyle = '#94a3b8'; ctx.font = `500 26px ${FONT}`;
-    ctx.fillText('CH01', 520, 110); drawMeterBar(ctx, 600, 88, w - 620, 30, chLv);
-    ctx.fillText('MAIN', 520, 180); drawMeterBar(ctx, 600, 158, w - 620, 30, mainLv);
-    if (mixer.chMute || mixer.mainMute) {
-      ctx.fillStyle = '#dc2626'; ctx.fillRect(600, 206, 260, 38);
-      ctx.fillStyle = '#fff'; ctx.font = `700 24px ${FONT}`;
-      ctx.fillText(mixer.chMute && mixer.mainMute ? 'CH01 + MAIN MUTE' : mixer.chMute ? 'CH01 MUTE' : 'MAIN MUTE', 612, 234);
-    }
-  }, [mixer.ch1Source, mixer.usbOut, mixer.phantom, mixer.chMute, mixer.mainMute, nominal.micAtCh, Math.round((chLv ?? -99) / 3), Math.round((mainLv ?? -99) / 3)]);
+  const x32Tex = useCanvasTexture(1024, 256, (ctx, w, h) => drawX32Screen(ctx, w, h, { mixer, micAtCh: nominal.micAtCh, condenser: devices.mic?.type === 'condenser_mic', chLv, mainLv }),
+    [mixer.ch1Source, mixer.usbOut, mixer.phantom, mixer.chMute, mixer.mainMute, nominal.micAtCh, devices.mic?.type, Math.round((chLv ?? -99) / 3), Math.round((mainLv ?? -99) / 3)]);
 
   const focusDevice = (id) => {
     const slot = slotOf(id);
@@ -957,7 +1002,7 @@ export default function Studio3D({
   };
 
   return (
-    <Canvas
+    <CanvasShell
       shadows
       dpr={[1, 1.75]}
       camera={{ fov: 40, position: layout.camera.pos, near: 0.05, far: 60 }}
@@ -980,6 +1025,7 @@ export default function Studio3D({
       <CameraRig layout={layout} resetKey={resetKey} shake={actual.feedback} portWorld={portWorld} focus={focus} />
       <OrbitControls
         makeDefault enableDamping dampingFactor={0.08}
+        autoRotate={autoRotate} autoRotateSpeed={0.5} enableZoom={interactive} enablePan={interactive}
         minDistance={1.2} maxDistance={12} maxPolarAngle={Math.PI / 2.08}
       />
 
@@ -1001,16 +1047,16 @@ export default function Studio3D({
                 onDoubleClick={(e) => { e.stopPropagation(); focusDevice(d.id); }}
               >
                 <DropIn>{renderModel(d)}</DropIn>
-                {selected && <SelectRing radius={SELECT_RADIUS[d.type] ?? 0.3} />}
-                <Html position={FRONT_LABEL.has(d.type) ? [0, 0.03, GHOST[d.type][2] / 2 + 0.09] : [0, GHOST[d.type][1] + 0.16, 0]} center zIndexRange={[30, 0]}>
-                  <button type="button" onClick={() => onSelectDevice(d.id)} onDoubleClick={() => focusDevice(d.id)} data-device-label={d.id}
+                {selected && interactive && <SelectRing radius={SELECT_RADIUS[d.type] ?? 0.3} />}
+                {interactive && <Label position={FRONT_LABEL.has(d.type) ? [0, 0.03, GHOST[d.type][2] / 2 + 0.09] : [0, GHOST[d.type][1] + 0.16, 0]} center zIndexRange={[30, 0]}>
+                  <button type="button" onClick={() => onSelectDevice(d.id)} onDoubleClick={() => focusDevice(d.id)} data-device-label={d.id} style={{ pointerEvents: 'auto' }}
                     title="클릭: 제어 패널 · 더블클릭: 확대해서 보기"
                     className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${selected ? 'bg-sky-500 text-white' : 'bg-slate-900/80 text-slate-200 hover:bg-slate-700'}`}>
                     {d.name ?? def.name}
                   </button>
-                </Html>
+                </Label>}
               </group>
-              {Object.keys(ports).map((pid, idx) => {
+              {interactive && Object.keys(ports).map((pid, idx) => {
                 const port = [...def.ins, ...def.outs].find((pp) => pp.id === pid);
                 const dir = def.ins.some((pp) => pp.id === pid) ? 'in' : 'out';
                 const w = portWorld(d.id, pid);
@@ -1027,7 +1073,7 @@ export default function Studio3D({
           );
         })}
 
-        {ghosts.map((d) => {
+        {interactive && ghosts.map((d) => {
           const slot = slotOf(d.id);
           const size = GHOST[d.type] ?? [0.4, 0.4, 0.4];
           return (
@@ -1040,12 +1086,12 @@ export default function Studio3D({
                 <circleGeometry args={[Math.max(size[0], size[2]) * 0.7, 40]} />
                 <meshBasicMaterial color="#38bdf8" transparent opacity={0.12} depthWrite={false} />
               </mesh>
-              <Html position={[0, size[1] + 0.15, 0]} center zIndexRange={[40, 0]}>
-                <button type="button" onClick={() => onPlace(d.id)}
+              <Label position={[0, size[1] + 0.15, 0]} center zIndexRange={[40, 0]}>
+                <button type="button" onClick={() => onPlace(d.id)} style={{ pointerEvents: 'auto' }}
                   className="whitespace-nowrap rounded-full border border-sky-300 bg-sky-600/90 px-3 py-1 text-[12px] font-bold text-white shadow-lg hover:bg-sky-500">
                   + {d.name ?? DEVICE_TYPES[d.type].name} 배치
                 </button>
-              </Html>
+              </Label>
             </group>
           );
         })}
@@ -1062,6 +1108,202 @@ export default function Studio3D({
         )}
         </AfterFirstFrame>
       </group>
-    </Canvas>
+    </CanvasShell>
+  );
+}
+
+/* =====================================================================
+ * 교육 모드용 뷰어 — 장비 하나를 받침대 위에 올려 돌려 보며 단자를 확인한다
+ * ===================================================================== */
+const VIEW = {
+  dynamic_mic: { target: [0, 1.25, 0], dist: 1.5 }, condenser_mic: { target: [0, 1.3, 0], dist: 1.5 },
+  speaker: { target: [0, 1.15, 0], dist: 2.4 }, camera: { target: [0, 1.15, 0], dist: 2.0 },
+  analog_mixer: { target: [0, DESK_TOP + 0.05, 0], dist: 1.0 }, digital_mixer: { target: [0, DESK_TOP + 0.08, 0], dist: 1.3 },
+  atem: { target: [0, DESK_TOP + 0.03, 0], dist: 0.75 }, pc: { target: [0, DESK_TOP + 0.3, 0], dist: 1.5 },
+};
+
+function ViewerRig({ target, dist }) {
+  const { camera, controls } = useThree();
+  useEffect(() => {
+    const t = new THREE.Vector3(...target);
+    camera.position.copy(t).add(new THREE.Vector3(0.55, 0.45, 1).normalize().multiplyScalar(dist));
+    if (controls) { controls.target.copy(t); controls.update(); }
+  }, [target.join(), dist, controls, camera]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
+function StaticPort({ p, n, port, label, lift = 0 }) {
+  const q = useMemo(() => quatFromNormal(n), [n]);
+  const r = SOCKET_R[port.kind] ?? 0.014;
+  const nv = new THREE.Vector3(...n).normalize();
+  const labelPos = new THREE.Vector3(...p).addScaledVector(nv, 0.05).add(new THREE.Vector3(0, 0.03 + lift, 0));
+  return (
+    <group>
+      <group position={p} quaternion={q}>
+        <mesh><cylinderGeometry args={[r, r, 0.012, 20]} /><meshStandardMaterial color="#050608" /></mesh>
+        <mesh position={[0, 0.006, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[r + 0.003, 0.0035, 8, 24]} />
+          <meshStandardMaterial color={PORT_COLOR[port.kind]} emissive={PORT_COLOR[port.kind]} emissiveIntensity={0.8} />
+        </mesh>
+      </group>
+      <Label position={labelPos} center zIndexRange={[20, 0]} wrapperClass="bm-noevents">
+        <div className="whitespace-nowrap rounded bg-black/80 px-1.5 py-[1px] font-mono text-[11px] text-slate-100" style={{ borderLeft: `3px solid ${PORT_COLOR[port.kind]}` }}>
+          {label}
+        </div>
+      </Label>
+    </group>
+  );
+}
+
+export function EquipmentViewer({ type, demo, autoRotate = true }) {
+  const def = DEVICE_TYPES[type];
+  const v = VIEW[type];
+  const onDesk = !!FRONT_LABEL.has(type) || type === 'pc';
+  const base = onDesk ? DESK_TOP : 0;
+  const obsTex = useCanvasTexture(1024, 576, (ctx, w, h) => drawObsScreen(ctx, w, h, {
+    obsVideo: demo.obsVideo, obs: { streaming: demo.streaming, audioSource: 'x32', audioMuted: false, videoSource: 'atem' },
+    atem: { transitioning: false }, obsAudioLv: demo.level, viewers: 1280,
+  }), [demo.obsVideo, demo.streaming, Math.round((demo.level ?? -99) / 2)]);
+  const x32Tex = useCanvasTexture(1024, 256, (ctx, w, h) => drawX32Screen(ctx, w, h, {
+    mixer: demo.mixer, micAtCh: true, condenser: false, chLv: demo.chLevel, mainLv: demo.mainLevel,
+  }), [demo.mixer, Math.round((demo.chLevel ?? -99) / 3), Math.round((demo.mainLevel ?? -99) / 3)]);
+
+  let model = null;
+  if (type === 'dynamic_mic' || type === 'condenser_mic') model = <MicModel type={type} live={demo.talking} phantomOk={demo.mixer.phantom} />;
+  if (type === 'analog_mixer') model = <AnalogMixerModel mixer={demo.mixer} chLevel={demo.chLevel} mainLevel={demo.mainLevel} />;
+  if (type === 'digital_mixer') model = <DigitalMixerModel mixer={demo.mixer} chLevel={demo.chLevel} mainLevel={demo.mainLevel} screenTex={x32Tex} />;
+  if (type === 'speaker') model = <SpeakerModel power={demo.power} level={demo.power ? demo.mainLevel : null} feedback={demo.feedback} />;
+  if (type === 'camera') model = <CameraModel tally={demo.tally} />;
+  if (type === 'atem') model = <AtemModel atem={demo.atem} camAt={{ 1: 'cam1', 2: 'cam2' }} />;
+  if (type === 'pc') model = <PcModel screenTex={obsTex} streaming={demo.streaming} />;
+
+  return (
+    <CanvasShell shadows dpr={[1, 1.75]} camera={{ fov: 38, near: 0.02, far: 40, position: [1, 1.5, 2] }} style={{ touchAction: 'none' }}>
+      <color attach="background" args={['#131a27']} />
+      <ambientLight intensity={0.8} />
+      <hemisphereLight args={['#d6e2f5', '#2a2622', 1.0]} />
+      <directionalLight position={[2, 4, 3]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
+      <spotLight position={[-1.5, 3, 2]} angle={0.6} penumbra={0.8} intensity={14} decay={1.4} color="#ffe9d0" />
+      <ViewerRig target={v.target} dist={v.dist} />
+      <OrbitControls makeDefault enableDamping dampingFactor={0.08} autoRotate={autoRotate} autoRotateSpeed={1.2}
+        minDistance={v.dist * 0.4} maxDistance={v.dist * 2.2} maxPolarAngle={Math.PI / 2.05} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><circleGeometry args={[3, 64]} /><meshStandardMaterial color="#232b3a" /></mesh>
+      <Grid position={[0, 0.002, 0]} args={[6, 6]} cellSize={0.25} cellColor="#2c3850" sectionSize={1} sectionColor="#3b4a68" fadeDistance={6} infiniteGrid />
+      {onDesk && (
+        <RoundedBox args={[type === 'digital_mixer' || type === 'pc' ? 1.3 : type === 'atem' ? 0.6 : 0.75, DESK_TOP, type === 'atem' ? 0.4 : 0.65]} radius={0.01} position={[type === 'pc' ? -0.1 : 0, DESK_TOP / 2, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#6b4f3a" roughness={0.6} />
+        </RoundedBox>
+      )}
+      <group position={[0, base, 0]}>
+        {model}
+        {Object.entries(PORTS3D[type]).map(([pid, pd], idx) => {
+          const port = [...def.ins, ...def.outs].find((pp) => pp.id === pid);
+          return (
+            <StaticPort key={pid} p={pd.p} n={pd.n} port={port} label={SHORT_LABEL[`${type}:${pid}`] ?? port.label}
+              lift={FRONT_LABEL.has(type) && idx % 2 ? 0.035 : 0} />
+          );
+        })}
+      </group>
+    </CanvasShell>
+  );
+}
+
+/* ---------------------------- 케이블 커넥터 모델 ---------------------------- */
+function ConnectorModel({ kind, color, female = false }) {
+  const metal = <meshStandardMaterial color="#cfd5dc" metalness={0.9} roughness={0.2} />;
+  const body = <meshStandardMaterial color="#17191d" roughness={0.5} />;
+  switch (kind) {
+    case 'xlr':
+      return (
+        <group>
+          <mesh position={[0, 0.05, 0]} castShadow><cylinderGeometry args={[0.024, 0.02, 0.1, 24]} />{body}</mesh>
+          {female ? (
+            <>
+              <mesh position={[0, 0.104, 0]}><cylinderGeometry args={[0.021, 0.021, 0.01, 24]} /><meshStandardMaterial color="#202226" /></mesh>
+              {[[-0.008, 0.004], [0.008, 0.004], [0, -0.009]].map(([x, z]) => (
+                <mesh key={`${x}${z}`} position={[x, 0.1095, z]}><cylinderGeometry args={[0.0026, 0.0026, 0.002, 10]} /><meshStandardMaterial color="#000000" /></mesh>
+              ))}
+              <mesh position={[0.016, 0.098, 0]}><boxGeometry args={[0.006, 0.01, 0.008]} />{metal}</mesh>
+            </>
+          ) : (
+            <>
+              <mesh position={[0, 0.112, 0]}><cylinderGeometry args={[0.022, 0.022, 0.026, 24, 1, true]} />{metal}</mesh>
+              {[[-0.008, 0.004], [0.008, 0.004], [0, -0.009]].map(([x, z]) => (
+                <mesh key={`${x}${z}`} position={[x, 0.112, z]}><cylinderGeometry args={[0.0022, 0.0022, 0.03, 8]} />{metal}</mesh>
+              ))}
+            </>
+          )}
+          <mesh position={[0, 0.022, 0]}><cylinderGeometry args={[0.0245, 0.0245, 0.008, 24]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
+    case 'trs':
+      return (
+        <group>
+          <mesh position={[0, 0.04, 0]} castShadow><cylinderGeometry args={[0.014, 0.012, 0.08, 20]} />{body}</mesh>
+          <mesh position={[0, 0.095, 0]}><cylinderGeometry args={[0.0032, 0.0032, 0.03, 12]} />{metal}</mesh>
+          <mesh position={[0, 0.103, 0]}><cylinderGeometry args={[0.0034, 0.0034, 0.002, 12]} /><meshStandardMaterial color="#111" /></mesh>
+          <mesh position={[0, 0.112, 0]}><cylinderGeometry args={[0.0034, 0.0034, 0.002, 12]} /><meshStandardMaterial color="#111" /></mesh>
+          <mesh position={[0, 0.118, 0]}><sphereGeometry args={[0.0032, 12, 8]} />{metal}</mesh>
+          <mesh position={[0, 0.02, 0]}><cylinderGeometry args={[0.0145, 0.0145, 0.006, 20]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
+    case 'hdmi':
+      return (
+        <group>
+          <mesh position={[0, 0.03, 0]} castShadow><boxGeometry args={[0.032, 0.06, 0.013]} />{body}</mesh>
+          <mesh position={[0, 0.07, 0]}><boxGeometry args={[0.021, 0.02, 0.0065]} />{metal}</mesh>
+          <mesh position={[0, 0.012, 0]}><boxGeometry args={[0.0325, 0.006, 0.0135]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
+    case 'sdi':
+      return (
+        <group>
+          <mesh position={[0, 0.035, 0]} castShadow><cylinderGeometry args={[0.009, 0.008, 0.07, 16]} />{body}</mesh>
+          <mesh position={[0, 0.083, 0]}><cylinderGeometry args={[0.0085, 0.0085, 0.028, 20]} />{metal}</mesh>
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0095, 0.083, 0]}><boxGeometry args={[0.003, 0.004, 0.003]} />{metal}</mesh>)}
+          <mesh position={[0, 0.1, 0]}><cylinderGeometry args={[0.001, 0.001, 0.01, 8]} /><meshStandardMaterial color="#d4af37" metalness={0.9} /></mesh>
+          <mesh position={[0, 0.012, 0]}><cylinderGeometry args={[0.0095, 0.0095, 0.006, 16]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
+    case 'usb':
+    default:
+      return (
+        <group>
+          <mesh position={[0, 0.025, 0]} castShadow><boxGeometry args={[0.016, 0.05, 0.008]} />{body}</mesh>
+          <mesh position={[0, 0.058, 0]}><boxGeometry args={[0.0088, 0.016, 0.0032]} />{metal}</mesh>
+          <mesh position={[0, 0.01, 0]}><boxGeometry args={[0.0165, 0.005, 0.0085]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
+  }
+}
+
+export function CableShowcase({ kind }) {
+  const color = CABLES[kind].stroke;
+  const tube = useMemo(() => {
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.12, 0.35, 0), new THREE.Vector3(-0.2, 0.18, 0.05), new THREE.Vector3(0, 0.05, 0.12),
+      new THREE.Vector3(0.2, 0.18, 0.05), new THREE.Vector3(0.12, 0.35, 0),
+    ]);
+    return new THREE.TubeGeometry(curve, 80, kind === 'trs' || kind === 'xlr' ? 0.0065 : 0.0045, 10, false);
+  }, [kind]);
+  useEffect(() => () => tube.dispose(), [tube]);
+  return (
+    <CanvasShell shadows dpr={[1, 1.75]} camera={{ fov: 35, near: 0.01, far: 20, position: [0.25, 0.5, 0.75] }} style={{ touchAction: 'none' }}>
+      <color attach="background" args={['#131a27']} />
+      <ambientLight intensity={0.8} />
+      <hemisphereLight args={['#d6e2f5', '#2a2622', 1.0]} />
+      <directionalLight position={[1, 2, 1.5]} intensity={2.4} castShadow />
+      <OrbitControls makeDefault enableDamping autoRotate autoRotateSpeed={1.5} target={[0, 0.33, 0]} minDistance={0.2} maxDistance={1.6} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><circleGeometry args={[1, 48]} /><meshStandardMaterial color="#232b3a" /></mesh>
+      <mesh geometry={tube} castShadow><meshStandardMaterial color={kind === 'sdi' ? '#1e3a8a' : '#1f2329'} roughness={0.6} /></mesh>
+      <group position={[-0.12, 0.35, 0]}><ConnectorModel kind={kind} color={color} /></group>
+      <group position={[0.12, 0.35, 0]} rotation={[0, Math.PI / 2, 0]}><ConnectorModel kind={kind} color={color} female={kind === 'xlr'} /></group>
+      {kind === 'xlr' && (
+        <>
+          <Label position={[-0.12, 0.5, 0]} center zIndexRange={[20, 0]} wrapperClass="bm-noevents"><div className="rounded bg-black/80 px-2 py-0.5 text-[11px] text-white whitespace-nowrap">수(Male) · 핀 3개</div></Label>
+          <Label position={[0.12, 0.5, 0]} center zIndexRange={[20, 0]} wrapperClass="bm-noevents"><div className="rounded bg-black/80 px-2 py-0.5 text-[11px] text-white whitespace-nowrap">암(Female) · 구멍 3개</div></Label>
+        </>
+      )}
+    </CanvasShell>
   );
 }
