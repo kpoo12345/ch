@@ -143,6 +143,8 @@ export function useGame(spec, { onClear } = {}) {
     if (primary && op.op === 'master' && op.key === 'mainFader') noteFader('main', cur.master.mainFader, op.value);
     stRef.current = next;
     setSt(next);
+    // 채널을 조작하면 그 채널이 선택된다 (디지털 믹서의 SEL처럼, 2D·3D 콘솔이 같은 채널을 보여 준다)
+    if (op.op === 'ch' && primary && visual) setSelCh(op.ch - 1);
     if (visual) {
       actKey.current += 1;
       const a = opToAction(cur, op, actKey.current);
