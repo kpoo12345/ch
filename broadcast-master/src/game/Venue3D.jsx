@@ -14,7 +14,7 @@ import {
 import { AnalogConsole, DigitalConsole, CONSOLE_SIZE, consoleControl } from './consoles.jsx';
 import { KickMicModel, SnareMicModel, OverheadMicModel, DigitalPianoModel, BassGuitarModel, DrumKitModel, PORTS_INSTR, GHOST_INSTR, FOCUS_INSTR, SELECT_RADIUS_INSTR, INSTR_TYPES } from './models4.jsx';
 import { VENUES, P_CH, P_LS } from './venues.js';
-import { mixerStateOf } from './sim.js';
+import { mixerStateOf, atemStateOf } from './sim.js';
 import {
   ParLedModel, MovingHeadModel, LightingConsoleModel, lightConsoleControl, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel,
   PtzControllerModel, drawPtzLcd, PORTS_LIGHT, GHOST_LIGHT, FOCUS_LIGHT, BeamPoolCtx, BeamLightPool,
@@ -866,14 +866,9 @@ export default function Venue3D({
     });
     return out;
   }, [sim]); // eslint-disable-line react-hooks/exhaustive-deps
-  const camTally = (id) => {
-    const n = Object.entries(sim.video.camAt).find(([, c]) => c === id)?.[0];
-    if (!n) return null;
-    if (Number(n) === st.atem.program) return 'pgm';
-    if (Number(n) === st.atem.preview) return 'pvw';
-    return null;
-  };
-  const obsSrc = st.obs.video === 'atem' && sim.video.atemUsbToPc ? sourceOf(st, sim, sim.video.programCam) : { kind: 'nosignal' };
+  // 탈리: 어느 스위처에서든 PGM이면 빨강, PVW면 초록
+  const camTally = (id) => sim.video.tally?.[id] ?? null;
+  const obsSrc = st.obs.video === 'atem' && sim.video.obsSw ? sourceOf(st, sim, sim.video.obsCam) : { kind: 'nosignal' };
   const obsKey = JSON.stringify(obsSrc);
   const obsLv = Object.values(sim.heard.stream).reduce((m, h) => Math.max(m, h.level), -99);
   const obsTex = useCanvasTexture(1024, 576, (ctx, w, h) => drawObs2(ctx, w, h, {
@@ -904,7 +899,7 @@ export default function Venue3D({
   const connLive = (c) => {
     const ft = devices[c.from.d]?.type;
     if (['camera', 'mirrorless', 'ptz'].includes(ft)) return c.cable !== 'eth';
-    if (ft === 'atem' || ft === 'atem_pro') return c.from.p === 'eth' ? sim.stream.proLive : !!sim.video.programCam;
+    if (ft === 'atem' || ft === 'atem_pro') return c.from.p === 'eth' ? sim.proLiveOf(c.from.d) : !!sim.switcherOf(c.from.d).programCam;
     if (ft === 'lighting_console' || FIXTURES.has(ft)) return !!sim.light.fixtures[c.to.d]?.receiving;
     if (ft === 'media_server') return !!st.dev[c.from.d]?.playing;
     if (ft === 'ptz_controller' || ft === 'ptz') return c.cable === 'eth' ? Object.values(sim.ptz).some((r) => r.reachable) : true;
@@ -973,8 +968,8 @@ export default function Venue3D({
       case 'camera': return <CameraModel tally={camTally(d.id)} />;
       case 'mirrorless': return <CamLcdWrap s={s} tally={camTally(d.id)} />;
       case 'ptz': return <PtzModel pan={s.pan ?? 0} tilt={s.tilt ?? 0} zoom={s.zoom ?? 0.3} tally={camTally(d.id)} />;
-      case 'atem': return <AtemModel atem={st.atem} camAt={sim.video.camAt} />;
-      case 'atem_pro': return <AtemPro2 atem={{ ...st.atem, streaming: st.atem.streaming }} camAt={sim.video.camAt} mvTex={mvTex} />;
+      case 'atem': return <AtemModel atem={atemStateOf(st, d.id)} camAt={sim.switcherOf(d.id).camAt} />;
+      case 'atem_pro': return <AtemPro2 atem={atemStateOf(st, d.id)} camAt={sim.switcherOf(d.id).camAt} mvTex={d.id === st.switcherId ? mvTex : undefined} />;
       case 'pc': return <PcModel screenTex={obsTex} />;
       case 'audio_interface': {
         const lv = [0, 1].map((i) => {
@@ -1329,7 +1324,7 @@ function ProjectorRay({ from, to }) {
 // key에는 그림에 쓰이는 값을 모두 담는다 (ATEM CUT, 미디어 서버 MASTER, PTZ 구도, 무대 어두움이 바뀌면 다시 그림)
 export function displayPlan(st, sim, r) {
   const src = r.source ? st.devices[r.source] : null;
-  const camId = CAMERA_TYPES.has(src?.type) ? r.source : src?.type === 'atem' || src?.type === 'atem_pro' ? sim.video.programCam : null;
+  const camId = CAMERA_TYPES.has(src?.type) ? r.source : src?.type === 'atem' || src?.type === 'atem_pro' ? r.programCam ?? sim.video.programCam : null;
   const cam = !r.layers.length && r.program && camId ? sourceOf(st, sim, camId) : null;
   const master = r.layers.length ? st.dev[r.source]?.master ?? 100 : null;
   return { cam, master, key: JSON.stringify([r.ok, r.scaled, r.layers, r.program, r.power, master, cam]) };
@@ -1370,9 +1365,7 @@ function JoyWrap({ st, sim, id }) {
   const tallies = [0, 1, 2, 3].map((i) => {
     const cam = camAtIdx(i);
     if (!cam) return null;
-    if (sim.video.programCam === cam) return 'pgm';
-    if (sim.video.previewCam === cam) return 'pvw';
-    return null;
+    return sim.video.tally?.[cam] ?? null;
   });
   const sel = camAtIdx(cs.selected ?? 0);
   const lcd = useCanvasTexture(400, 120, (ctx, w, h) => drawPtzLcd(ctx, w, h, { selected: cs.selected ?? 0, ip: cs.cams?.[cs.selected ?? 0], reach: !!sel, framing: sel ? sim.ptz[sel].framing : null }),

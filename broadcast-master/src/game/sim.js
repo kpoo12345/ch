@@ -82,7 +82,10 @@ export const DEV_DEFAULTS = {
 export const newMixerState = () => ({ channels: Array.from({ length: CHANNELS }, () => ({ ...CH_DEFAULT })), master: { ...MASTER_DEFAULT } });
 const EMPTY_MIX = newMixerState();
 export const mixerStateOf = (st, id) => (!id || id === st.mixerId ? { channels: st.channels, master: st.master } : st.mixers?.[id] ?? EMPTY_MIX);
+// 스위처도 믹서처럼: 첫 스위처(st.switcherId)는 st.atem, 나머지는 st.atems[id]
+export const atemStateOf = (st, id) => (!id || id === st.switcherId ? st.atem : st.atems?.[id] ?? ATEM_EMPTY);
 export const ATEM_DEFAULT = { program: 0, preview: 1, transitioning: false, streaming: false, recording: false, pip: false, micGain: 30 };
+const ATEM_EMPTY = { program: 0, preview: 1, transitioning: false, streaming: false, recording: false, pip: false, micGain: 30 };
 export const OBS_DEFAULT = { video: 'none', audio: 'none', muted: false, streaming: false };
 
 const structuredCloneSafe = (o) => JSON.parse(JSON.stringify(o));
@@ -359,28 +362,50 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   });
 
   /* ----- 영상 ----- */
-  const sw = st.switcherId && placed(st.switcherId) ? st.switcherId : null;
-  const camAt = {};
-  if (sw) {
-    connections.forEach((c) => {
-      if (c.to.d === sw && /^in\d$/.test(c.to.p) && placed(c.from.d) && VIDEO_SOURCES.has(devices[c.from.d]?.type)) camAt[Number(c.to.p.slice(2))] = c.from.d;
-    });
-  }
-  const programCam = sw ? camAt[st.atem.program] ?? null : null;
-  const previewCam = sw ? camAt[st.atem.preview] ?? null : null;
-  const overlay = !!programCam && devices[programCam].type === 'mirrorless' && !dev[programCam]?.clean;
   const pcId = Object.values(devices).find((d) => d.placed && d.type === 'pc')?.id ?? null;
   const routerOk = (fromD, fromP) => { const c = outgoing[`${fromD}.${fromP}`]; return !!c && devices[c.to.d]?.type === 'router'; };
   const toPc = (fromD, fromP) => { const c = outgoing[`${fromD}.${fromP}`]; return !!c && c.to.d === pcId; };
-  const atemUsbToPc = !!sw && toPc(sw, 'usb');
-  const isPro = !!sw && devices[sw].type === 'atem_pro';
+  // 스위처마다: 입력별 카메라, PGM/PVW, 클린 HDMI, USB → PC, MIC 입력 소리
+  const swCache = new Map();
+  const swCalc = (id) => {
+    if (swCache.has(id)) return swCache.get(id);
+    const A = atemStateOf(st, id);
+    const r = { id, camAt: {}, programCam: null, previewCam: null, overlay: false, usbToPc: false, isPro: false, net: false, heard: [], A };
+    swCache.set(id, r);
+    if (!id || !placed(id)) return r;
+    connections.forEach((c) => {
+      if (c.to.d === id && /^in\d$/.test(c.to.p) && placed(c.from.d) && VIDEO_SOURCES.has(devices[c.from.d]?.type)) r.camAt[Number(c.to.p.slice(2))] = c.from.d;
+    });
+    r.programCam = r.camAt[A.program] ?? null;
+    r.previewCam = r.camAt[A.preview] ?? null;
+    r.overlay = !!r.programCam && devices[r.programCam].type === 'mirrorless' && !dev[r.programCam]?.clean;
+    r.usbToPc = toPc(id, 'usb');
+    r.isPro = devices[id].type === 'atem_pro';
+    r.net = r.isPro && routerOk(id, 'eth');
+    // ATEM MIC 1·2 (Mini와 Mini Pro 모두): 마이크 레벨 소스는 ATEM 자체 프리앰프(micGain)로 키운다
+    const micLevelSrc = (p) => { const c = feeding[`${id}.${p}`]; return !!c && (VOICE_TYPES.has(devices[c.from.d]?.type)); };
+    r.heard = ['mic1', 'mic2'].flatMap((p) => inputComps(id, p).map((x) => ({ ...x, level: x.level == null || (x.needsPhantom && micLevelSrc(p)) ? null : x.level + (micLevelSrc(p) ? A.micGain : 0) })));
+    return r;
+  };
+  const switchers = Object.values(devices).filter((d) => d.placed && SWITCHER_TYPES.has(d.type)).map((d) => d.id);
+  const sw = st.switcherId && placed(st.switcherId) ? st.switcherId : null;
+  const P = swCalc(sw);
+  const { camAt, programCam, previewCam, overlay } = P;
+  const atemUsbToPc = P.usbToPc;
+  const isPro = P.isPro;
+  // OBS가 받는 스위처: USB가 PC에 꽂힌 스위처 (첫 스위처 우선)
+  const obsSw = P.usbToPc ? sw : switchers.find((id) => swCalc(id).usbToPc) ?? null;
+  const O = swCalc(obsSw);
+  // 탈리: 어느 스위처든 PGM이면 빨강, PVW면 초록
+  const tally = {};
+  switchers.forEach((id) => { const r = swCalc(id); if (r.previewCam && !tally[r.previewCam]) tally[r.previewCam] = 'pvw'; if (r.programCam) tally[r.programCam] = 'pgm'; });
 
   // OBS 오디오
   let obsAudioComps = [];
   if (pcId) {
     if (st.obs.audio === 'mixer' && st.mixerId && devices[st.mixerId].type === 'digital_mixer' && toPc(st.mixerId, 'usb')) obsAudioComps = outComps(st.mixerId, 'usb');
     // ATEM USB는 웹캠 영상과 함께 MIC 입력 소리도 PC로 보낸다
-    if (st.obs.audio === 'atem' && atemUsbToPc) obsAudioComps = atemHeard;
+    if (st.obs.audio === 'atem' && obsSw) obsAudioComps = O.heard;
     if (st.obs.audio === 'interface') {
       const ai = Object.values(devices).find((d) => d.placed && d.type === 'audio_interface' && toPc(d.id, 'usb'));
       if (ai) obsAudioComps = outComps(ai.id, 'usb');
@@ -389,22 +414,21 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   // PC 내장 마이크: 방 소리를 멀리서 얇게 잡는다 (소리는 나지만 방송 품질이 아님)
   if (pcId && st.obs.audio === 'builtin' && talking) obsAudioComps = [{ src: 'pc_builtin', kind: 'room', level: -34 }];
   const obsHeard = st.obs.muted ? [] : obsAudioComps;
-  // ATEM MIC 입력: 자체 프리앰프(micGain)로 증폭
-  const micLevelSrc = (p) => { const c = feeding[`${sw}.${p}`]; return !!c && (VOICE_TYPES.has(devices[c.from.d]?.type)); };
-  // ATEM MIC 1·2 (Mini와 Mini Pro 모두): 마이크 레벨 소스는 ATEM 자체 프리앰프로 키운다
-  const atemHeard = sw ? ['mic1', 'mic2'].flatMap((p) => inputComps(sw, p).map((x) => ({ ...x, level: x.level == null || (x.needsPhantom && micLevelSrc(p)) ? null : x.level + (micLevelSrc(p) ? st.atem.micGain : 0) }))) : [];
-  const proHeard = isPro ? atemHeard : [];
+  const pros = switchers.filter((id) => swCalc(id).isPro);
+  const proHeard = pros.flatMap((id) => swCalc(id).heard);
   obsHeard.forEach((x) => put('stream', x));
   proHeard.forEach((x) => put('stream', x));
   const audible = (arr) => arr.some((x) => x.level != null && x.level > AUDIBLE);
-  const obsVideoOk = !!pcId && st.obs.video === 'atem' && atemUsbToPc && !!programCam && !overlay;
+  const obsVideoOk = !!pcId && st.obs.video === 'atem' && !!obsSw && !!O.programCam && !O.overlay;
   const obsAudioOk = audible(obsHeard);
-  const proNet = isPro && routerOk(sw, 'eth');
+  const proNet = isPro && P.net;
   const proVideoOk = proNet && !!programCam && !overlay;
-  const proAudioOk = audible(proHeard);
+  const proAudioOk = audible(P.heard);
   const obsLive = st.obs.streaming && obsVideoOk && obsAudioOk;
-  const proLive = isPro && st.atem.streaming && proVideoOk && proAudioOk;
-  const streamingAny = (st.obs.streaming && !!pcId) || (isPro && st.atem.streaming);
+  // ATEM Pro는 저마다 바로 송출할 수 있다 (첫 스위처 또는 다른 Pro 중 하나라도 송출 중이면 방송 중)
+  const proLiveOf = (id) => { const r = swCalc(id); return r.isPro && !!r.A.streaming && r.net && !!r.programCam && !r.overlay && audible(r.heard); };
+  const proLive = pros.some(proLiveOf);
+  const streamingAny = (st.obs.streaming && !!pcId) || pros.some((id) => !!swCalc(id).A.streaming);
 
   /* ----- 조명 (DMX) ----- */
   const light = lightCalc(st, placed, outgoing);
@@ -425,7 +449,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
         }
         r.scaled = d.type === 'led_wall' && m.compRes !== s.res;
       } else if (srcType === 'atem' || srcType === 'atem_pro') {
-        r.program = !!programCam;
+        r.program = !!swCalc(c.from.d).programCam;
+        r.programCam = swCalc(c.from.d).programCam;
       } else if (CAMERA_TYPES.has(srcType)) {
         r.program = true;
       }
@@ -502,7 +527,9 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     feedback: worst >= 0, ringing: worst >= -4 && worst < 0, worstLoop: worst,
     hum: humAt, humSources: [...notes.humSources], thin: [...notes.thin], deadPhantom: [...notes.deadPhantom],
     clips,
-    video: { camAt, programCam, previewCam, overlay, atemUsbToPc, isPro, proNet, dark: light.stageLit === false },
+    video: { camAt, programCam, previewCam, overlay, atemUsbToPc, isPro, proNet, dark: light.stageLit === false, tally, obsCam: O.programCam, obsSw },
+    switcherOf: (id) => swCalc(id),
+    proLiveOf,
     light, displays, ptz,
     stream: { obsVideoOk, obsAudioOk, proVideoOk, proAudioOk, obsLive, proLive, live: obsLive || proLive, streamingAny, pcId },
     channelOf: (src) => mix.channels.find((c) => c.comps.some((x) => x.src === src)) ?? null,

@@ -124,7 +124,7 @@ export default function Sandbox({ onExit }) {
 }
 
 // 자유 모드 감시: 어느 탭을 보고 있든 자동 저장 + 도전 과제 판정 (GameScreen이 항상 호출)
-const snapshotOf = (st) => ({ venue: st.venue, devices: st.devices, dev: st.dev, connections: st.connections, channels: st.channels, master: st.master, mixers: st.mixers ?? {}, atem: st.atem, obs: st.obs });
+const snapshotOf = (st) => ({ venue: st.venue, devices: st.devices, dev: st.dev, connections: st.connections, channels: st.channels, master: st.master, mixers: st.mixers ?? {}, atem: st.atem, atems: st.atems ?? {}, obs: st.obs });
 export function useSandboxWatch(game) {
   const { st, nominal } = game;
   const [done, setDone] = useState(() => new Set(loadProgress('bm2-sandbox-ach', [])));

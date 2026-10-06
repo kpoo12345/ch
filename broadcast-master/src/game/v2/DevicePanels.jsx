@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Power, Radio, Cable, Camera, Tv, MonitorPlay, Lightbulb, Clapperboard, Joystick, Router as RouterIcon, Laptop, Info } from 'lucide-react';
 import { DEVICE_TYPES, CABLES } from '../engine.js';
-import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel, mixerStateOf } from '../sim.js';
+import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel, mixerStateOf, atemStateOf } from '../sim.js';
 import { VENUES } from '../venues.js';
 import { nextDmxAddress, patchOverlap, discoverCams } from '../ops.js';
 import { Meter } from '../ui.jsx';
@@ -293,10 +293,13 @@ function ObsPanel({ game, id }) {
 function AtemPanel({ game, id }) {
   const { st, nominal, apply } = game;
   const pro = st.devices[id].type === 'atem_pro';
-  const a = st.atem;
-  const at = (key, value) => apply({ op: 'atem', key, value });
+  // 스위처가 여러 대면(자유 모드) 이 장비의 상태를 따로 쓴다
+  const a = atemStateOf(st, id);
+  const sw = nominal.switcherOf(id);
+  const at = (key, value) => apply({ op: 'atem', key, value, ...(id !== st.switcherId ? { switcher: id } : {}) });
   const map = { 1: null, 2: null, 3: null, 4: null };
-  Object.entries(nominal.video.camAt).forEach(([n, c]) => { map[n] = c; });
+  Object.entries(sw.camAt).forEach(([n, c]) => { map[n] = c; });
+  const live = nominal.proLiveOf(id);
   return (
     <Card title={pro ? 'ATEM Mini Pro' : 'ATEM Mini'} icon={Tv}>
       <Canvas2D w={480} h={270} draw={(ctx, w, h) => {
@@ -320,7 +323,7 @@ function AtemPanel({ game, id }) {
           <Toggle on={a.streaming} color="red" onClick={() => at('streaming', !a.streaming)}>ON AIR</Toggle>
           <Toggle on={a.recording} color="red" onClick={() => at('recording', !a.recording)}>REC</Toggle>
           <Toggle on={a.pip} color="sky" onClick={() => at('pip', !a.pip)}>PIP</Toggle>
-          <span className="text-[11px] text-slate-400 self-center">{a.streaming ? (nominal.stream.proLive ? '송출 정상' : !nominal.video.proNet ? '인터넷(LAN) 연결 없음' : !nominal.stream.proAudioOk ? '소리가 없음 (MIC 입력 확인)' : '영상 확인') : ''}</span>
+          <span className="text-[11px] text-slate-400 self-center">{a.streaming ? (live ? '송출 정상' : !sw.net ? '인터넷(LAN) 연결 없음' : !sw.heard.some((x) => x.level != null && x.level > -40) ? '소리가 없음 (MIC 입력 확인)' : '영상 확인') : ''}</span>
         </div>
       )}
     </Card>

@@ -571,3 +571,27 @@ test('studio feedback: a free-placed speaker aimed at the mic from close by howl
   assert.ok(computeSim(mk(Math.PI)).feedback, 'speaker facing the mic (rot π faces -z toward the mic)');
   assert.equal(computeSim(mk(0)).feedback, false, 'speaker facing away');
 });
+
+test('studio: a second ATEM switches its own cameras, drives its own tally and can feed OBS', async () => {
+  const { applyOp, addDeviceOp } = await import('../src/game/ops.js');
+  let st = buildRuntime({ venue: 'sandbox', unlimited: true, devices: [], connections: [] });
+  for (const [t, pos] of [['atem', [0, 0.75, 1]], ['atem', [1, 0.75, 1]], ['camera', [0, 0, -1]], ['camera', [1, 0, -1]], ['camera', [2, 0, -1]], ['pc', [2, 0.75, 1]]]) st = applyOp(st, addDeviceOp(st, t, pos, 'floor'));
+  const [a1, a2] = ['atem_1', 'atem_2'];
+  assert.equal(st.switcherId, a1);
+  assert.ok(st.atems[a2]);
+  st = applyOp(st, { op: 'connect', from: 'camera_1.hdmi', to: `${a1}.in1`, cable: 'hdmi' });
+  st = applyOp(st, { op: 'connect', from: 'camera_2.hdmi', to: `${a2}.in1`, cable: 'hdmi' });
+  st = applyOp(st, { op: 'connect', from: 'camera_3.hdmi', to: `${a2}.in2`, cable: 'hdmi' });
+  st = applyOp(st, { op: 'connect', from: `${a2}.usb`, to: 'pc_1.usb1', cable: 'usb' });
+  st = applyOp(st, { op: 'atem', key: 'program', value: 2, switcher: a2 });
+  st = applyOp(st, { op: 'atem', key: 'program', value: 1 });
+  st = applyOp(st, { op: 'obs', key: 'video', value: 'atem' });
+  const sim = computeSim(st);
+  assert.equal(sim.switcherOf(a2).programCam, 'camera_3');
+  assert.equal(sim.video.programCam, 'camera_1');
+  assert.equal(sim.video.tally.camera_3, 'pgm');
+  assert.equal(sim.video.tally.camera_1, 'pgm');
+  assert.equal(sim.video.obsCam, 'camera_3', 'OBS takes the ATEM whose USB goes to the PC');
+  assert.ok(sim.stream.obsVideoOk);
+  assert.equal(st.atem.program, 1);
+});

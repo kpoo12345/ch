@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind, mixerStateOf } from '../sim.js';
+import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind, mixerStateOf, ATEM_DEFAULT } from '../sim.js';
 import { applyOp, opToAction, noteOnAirMove, notePop, getPath } from '../ops.js';
 import { getAudio } from '../audio.js';
 import { MISMATCH_TIP, DEVICE_TYPES, CABLES } from '../engine.js';
@@ -208,7 +208,8 @@ export function useGame(spec, { onClear } = {}) {
       return { ...c, to, id: `${c.from.d}.${c.from.p}>${to.d}.${to.p}` };
     });
     const mixers = Object.fromEntries(Object.entries(saved.mixers ?? {}).map(([id, m]) => [id, { channels: Array.from({ length: CHANNELS }, (_, i) => ({ ...CH_DEFAULT, ...(m.channels?.[i] ?? {}) })), master: { ...MASTER_DEFAULT, ...(m.master ?? {}) } }]));
-    const next = { ...base, ...saved, devices, dev: saved.dev ?? {}, connections, channels, mixers, master: { ...MASTER_DEFAULT, ...(saved.master ?? {}) }, cables: {}, unlimited: true, faults: [],
+    const atems = Object.fromEntries(Object.entries(saved.atems ?? {}).map(([id, a]) => [id, { ...ATEM_DEFAULT, ...a }]));
+    const next = { ...base, ...saved, devices, dev: saved.dev ?? {}, connections, channels, mixers, atems, master: { ...MASTER_DEFAULT, ...(saved.master ?? {}) }, cables: {}, unlimited: true, faults: [],
       mixerId: pick(['analog_mixer', 'digital_mixer']), switcherId: pick(['atem', 'atem_pro']) };
     stRef.current = next; setSt(next);
   }, [spec]);

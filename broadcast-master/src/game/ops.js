@@ -17,7 +17,7 @@
  *  { op:'fade', ch?, to, ms }                   페이더를 ms 동안 천천히 (ch가 없으면 메인)
  *  { op:'talk', on } · { op:'perform', on } · { op:'wait', ms }   (화면 쪽에서 처리)
  * ===================================================================== */
-import { canConnect, computeSim, connId, mixerStateOf, newMixerState, DEV_DEFAULTS, FOOTPRINT } from './sim.js';
+import { canConnect, computeSim, connId, mixerStateOf, newMixerState, ATEM_DEFAULT, DEV_DEFAULTS, FOOTPRINT } from './sim.js';
 import { DEVICE_TYPES } from './engine.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -77,7 +77,8 @@ export function applyOp(stIn, op) {
     case 'master': mixerStateOf(st, op.mixer).master[op.key] = op.value; return st;
     case 'dev': if (st.dev[op.device]) setPath(st.dev[op.device], op.key, op.value); return st;
     case 'atem': {
-      const a = st.atem;
+      // op.switcher가 있으면 그 스위처(두 번째 ATEM 등), 없으면 첫 스위처
+      const a = op.switcher && op.switcher !== st.switcherId ? (st.atems ??= {})[op.switcher] ??= { ...ATEM_DEFAULT } : st.atem;
       if (op.key === 'cut' || op.key === 'auto') { const p = a.program; a.program = a.preview; a.preview = p; a.transitioning = op.key === 'auto'; }
       else a[op.key] = op.value;
       return st;
@@ -125,7 +126,10 @@ export function applyOp(stIn, op) {
         if (!st.mixerId) st.mixerId = op.device.id;
         else st.mixers = { ...(st.mixers ?? {}), [op.device.id]: newMixerState() }; // 두 번째 믹서부터는 따로 상태를 갖는다
       }
-      if (!st.switcherId && (op.device.type === 'atem' || op.device.type === 'atem_pro')) st.switcherId = op.device.id;
+      if (op.device.type === 'atem' || op.device.type === 'atem_pro') {
+        if (!st.switcherId) st.switcherId = op.device.id;
+        else st.atems = { ...(st.atems ?? {}), [op.device.id]: { ...ATEM_DEFAULT } }; // 두 번째 스위처부터는 따로 상태를 갖는다
+      }
       // 조명: 콘솔 패치에 자동 등록 (콘솔을 나중에 놓으면 이미 있는 조명을 한꺼번에)
       const con = lightConsoleOf(st);
       if (con && FIXTURES.has(op.device.type)) autoPatch(st, con, op.device.id, false);
@@ -148,7 +152,11 @@ export function applyOp(stIn, op) {
         // 남은 믹서가 첫 믹서가 되면 그 믹서의 설정을 그대로 가져온다
         if (st.mixerId && st.mixers?.[st.mixerId]) { st.channels = st.mixers[st.mixerId].channels; st.master = st.mixers[st.mixerId].master; delete st.mixers[st.mixerId]; }
       }
-      if (st.switcherId === id) st.switcherId = Object.values(st.devices).find((d) => d.type === 'atem' || d.type === 'atem_pro')?.id ?? null;
+      if (st.atems?.[id]) delete st.atems[id];
+      if (st.switcherId === id) {
+        st.switcherId = Object.values(st.devices).find((d) => d.type === 'atem' || d.type === 'atem_pro')?.id ?? null;
+        if (st.switcherId && st.atems?.[st.switcherId]) { st.atem = st.atems[st.switcherId]; delete st.atems[st.switcherId]; }
+      }
       return st;
     }
     case 'move': {
@@ -186,7 +194,7 @@ export function opToAction(st, op, key) {
       const m = /^in\.(\d)\./.exec(op.key);
       return { key, device: op.device, ctl: { kind: typeof op.value === 'number' ? 'turn' : 'press', key: op.key.split('.').pop(), input: m ? Number(m[1]) + 1 : null, value: op.value } };
     }
-    case 'atem': return { key, device: sw, ctl: { kind: 'press', key: op.key, value: op.value } };
+    case 'atem': return { key, device: op.switcher ?? sw, ctl: { kind: 'press', key: op.key, value: op.value } };
     case 'obs': return { key, device: pc, ctl: { kind: 'press', key: op.key } };
     case 'lightRecord': return { key, device: op.device, ctl: { kind: 'light', key: 'record', value: op.index } };
     case 'patchAdd': return { key, device: op.device, ctl: { kind: 'light', key: 'patch' } };
@@ -251,7 +259,7 @@ export function noteOnAirMove(st, op, latched) {
   if (!cs) return null;
   const sim = computeSim(st);
   const target = Object.entries(sim.ptz).find(([, r]) => r.reachable && r.index === cs.selected + 1)?.[0];
-  if (target && sim.video.programCam === target) { latched.add(`onAirMove:${target}`); return target; }
+  if (target && sim.video.tally?.[target] === 'pgm') { latched.add(`onAirMove:${target}`); return target; }
   return null;
 }
 
