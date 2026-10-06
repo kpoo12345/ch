@@ -297,3 +297,109 @@ test('port levels for cable signal display', () => {
   assert.equal(sim.inLevel('pa', 'in'), -15);
   assert.equal(computeSim(st, { talking: false }).outLevel('mic', 'out'), null);
 });
+
+const lightRig = (extra = {}) => ({
+  venue: 'church',
+  devices: [
+    { id: 'desk', type: 'lighting_console', slot: 'foh2' },
+    { id: 'p1', type: 'par_led', slot: 'light_front_l', role: 'front' },
+    { id: 'p2', type: 'par_led', slot: 'light_front_r', role: 'front' },
+    { id: 'mh', type: 'moving_head', slot: 'light_back_1' },
+  ],
+  connections: [
+    { from: 'desk.dmx1', to: 'p1.dmxIn', cable: 'dmx' },
+    { from: 'p1.dmxOut', to: 'p2.dmxIn', cable: 'dmx' },
+    { from: 'p2.dmxOut', to: 'mh.dmxIn', cable: 'dmx' },
+  ],
+  state: { devices: {
+    p1: { address: 1 }, p2: { address: 9 }, mh: { address: 17 },
+    desk: {
+      patch: [{ n: 1, label: 'FRONT L', type: 'par_led', address: 1 }, { n: 2, label: 'FRONT R', type: 'par_led', address: 9 }, { n: 3, label: 'MOVER', type: 'moving_head', address: 17 }],
+      playbacks: [{ label: '설교 조명', level: 0, cue: { fixtures: [1, 2], intensity: 90, color: '#fff4e0' } }, { label: '찬양 파랑', level: 0, cue: { fixtures: [3], intensity: 100, color: '#2563eb', pan: 30, tilt: 20 } }],
+    },
+  } },
+  ...extra,
+});
+
+test('DMX chain, patch, playbacks and grand master', () => {
+  const st = buildRuntime(lightRig());
+  let sim = computeSim(st);
+  assert.deepEqual(sim.light.chain, ['p1', 'p2', 'mh']);
+  assert.equal(sim.light.stageLit, false);
+  st.dev.desk.playbacks[0].level = 100;
+  sim = computeSim(st);
+  assert.equal(sim.light.stageLit, true);
+  assert.ok(checkObjective({ type: 'lit', device: 'p1' }, st, sim));
+  st.dev.desk.playbacks[1].level = 100;
+  sim = computeSim(st);
+  assert.ok(checkObjective({ type: 'fixtureColor', device: 'mh', color: 'blue' }, st, sim));
+  assert.ok(checkObjective({ type: 'dmxOk' }, st, sim));
+  st.dev.desk.gm = 0;
+  assert.equal(computeSim(st).light.stageLit, false);
+  st.dev.desk.gm = 100; st.dev.desk.blackout = true;
+  assert.equal(computeSim(st).light.fixtures.p1.intensity, 0);
+});
+
+test('wrong DMX address and mic cable in the chain', () => {
+  const st = buildRuntime(lightRig({ faults: [{ type: 'dmxAddress', device: 'p2', to: 5 }] }));
+  st.dev.desk.playbacks[0].level = 100;
+  let sim = computeSim(st);
+  assert.ok(sim.light.fixtures.p2.wrong);
+  assert.equal(checkObjective({ type: 'faultsFixed' }, st, sim), false);
+  st.dev.p2.address = 9;
+  sim = computeSim(st);
+  assert.ok(checkObjective({ type: 'faultsFixed' }, st, sim));
+  st.connections[1].cable = 'xlr';
+  sim = computeSim(st);
+  assert.ok(sim.light.fixtures.p2.flicker && sim.light.fixtures.mh.flicker && !sim.light.fixtures.p1.flicker);
+  assert.equal(checkObjective({ type: 'dmxOk' }, st, sim), false);
+});
+
+test('Resolume layers reach an LED wall; resolution mismatch is caught', () => {
+  const st = buildRuntime({
+    venue: 'live_stage',
+    devices: [{ id: 'vj', type: 'media_server', slot: 'foh2' }, { id: 'led', type: 'led_wall', slot: 'led_back' }],
+    connections: [{ from: 'vj.out1', to: 'led.hdmi', cable: 'hdmi' }],
+    state: { devices: { vj: { layers: [{ clip: 'waves', opacity: 100 }, { clip: 'lyrics', opacity: 0 }, { clip: null, opacity: 100 }] } } },
+  });
+  let sim = computeSim(st);
+  assert.ok(checkObjective({ type: 'display', device: 'led', content: 'waves' }, st, sim));
+  assert.equal(checkObjective({ type: 'display', device: 'led', content: 'lyrics' }, st, sim), false);
+  st.dev.vj.layers[1].opacity = 100;
+  assert.ok(checkObjective({ type: 'display', device: 'led', content: 'lyrics' }, st, computeSim(st)));
+  st.dev.vj.compRes = '1280x720';
+  sim = computeSim(st);
+  assert.equal(sim.displays.led.ok, false);
+  st.dev.vj.out1 = 'off'; st.dev.vj.compRes = '1920x1080';
+  assert.equal(computeSim(st).displays.led.ok, false);
+});
+
+test('PTZ joystick needs same network, subnet and camera list; presets frame targets', () => {
+  const st = buildRuntime({
+    venue: 'church',
+    devices: [{ id: 'ptz1', type: 'ptz', slot: 'ptz_side' }, { id: 'joy', type: 'ptz_controller', slot: 'foh4' }, { id: 'net', type: 'router', slot: 'router_foh' }],
+    connections: [{ from: 'ptz1.lan', to: 'net.lan1', cable: 'eth' }],
+  });
+  let sim = computeSim(st);
+  assert.equal(sim.ptz.ptz1.reason, 'ctrlNet');
+  st.connections.push({ id: 'j', from: { d: 'joy', p: 'lan' }, to: { d: 'net', p: 'lan2' }, cable: 'eth' });
+  sim = computeSim(st);
+  assert.ok(sim.ptz.ptz1.reachable);
+  st.dev.ptz1.ip = '192.168.0.21';
+  assert.equal(computeSim(st).ptz.ptz1.reason, 'subnet');
+  st.dev.ptz1.ip = '192.168.1.21';
+  Object.assign(st.dev.ptz1, { pan: 31, tilt: -7, zoom: 0.7 });
+  sim = computeSim(st);
+  assert.equal(sim.ptz.ptz1.framing, 'pastor');
+  st.dev.ptz1.presets[1] = { pan: 31, tilt: -7, zoom: 0.7 };
+  assert.ok(checkObjective({ type: 'ptzPreset', device: 'ptz1', preset: 1, target: 'pastor' }, st, sim));
+});
+
+test('media server can feed an ATEM input as a video source', () => {
+  const st = buildRuntime({
+    devices: [{ id: 'vj', type: 'media_server' }, { id: 'atem', type: 'atem' }],
+    connections: [{ from: 'vj.out2', to: 'atem.in3', cable: 'hdmi' }],
+    state: { atem: { program: 3 } },
+  });
+  assert.equal(computeSim(st).video.programCam, 'vj');
+});

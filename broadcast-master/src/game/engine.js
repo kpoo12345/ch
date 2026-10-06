@@ -1,4 +1,4 @@
-import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar, Piano, Laptop, Router, Volume1 } from 'lucide-react';
+import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar, Piano, Laptop, Router, Volume1, Lightbulb, Spotlight, PanelsTopLeft, Projector, Grid3x3, Clapperboard, Joystick } from 'lucide-react';
 
 /* =====================================================================
  * 방송장비 마스터 — 게임 데이터 & 신호 계산 엔진
@@ -20,17 +20,19 @@ export const CABLES = {
   usb: { name: 'USB-C 케이블', short: 'USB', desc: '데이터 · 오디오 인터페이스/웹캠 신호', stroke: '#4ade80', dot: 'bg-green-400' },
   mini: { name: '3.5mm 변환 케이블', short: '3.5mm', desc: '3.5mm ↔ 3.5mm/6.3mm/XLR 변환 · 노트북·ATEM MIC', stroke: '#f472b6', dot: 'bg-pink-400' },
   eth: { name: '랜선 (이더넷)', short: 'LAN', desc: 'RJ45 · 인터넷 송출·네트워크 제어', stroke: '#2dd4bf', dot: 'bg-teal-400' },
+  dmx: { name: 'DMX 케이블 (5핀)', short: 'DMX', desc: '110Ω 조명 제어 신호 · 조명끼리 줄줄이(데이지 체인) 연결', stroke: '#a3e635', dot: 'bg-lime-400' },
 };
 
 export const PORT_ACCEPTS = {
   xlr: ['xlr', 'mini'], trs: ['trs', 'mini'], combo: ['xlr', 'trs', 'mini'], hdmi: ['hdmi'], sdi: ['sdi'], usb: ['usb'], eth: ['eth'], mini: ['mini'],
+  dmx: ['dmx', 'xlr'], // 마이크(XLR) 케이블도 물리적으로는 꽂힌다 — 하지만 임피던스가 달라 신호가 깨질 수 있다
 };
 export const PORT_KIND_LABEL = {
   xlr: 'XLR 단자', trs: '6.3mm TRS 단자', combo: 'XLR/TRS 콤보 단자',
-  hdmi: 'HDMI 단자', sdi: 'BNC(SDI) 단자', usb: 'USB-C 단자', eth: 'RJ45 LAN 단자', mini: '3.5mm 미니잭',
+  hdmi: 'HDMI 단자', sdi: 'BNC(SDI) 단자', usb: 'USB-C 단자', eth: 'RJ45 LAN 단자', mini: '3.5mm 미니잭', dmx: 'DMX 단자 (5핀 XLR)',
 };
 export const PORT_COLOR = {
-  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80', eth: '#2dd4bf', mini: '#f472b6',
+  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80', eth: '#2dd4bf', mini: '#f472b6', dmx: '#a3e635',
 };
 export const MISMATCH_TIP = {
   xlr: 'XLR 단자는 3핀 캐논 커넥터라서 XLR 케이블만 들어갑니다.',
@@ -39,6 +41,9 @@ export const MISMATCH_TIP = {
   hdmi: '이 장비는 HDMI 전용입니다. SDI(BNC)는 대형 방송 장비용 규격이라 변환기가 필요합니다.',
   usb: 'USB 단자에는 USB 케이블을 연결해야 PC가 장비를 오디오/웹캠으로 인식합니다.',
   sdi: 'SDI 단자에는 BNC 커넥터의 SDI 케이블이 필요합니다.',
+  eth: 'LAN(RJ45) 단자에는 랜선을 꽂습니다.',
+  mini: '3.5mm 미니잭에는 3.5mm 케이블(또는 변환 케이블)을 씁니다.',
+  dmx: 'DMX 단자에는 DMX 케이블을 씁니다. 오디오 케이블은 조명 신호를 보내는 용도가 아닙니다.',
 };
 
 /* ---------------------------- 장비 정의 ---------------------------- */
@@ -141,9 +146,44 @@ export const DEVICE_TYPES = {
     info: '배경음악(BGM)이나 영상 소리를 3.5mm 헤드폰 단자로 내보냅니다. 가정용 라인 레벨이라 믹서 라인 입력에 넣고 GAIN을 낮게 씁니다.',
   },
   router: {
-    name: '인터넷 공유기', model: '유선 LAN', icon: Router, w: 160,
-    ins: [{ id: 'lan1', label: 'LAN 1', kind: 'eth' }, { id: 'lan2', label: 'LAN 2', kind: 'eth' }], outs: [],
-    info: '인터넷에 연결된 공유기입니다. ATEM Mini Pro처럼 PC 없이 직접 송출하는 장비는 랜선으로 여기에 연결합니다. 방송 송출은 와이파이보다 유선이 안정적입니다.',
+    name: '공유기 / 네트워크 스위치', model: '유선 LAN 4포트', icon: Router, w: 160,
+    ins: [1, 2, 3, 4].map((n) => ({ id: `lan${n}`, label: `LAN ${n}`, kind: 'eth' })), outs: [],
+    info: '인터넷에 연결된 공유기이자 장비끼리 통신하는 네트워크 허브입니다. ATEM Mini Pro처럼 PC 없이 송출하는 장비, IP로 제어하는 PTZ 카메라와 조이스틱이 모두 여기에 랜선으로 연결됩니다. 방송 송출은 와이파이보다 유선이 안정적입니다.',
+  },
+  lighting_console: {
+    name: '조명 콘솔', model: 'Avolites Tiger Touch II', icon: SlidersHorizontal, w: 200,
+    ins: [], outs: [{ id: 'dmx1', label: 'DMX A (유니버스 1)', kind: 'dmx' }],
+    info: '무대 조명을 제어하는 콘솔입니다. 조명기마다 "DMX 주소"를 정해 패치(Patch)하고, 밝기·색·위치를 만들어 큐(Cue)로 저장한 뒤 플레이백 페이더로 재생합니다. 한 개의 DMX 라인(유니버스)은 512채널이며, 조명끼리 DMX IN → OUT으로 줄줄이 연결합니다(데이지 체인).',
+  },
+  par_led: {
+    name: 'LED 파 조명', model: 'RGBW · 8채널 모드', icon: Lightbulb, w: 170,
+    ins: [{ id: 'dmxIn', label: 'DMX IN', kind: 'dmx' }], outs: [{ id: 'dmxOut', label: 'DMX OUT (THRU)', kind: 'dmx' }],
+    info: '색을 섞어(빨강·초록·파랑·흰색) 원하는 색으로 무대를 비추는 조명입니다. 8채널 모드라면 시작 주소부터 8개 채널(밝기, R, G, B, W, 스트로브…)을 차지합니다. 다음 조명의 주소는 겹치지 않게 +8씩 띄웁니다.',
+  },
+  moving_head: {
+    name: '무빙 헤드', model: 'Spot · 16채널 모드', icon: Spotlight, w: 170,
+    ins: [{ id: 'dmxIn', label: 'DMX IN', kind: 'dmx' }], outs: [{ id: 'dmxOut', label: 'DMX OUT (THRU)', kind: 'dmx' }],
+    info: '머리가 좌우(PAN)·상하(TILT)로 움직이며 빛을 원하는 곳으로 보내는 조명입니다. 위치·색·고보(무늬)·포커스까지 채널이 많아 16채널 이상을 차지합니다.',
+  },
+  media_server: {
+    name: '미디어 서버', model: 'Resolume Arena PC', icon: Clapperboard, w: 200,
+    ins: [], outs: [{ id: 'out1', label: 'HDMI OUT 1 (화면)', kind: 'hdmi' }, { id: 'out2', label: 'HDMI OUT 2 (송출)', kind: 'hdmi' }],
+    info: 'Resolume Arena는 영상 클립을 레이어로 겹쳐(배경 + 가사 + 로고) 실시간으로 섞어 LED 전광판·프로젝터로 내보내는 VJ/미디어 서버 소프트웨어입니다. 컴포지션(전체 화면)을 출력(Advanced Output)에서 각 화면에 맞게 배치합니다.',
+  },
+  projector: {
+    name: '프로젝터', model: '레이저 5000안시', icon: Projector, w: 160,
+    ins: [{ id: 'hdmi', label: 'HDMI IN', kind: 'hdmi' }], outs: [],
+    info: '영상 신호를 스크린에 크게 비춥니다. 밝은 무대 조명이 스크린을 비추면 화면이 흐려 보이므로 조명 각도와 함께 계획합니다.',
+  },
+  led_wall: {
+    name: 'LED 전광판', model: 'LED 프로세서 + 캐비닛', icon: Grid3x3, w: 170,
+    ins: [{ id: 'hdmi', label: 'HDMI IN (프로세서)', kind: 'hdmi' }], outs: [],
+    info: '여러 장의 LED 캐비닛을 이어 만든 대형 화면입니다. LED 프로세서가 입력 영상을 캐비닛 배열(픽셀 수)에 맞게 잘라 보냅니다. 입력 해상도와 화면 픽셀 맵이 맞아야 깨끗하게 나옵니다.',
+  },
+  ptz_controller: {
+    name: 'PTZ 조이스틱', model: 'IP 조이스틱 컨트롤러', icon: Joystick, w: 180,
+    ins: [], outs: [{ id: 'lan', label: 'LAN (VISCA over IP)', kind: 'eth' }],
+    info: '조이스틱으로 PTZ 카메라의 PAN·TILT·ZOOM을 원격으로 움직이고, 자주 쓰는 구도를 프리셋(Preset)으로 저장해 버튼 하나로 불러옵니다. 카메라와 같은 네트워크(같은 IP 대역)에 있어야 제어됩니다. ATEM의 탈리를 받아 지금 방송 중인(PGM) 카메라를 표시해 줍니다.',
   },
   pc: {
     name: '스트리밍 PC', model: 'OBS Studio', icon: Monitor, w: 230, statusH: 98,

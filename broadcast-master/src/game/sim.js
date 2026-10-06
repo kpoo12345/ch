@@ -15,6 +15,9 @@ export const AUDIBLE = -40;
 export const CHANNELS = 8;
 const VOICE_TYPES = new Set(['dynamic_mic', 'condenser_mic', 'wireless_mic']);
 const CAMERA_TYPES = new Set(['camera', 'mirrorless', 'ptz']);
+const VIDEO_SOURCES = new Set(['camera', 'mirrorless', 'ptz', 'media_server']);
+const FIXTURE_TYPES = new Set(['par_led', 'moving_head']);
+export const FOOTPRINT = { par_led: 8, moving_head: 16 };
 const SWITCHER_TYPES = new Set(['atem', 'atem_pro']);
 const MIXER_TYPES = new Set(['analog_mixer', 'digital_mixer']);
 const UNBALANCED = new Set(['trs', 'mini']);
@@ -52,11 +55,19 @@ export const DEV_DEFAULTS = {
   audio_interface: () => ({ in: [{ gain: 30, phantom: false, inst: false }, { gain: 30, phantom: false, inst: false }], direct: true, monitor: 60 }),
   mirrorless: () => ({ clean: true }),
   laptop: () => ({ playing: true }),
-  ptz: () => ({ pan: 0, tilt: 0, zoom: 0.3 }),
+  ptz: () => ({ pan: 0, tilt: 0, zoom: 0.3, ip: '192.168.1.21', presets: {} }),
+  lighting_console: () => ({ gm: 100, blackout: false, patch: [], playbacks: [], programmer: { sel: [], intensity: null, color: null, pan: null, tilt: null } }),
+  par_led: () => ({ address: 1, power: true, terminated: false }),
+  moving_head: () => ({ address: 1, power: true, terminated: false }),
+  media_server: () => ({ layers: [{ clip: null, opacity: 100 }, { clip: null, opacity: 100 }, { clip: null, opacity: 100 }], master: 100, out1: 'comp', out2: 'comp', playing: true, compRes: '1920x1080' }),
+  projector: () => ({ power: true }),
+  led_wall: () => ({ power: true, res: '1920x1080' }),
+  ptz_controller: () => ({ ip: '192.168.1.10', cams: ['192.168.1.21', '192.168.1.22', '192.168.1.23', '192.168.1.24'], selected: 0 }),
 };
 export const ATEM_DEFAULT = { program: 0, preview: 1, transitioning: false, streaming: false, recording: false, pip: false, micGain: 30 };
 export const OBS_DEFAULT = { video: 'none', audio: 'none', muted: false, streaming: false };
 
+const structuredCloneSafe = (o) => JSON.parse(JSON.stringify(o));
 const parseEnd = (s) => { const [d, p] = String(s).split('.'); return { d, p: p ?? null }; };
 export const connId = (from, to) => `${from.d}.${from.p}>${to.d}.${to.p}`;
 export const portKind = (type, portId) => {
@@ -75,7 +86,7 @@ export function buildRuntime(spec) {
   Object.values(devices).forEach((d) => {
     const base = DEV_DEFAULTS[d.type]?.() ?? {};
     if (d.type === 'speaker' && FRONT_SLOTS.has(d.slot)) base.position = 'front';
-    dev[d.id] = { ...base, ...(spec.state?.devices?.[d.id] ?? {}) };
+    dev[d.id] = { ...base, ...structuredCloneSafe(spec.state?.devices?.[d.id] ?? {}) };
     if (d.type === 'audio_interface' && spec.state?.devices?.[d.id]?.in) {
       dev[d.id].in = [0, 1].map((i) => ({ ...base.in[i], ...(spec.state.devices[d.id].in[i] ?? {}) }));
     }
@@ -89,6 +100,7 @@ export function buildRuntime(spec) {
     venue: spec.venue ?? 'lecture_hall',
     devices, dev, connections, mixerId, switcherId,
     cables: { ...(spec.inventory ?? {}) },
+    unlimited: !!spec.unlimited, // 자유 모드: 케이블 무제한
     channels,
     master: { ...MASTER_DEFAULT, ...(spec.state?.master ?? {}) },
     atem: { ...ATEM_DEFAULT, ...(spec.state?.atem ?? {}) },
@@ -199,12 +211,15 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     const digital = devices[mid].type === 'digital_mixer';
     const M = st.master;
     const main = [], aux = [], chans = [];
+    // 디지털 믹서의 +48V는 "입력 단자(헤드앰프)"에 걸린다: 그 단자를 쓰는 채널 중 하나라도 켜면 전원이 들어간다
+    const portOfCh = (ch, i) => (digital ? (ch.patch ?? `local${i + 1}`) : `in${i + 1}`);
+    const powered = new Set(st.channels.map((ch, i) => (ch.phantom ? portOfCh(ch, i) : null)).filter(Boolean));
     st.channels.forEach((ch, i) => {
-      const port = digital ? (ch.patch ?? `local${i + 1}`) : `in${i + 1}`;
+      const port = portOfCh(ch, i);
       const comps = port === 'off' ? [] : inputComps(mid, port);
       const processed = comps.map((x) => {
         let level = x.level;
-        if (x.needsPhantom && !ch.phantom) { if (level != null) notes.deadPhantom.add(x.src); level = null; }
+        if (x.needsPhantom && !powered.has(port)) { if (level != null) notes.deadPhantom.add(x.src); level = null; }
         if (x.hiZ) { notes.thin.add(x.src); if (level != null) level -= 6; }
         const inLevel = level == null ? null : level + ch.gain;
         return { ...x, inLevel };
@@ -276,7 +291,7 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const camAt = {};
   if (sw) {
     connections.forEach((c) => {
-      if (c.to.d === sw && /^in\d$/.test(c.to.p) && placed(c.from.d) && CAMERA_TYPES.has(devices[c.from.d]?.type)) camAt[Number(c.to.p.slice(2))] = c.from.d;
+      if (c.to.d === sw && /^in\d$/.test(c.to.p) && placed(c.from.d) && VIDEO_SOURCES.has(devices[c.from.d]?.type)) camAt[Number(c.to.p.slice(2))] = c.from.d;
     });
   }
   const programCam = sw ? camAt[st.atem.program] ?? null : null;
@@ -301,7 +316,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   if (pcId && st.obs.audio === 'builtin' && talking) obsAudioComps = [{ src: 'pc_builtin', kind: 'room', level: -34 }];
   const obsHeard = st.obs.muted ? [] : obsAudioComps;
   // ATEM MIC 입력: 자체 프리앰프(micGain)로 증폭
-  const proHeard = isPro ? [...inputComps(sw, 'mic1'), ...inputComps(sw, 'mic2')].map((x) => ({ ...x, level: x.level == null || x.needsPhantom ? null : x.level + (x.kind === 'voice' ? st.atem.micGain : 0) })) : [];
+  const micLevelSrc = (p) => { const c = feeding[`${sw}.${p}`]; return !!c && (VOICE_TYPES.has(devices[c.from.d]?.type)); };
+  const proHeard = isPro ? ['mic1', 'mic2'].flatMap((p) => inputComps(sw, p).map((x) => ({ ...x, level: x.level == null || (x.needsPhantom && micLevelSrc(p)) ? null : x.level + (micLevelSrc(p) ? st.atem.micGain : 0) }))) : [];
   obsHeard.forEach((x) => put('stream', x));
   proHeard.forEach((x) => put('stream', x));
   const audible = (arr) => arr.some((x) => x.level != null && x.level > AUDIBLE);
@@ -313,6 +329,58 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const obsLive = st.obs.streaming && obsVideoOk && obsAudioOk;
   const proLive = isPro && st.atem.streaming && proVideoOk && proAudioOk;
   const streamingAny = (st.obs.streaming && !!pcId) || (isPro && st.atem.streaming);
+
+  /* ----- 조명 (DMX) ----- */
+  const light = lightCalc(st, placed, outgoing);
+
+  /* ----- 화면 (프로젝터·LED) ----- */
+  const displays = {};
+  Object.values(devices).filter((d) => d.placed && (d.type === 'projector' || d.type === 'led_wall')).forEach((d) => {
+    const s = dev[d.id] ?? {};
+    const c = feeding[`${d.id}.hdmi`];
+    const r = { power: !!s.power, source: c?.from.d ?? null, layers: [], ok: false, scaled: false, program: false };
+    if (c && s.power) {
+      const srcType = devices[c.from.d]?.type;
+      if (srcType === 'media_server') {
+        const m = dev[c.from.d];
+        const map = m[c.from.p] ?? 'comp';
+        if (m.playing && m.master > 0 && map !== 'off') {
+          r.layers = m.layers.map((l, i) => ({ ...l, i: i + 1 })).filter((l) => l.clip && l.opacity >= 30 && (map === 'comp' || map === `layer${l.i}`));
+        }
+        r.scaled = d.type === 'led_wall' && m.compRes !== s.res;
+      } else if (srcType === 'atem' || srcType === 'atem_pro') {
+        r.program = !!programCam;
+      } else if (CAMERA_TYPES.has(srcType)) {
+        r.program = true;
+      }
+      r.ok = (r.layers.length > 0 || r.program) && !r.scaled;
+    }
+    displays[d.id] = r;
+  });
+
+  /* ----- PTZ 원격 제어 (IP) ----- */
+  const ptz = {};
+  const routerOf = (d, p) => { const c = outgoing[`${d}.${p}`]; return c && devices[c.to.d]?.type === 'router' ? c.to.d : null; };
+  const ctrl = Object.values(devices).find((d) => d.placed && d.type === 'ptz_controller');
+  Object.values(devices).filter((d) => d.placed && d.type === 'ptz').forEach((d) => {
+    const s = dev[d.id];
+    const r = { reachable: false, index: null, reason: null };
+    if (!ctrl) r.reason = 'noController';
+    else {
+      const cs = dev[ctrl.id];
+      const rc = routerOf(ctrl.id, 'lan'), rp = routerOf(d.id, 'lan');
+      const subnet = (ip) => String(ip).split('.').slice(0, 3).join('.');
+      const idx = cs.cams.indexOf(s.ip);
+      if (!rc) r.reason = 'ctrlNet';
+      else if (!rp) r.reason = 'camNet';
+      else if (rc !== rp) r.reason = 'otherNet';
+      else if (subnet(cs.ip) !== subnet(s.ip)) r.reason = 'subnet';
+      else if (idx < 0) r.reason = 'notInList';
+      else { r.reachable = true; r.index = idx + 1; }
+    }
+    r.framing = framingOf(st.venue, d.slot, s);
+    ptz[d.id] = r;
+  });
 
   /* ----- 피드백 ----- */
   const loops = [];
@@ -337,7 +405,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     feedback: worst >= 0, ringing: worst >= -4 && worst < 0, worstLoop: worst,
     hum: humAt, humSources: [...notes.humSources], thin: [...notes.thin], deadPhantom: [...notes.deadPhantom],
     clips,
-    video: { camAt, programCam, previewCam, overlay, atemUsbToPc, isPro, proNet },
+    video: { camAt, programCam, previewCam, overlay, atemUsbToPc, isPro, proNet, dark: light.stageLit === false },
+    light, displays, ptz,
     stream: { obsVideoOk, obsAudioOk, proVideoOk, proAudioOk, obsLive, proLive, live: obsLive || proLive, streamingAny, pcId },
     channelOf: (src) => mix.channels.find((c) => c.comps.some((x) => x.src === src)) ?? null,
     // 단자별 신호 크기 (3D 케이블의 신호 흐름 표시용)
@@ -410,6 +479,22 @@ export function checkObjective(check, st, sim, ctx = {}) {
     case 'pip': return !!st.atem.pip;
     case 'talkTest': return !!ctx.latched?.includes(`talk:${check.at}`);
     case 'faultsFixed': return st.faults.every((f) => faultFixed(f, st, sim));
+    // 조명
+    case 'lit': { const r = sim.light.fixtures[check.device]; return !!r && r.intensity >= (check.min ?? 0.5) && !r.flicker && !r.wrong; }
+    case 'dark': { const r = sim.light.fixtures[check.device]; return !r || r.intensity < 0.05; }
+    case 'stageLit': return sim.light.stageLit === true;
+    case 'dmxOk': return sim.light.conflicts.length === 0 && Object.values(sim.light.fixtures).every((r) => r.receiving && !r.flicker && !r.wrong);
+    case 'fixtureColor': { const r = sim.light.fixtures[check.device]; return !!r && r.intensity >= 0.3 && colorFamily(r.color) === check.color; }
+    case 'patched': { const cs = st.dev[sim.light.consoleId]; const d = st.dev[check.device]; return !!cs && !!d && cs.patch.some((e) => e.address === d.address && e.type === st.devices[check.device].type); }
+    case 'playback': { const cs = st.dev[sim.light.consoleId]; const pb = cs?.playbacks?.[check.index - 1]; return !!pb && pb.level >= (check.min ?? 50); }
+    case 'recorded': { const cs = st.dev[sim.light.consoleId]; const pb = cs?.playbacks?.[check.index - 1]; return !!pb?.cue?.fixtures?.length && (!check.color || colorFamily(pb.cue.color) === check.color); }
+    // 영상 화면
+    case 'display': { const r = sim.displays[check.device]; if (!r?.ok) return false; return check.content ? (check.content === 'program' ? r.program : r.layers.some((l) => l.clip === check.content)) : true; }
+    case 'noScaling': return Object.values(sim.displays).every((r) => !r.scaled);
+    // PTZ
+    case 'ptzControl': return !!sim.ptz[check.device]?.reachable;
+    case 'ptzFrames': return sim.ptz[check.device]?.framing === check.target;
+    case 'ptzPreset': { const p = st.dev[check.device]?.presets?.[check.preset]; return !!p && framingOf(st.venue, st.devices[check.device].slot, p) === check.target; }
     default: return false;
   }
 }
@@ -457,6 +542,20 @@ export function applyFault(st, f) {
     case 'atemBlack': st.atem.program = 0; break;
     case 'cleanHdmiOff': if (st.dev[f.device]) st.dev[f.device].clean = false; break;
     case 'gainHigh': if (c) c.gain = 60; break;
+    case 'dmxAddress': if (st.dev[f.device]) { f.was = st.dev[f.device].address; st.dev[f.device].address = f.to ?? (st.dev[f.device].address + 3); } break;
+    case 'blackout': { const id = Object.values(st.devices).find((d) => d.type === 'lighting_console')?.id; if (id) st.dev[id].blackout = true; break; }
+    case 'gmZero': { const id = Object.values(st.devices).find((d) => d.type === 'lighting_console')?.id; if (id) st.dev[id].gm = 0; break; }
+    case 'dmxMicCable': {
+      const c2 = st.connections.find((x) => `${x.from.d}.${x.from.p}>${x.to.d}.${x.to.p}` === f.conn);
+      if (c2) { c2.cable = 'xlr'; c2.id = `${c2.from.d}.${c2.from.p}>${c2.to.d}.${c2.to.p}`; }
+      break;
+    }
+    case 'fixturePower': if (st.dev[f.device]) st.dev[f.device].power = false; break;
+    case 'ptzIp': if (st.dev[f.device]) { f.was = st.dev[f.device].ip; st.dev[f.device].ip = f.to ?? '192.168.0.21'; } break;
+    case 'resolumeOutputOff': if (st.dev[f.device]) st.dev[f.device][f.output ?? 'out1'] = 'off'; break;
+    case 'layerZero': if (st.dev[f.device]) st.dev[f.device].layers[(f.layer ?? 1) - 1].opacity = 0; break;
+    case 'displayOff': if (st.dev[f.device]) st.dev[f.device].power = false; break;
+    case 'resMismatch': if (st.dev[f.device]) st.dev[f.device].compRes = '1280x720'; break;
     default: break;
   }
 }
@@ -490,6 +589,16 @@ export function faultFixed(f, st, sim) {
     case 'atemBlack': return !!sim.video.programCam;
     case 'cleanHdmiOff': return !!st.dev[f.device]?.clean;
     case 'gainHigh': { const comp = sim.channelOf(f.source)?.comps.find((x) => x.src === f.source); return !!comp && comp.inLevel != null && comp.inLevel <= -6; }
+    case 'dmxAddress': { const r = sim.light.fixtures[f.device]; return !!r && !!r.entry && !r.wrong; }
+    case 'blackout': return !st.dev[sim.light.consoleId]?.blackout;
+    case 'gmZero': return (st.dev[sim.light.consoleId]?.gm ?? 0) >= 50;
+    case 'dmxMicCable': return !st.connections.some((x) => x.cable === 'xlr' && st.devices[x.to.d] && (st.devices[x.to.d].type === 'par_led' || st.devices[x.to.d].type === 'moving_head'));
+    case 'fixturePower': return !!st.dev[f.device]?.power;
+    case 'ptzIp': return !!sim.ptz[f.device]?.reachable;
+    case 'resolumeOutputOff': return st.dev[f.device]?.[f.output ?? 'out1'] !== 'off';
+    case 'layerZero': return (st.dev[f.device]?.layers[(f.layer ?? 1) - 1]?.opacity ?? 0) >= 50;
+    case 'displayOff': return !!st.dev[f.device]?.power;
+    case 'resMismatch': return Object.values(sim.displays).every((r) => !r.scaled);
     default: return true;
   }
 }
@@ -512,4 +621,143 @@ export const FAULT_TEXT = {
   atemBlack: () => 'ATEM 프로그램이 블랙(입력 없음)이었습니다.',
   cleanHdmiOff: (f) => `${f.device} 카메라의 클린 HDMI가 꺼져 화면 정보가 송출되고 있었습니다.`,
   gainHigh: (f) => `${f.source} 채널 GAIN이 너무 높아 클리핑되고 있었습니다.`,
+  dmxAddress: (f) => `${f.device} 조명의 DMX 주소가 콘솔 패치와 달랐습니다 (${f.was ?? '?'}번이어야 함).`,
+  blackout: () => '조명 콘솔의 BLACKOUT 버튼이 눌려 있었습니다.',
+  gmZero: () => '조명 콘솔의 그랜드 마스터가 0이었습니다.',
+  dmxMicCable: () => 'DMX 라인 중간에 마이크(XLR) 케이블이 쓰여 신호가 깨지고(깜빡임) 있었습니다.',
+  fixturePower: (f) => `${f.device} 조명의 전원이 꺼져 있었습니다.`,
+  ptzIp: (f) => `${f.device} PTZ 카메라의 IP가 다른 대역(${f.to ?? '192.168.0.x'})으로 바뀌어 조이스틱이 찾지 못했습니다.`,
+  resolumeOutputOff: () => 'Resolume의 출력(Output)이 꺼져 있었습니다.',
+  layerZero: (f) => `Resolume ${f.layer ?? 1}번 레이어의 투명도(Opacity)가 0이었습니다.`,
+  displayOff: (f) => `${f.device} 화면 장비의 전원이 꺼져 있었습니다.`,
+  resMismatch: () => 'Resolume 컴포지션 해상도가 LED 전광판 해상도와 달라 화면이 늘어나 보였습니다.',
 };
+
+// 색 이름 판정 (조명 목표용)
+export const COLOR_NAMES = { red: '빨강', orange: '주황', yellow: '노랑', green: '초록', cyan: '하늘', blue: '파랑', purple: '보라', pink: '분홍', white: '흰색' };
+export function colorFamily(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? '');
+  if (!m) return 'white';
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  if (max - min < 0.18) return 'white';
+  let h;
+  if (max === r) h = ((g - b) / (max - min)) % 6; else if (max === g) h = (b - r) / (max - min) + 2; else h = (r - g) / (max - min) + 4;
+  h = (h * 60 + 360) % 360;
+  if (h < 15 || h >= 340) return 'red';
+  if (h < 40) return 'orange';
+  if (h < 70) return 'yellow';
+  if (h < 160) return 'green';
+  if (h < 200) return 'cyan';
+  if (h < 255) return 'blue';
+  if (h < 290) return 'purple';
+  return 'pink';
+}
+
+/* ---------------------------- 조명 계산 ---------------------------- */
+const hexOk = (c) => (typeof c === 'string' ? c : '#ffffff');
+function lightCalc(st, placed, outgoing) {
+  const { devices, dev } = st;
+  const fixtures = Object.values(devices).filter((d) => d.placed && FIXTURE_TYPES.has(d.type));
+  const res = { fixtures: {}, conflicts: [], chain: [], stageLit: null, consoleId: null };
+  fixtures.forEach((f) => { res.fixtures[f.id] = { receiving: false, depth: null, viaMic: false, entry: null, wrong: false, intensity: 0, color: '#ffffff', pan: 0, tilt: 0, flicker: false }; });
+  const con = Object.values(devices).find((d) => d.placed && d.type === 'lighting_console');
+  if (con) {
+    res.consoleId = con.id;
+    const cs = dev[con.id];
+    // 데이지 체인 따라가기: 콘솔 DMX OUT → 조명 IN → 조명 OUT → 다음 조명 IN …
+    let c = outgoing[`${con.id}.dmx1`];
+    let mic = false; let depth = 0;
+    const seen = new Set();
+    while (c && !seen.has(c.to.d) && FIXTURE_TYPES.has(devices[c.to.d]?.type) && c.to.p === 'dmxIn') {
+      seen.add(c.to.d);
+      mic = mic || c.cable === 'xlr';
+      depth += 1;
+      Object.assign(res.fixtures[c.to.d], { receiving: true, depth, viaMic: mic });
+      res.chain.push(c.to.d);
+      c = outgoing[`${c.to.d}.dmxOut`];
+    }
+    const last = res.chain[res.chain.length - 1];
+    const unterminated = res.chain.length >= 4 && last && !dev[last]?.terminated;
+    // 패치 충돌: 콘솔 패치끼리 주소 범위가 겹치면 안 된다
+    const patch = cs.patch ?? [];
+    patch.forEach((a, i) => patch.forEach((b, j) => {
+      if (j <= i) return;
+      const fa = FOOTPRINT[a.type] ?? 8, fb = FOOTPRINT[b.type] ?? 8;
+      if (a.address < b.address + fb && b.address < a.address + fa) res.conflicts.push([a.n, b.n]);
+    }));
+    // 플레이백 + 프로그래머 → 패치 번호별 값
+    const valueOf = (n) => {
+      let intensity = 0, color = '#ffffff', pan = 0, tilt = 0, best = -1;
+      (cs.playbacks ?? []).forEach((pb) => {
+        if (!pb.level || !pb.cue?.fixtures?.includes(n)) return;
+        const lv = ((pb.cue.intensity ?? 100) / 100) * (pb.level / 100);
+        intensity = Math.max(intensity, lv);
+        if (pb.level > best) { best = pb.level; color = pb.cue.color ?? color; pan = pb.cue.pan ?? pan; tilt = pb.cue.tilt ?? tilt; }
+      });
+      const pr = cs.programmer;
+      if (pr?.sel?.includes(n)) {
+        if (pr.intensity != null) intensity = pr.intensity / 100;
+        if (pr.color != null) color = pr.color;
+        if (pr.pan != null) pan = pr.pan;
+        if (pr.tilt != null) tilt = pr.tilt;
+      }
+      return { intensity, color, pan, tilt };
+    };
+    fixtures.forEach((f) => {
+      const r = res.fixtures[f.id];
+      const s = dev[f.id];
+      if (!r.receiving || !s.power) return;
+      const fp = FOOTPRINT[f.type];
+      const exact = patch.find((e) => e.address === s.address && e.type === f.type);
+      const overlap = patch.find((e) => e !== exact && s.address < e.address + (FOOTPRINT[e.type] ?? 8) && e.address < s.address + fp);
+      if (exact && !res.conflicts.some(([a, b]) => a === exact.n || b === exact.n)) {
+        r.entry = exact.n;
+        const v = valueOf(exact.n);
+        Object.assign(r, v, { color: hexOk(v.color) });
+      } else if (overlap || exact) {
+        // 주소가 어긋나면 다른 조명의 채널을 읽어 엉뚱하게 반응한다
+        r.wrong = true;
+        r.entry = (overlap ?? exact).n;
+        const v = valueOf(r.entry);
+        Object.assign(r, { intensity: v.intensity * 0.6, color: '#a3e635', pan: (v.pan + 40) % 90, tilt: v.tilt });
+      }
+      r.intensity *= ((cs.gm ?? 100) / 100) * (cs.blackout ? 0 : 1);
+      r.flicker = r.receiving && (r.viaMic || (unterminated && r.depth >= 3));
+    });
+  }
+  const fronts = fixtures.filter((f) => f.role === 'front');
+  if (fronts.length) res.stageLit = fronts.every((f) => { const r = res.fixtures[f.id]; return r.intensity >= 0.5 && !r.flicker && !r.wrong; });
+  return res;
+}
+
+/* ---------------------------- PTZ 구도 ---------------------------- */
+// 장소의 PTZ 자리에서 각 대상(사람)을 잡기 위한 PAN/TILT/ZOOM 목표
+export const PTZ_TARGETS = {
+  church: { ptz_side: {
+    pastor: { label: '설교자 클로즈업', pan: 32, tilt: -8, zoom: [0.55, 1] },
+    leader: { label: '찬양 인도자', pan: 18, tilt: -6, zoom: [0.45, 1] },
+    choir: { label: '성가대', pan: 50, tilt: -6, zoom: [0.3, 0.7] },
+    wide: { label: '강단 전체 (와이드)', pan: 30, tilt: -6, zoom: [0, 0.25], tol: 12 },
+  } },
+  lecture_hall: { ptz_ceiling: {
+    host: { label: '진행자 클로즈업', pan: -25, tilt: -15, zoom: [0.55, 1] },
+    wide: { label: '스튜디오 전체', pan: -5, tilt: -12, zoom: [0, 0.25], tol: 12 },
+  } },
+  live_stage: { ptz_truss: {
+    singer: { label: '보컬 클로즈업', pan: 0, tilt: -20, zoom: [0.55, 1] },
+    gtr: { label: '기타리스트', pan: -28, tilt: -18, zoom: [0.45, 1] },
+    keys: { label: '키보디스트', pan: 28, tilt: -18, zoom: [0.45, 1] },
+    wide: { label: '무대 전체', pan: 0, tilt: -15, zoom: [0, 0.25], tol: 14 },
+  } },
+};
+export function framingOf(venue, slot, s) {
+  const T = PTZ_TARGETS[venue]?.[slot];
+  if (!T || !s) return null;
+  const hit = Object.entries(T).find(([, t]) => {
+    const tol = t.tol ?? 6;
+    return Math.abs((s.pan ?? 0) - t.pan) <= tol && Math.abs((s.tilt ?? 0) - t.tilt) <= tol * 0.8 && (s.zoom ?? 0) >= t.zoom[0] && (s.zoom ?? 0) <= t.zoom[1];
+  });
+  return hit ? hit[0] : null;
+}

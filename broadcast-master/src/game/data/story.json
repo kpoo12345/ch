@@ -1,0 +1,3388 @@
+{
+ "chapters": [
+  {
+   "id": "seminar",
+   "title": "1장. 첫 출근 — 세미나실",
+   "venue": "seminar",
+   "summary": "마이크 한 대짜리 PA로 신호 흐름, 게인 스테이징, 하울링 제어라는 음향의 3대 기본기를 익힙니다.",
+   "stages": [
+    {
+     "id": "seminar-1",
+     "chapter": "seminar",
+     "venue": "seminar",
+     "title": "첫 소리 내기",
+     "tag": "신호 흐름 기초",
+     "briefing": [
+      "첫 출근 날입니다. 오후 2시 세미나실 강연을 위해 마이크 한 개짜리 간단한 PA(확성) 시스템을 꾸려야 합니다.",
+      "모든 음향은 소스(마이크) → 처리(믹서) → 출력(스피커) 순서로 흐릅니다. 이 신호 흐름대로 장비를 놓고 케이블로 이어 봅니다."
+     ],
+     "mission": "마이크 → 믹서 → 스피커를 연결하고 스피커 전원을 마지막에 켠 뒤 마이크 테스트에 성공하세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mic",
+       "type": "dynamic_mic",
+       "slot": "presenter_mic",
+       "placed": false,
+       "name": "강연자 마이크"
+      },
+      {
+       "id": "mixer",
+       "type": "analog_mixer",
+       "slot": "desk1",
+       "placed": false,
+       "name": "8채널 아날로그 믹서"
+      },
+      {
+       "id": "pa",
+       "type": "speaker",
+       "slot": "pa_main",
+       "placed": false,
+       "name": "메인 스피커"
+      }
+     ],
+     "connections": [],
+     "inventory": {
+      "xlr": 2,
+      "trs": 1,
+      "hdmi": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75
+       }
+      },
+      "master": {
+       "mainFader": 0,
+       "mainMute": false
+      },
+      "devices": {
+       "pa": {
+        "power": false,
+        "position": "behind"
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "장비 3대 배치하기 (마이크·믹서·스피커)",
+       "check": {
+        "type": "placed",
+        "devices": [
+         "mic",
+         "mixer",
+         "pa"
+        ]
+       }
+      },
+      {
+       "label": "마이크 OUT → 믹서 IN 1 연결 (XLR)",
+       "check": {
+        "type": "connected",
+        "from": "mic.out",
+        "to": "mixer.in1"
+       }
+      },
+      {
+       "label": "믹서 MAIN OUT → 스피커 INPUT 연결 (XLR)",
+       "check": {
+        "type": "connected",
+        "from": "mixer.main",
+        "to": "pa.in"
+       }
+      },
+      {
+       "label": "연결을 마친 뒤 스피커 전원 켜기",
+       "check": {
+        "type": "power",
+        "device": "pa"
+       }
+      },
+      {
+       "label": "말하기 테스트: 스피커에서 내 목소리 확인",
+       "check": {
+        "type": "talkTest",
+        "at": "main"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "신호는 소스 → 처리 → 출력 순서로 흐릅니다. 먼저 장비 세 대를 각자 자리에 배치하세요.",
+      "XLR 케이블로 마이크 OUT → 믹서 IN 1, 믹서 MAIN OUT → 스피커 INPUT을 이으세요. PHONES나 AUX 단자는 메인 출력이 아닙니다.",
+      "연결을 모두 마친 뒤 스피커 전원을 켜고, 메인 페이더를 75(0 dB) 근처까지 올리세요. 그다음 '말하기'를 누르고 있으면 테스트됩니다."
+     ],
+     "lessons": [
+      "모든 음향 시스템은 소스(마이크) → 처리(믹서) → 출력(스피커) 순서로 흐릅니다.",
+      "마이크와 스피커 연결은 잡음에 강한 3핀 밸런스드 XLR이 기본입니다. PHONES·AUX는 메인 출력이 아닙니다.",
+      "돌아보기: 전원은 켤 때 스피커가 마지막, 끌 때 스피커가 처음입니다. 페이더를 내린 채 시작하면 '펑' 소리를 막을 수 있습니다."
+     ]
+    },
+    {
+     "id": "seminar-2",
+     "chapter": "seminar",
+     "venue": "seminar",
+     "title": "BGM이 찢어져요",
+     "tag": "게인 스테이징",
+     "briefing": [
+      "강연 전 대기 음악(BGM)을 틀었더니 소리가 지글지글 찢어집니다. 전임자가 모든 채널의 GAIN을 똑같이 48 dB로 맞춰 두었네요.",
+      "마이크와 노트북은 들어오는 신호 크기가 전혀 다릅니다. 소스마다 GAIN을 따로 맞추는 '게인 스테이징'을 배웁니다."
+     ],
+     "mission": "마이크와 노트북 채널의 입력 레벨을 각각 -20 ~ -6 dB로 맞춰 찢어지지 않는 소리를 만드세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mic",
+       "type": "dynamic_mic",
+       "slot": "presenter_mic",
+       "placed": true,
+       "name": "강연자 마이크"
+      },
+      {
+       "id": "lap",
+       "type": "laptop",
+       "slot": "desk2",
+       "placed": true,
+       "name": "BGM 노트북"
+      },
+      {
+       "id": "mixer",
+       "type": "analog_mixer",
+       "slot": "desk1",
+       "placed": true,
+       "name": "8채널 아날로그 믹서"
+      },
+      {
+       "id": "pa",
+       "type": "speaker",
+       "slot": "pa_main",
+       "placed": true,
+       "name": "메인 스피커"
+      }
+     ],
+     "connections": [
+      {
+       "from": "mic.out",
+       "to": "mixer.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "lap.out",
+       "to": "mixer.in2",
+       "cable": "mini"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 48,
+        "fader": 75
+       },
+       "2": {
+        "gain": 48,
+        "fader": 60
+       }
+      },
+      "master": {
+       "mainFader": 60,
+       "mainMute": false
+      },
+      "devices": {
+       "pa": {
+        "power": true,
+        "position": "behind"
+       },
+       "lap": {
+        "playing": true
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "강연자 마이크 입력 레벨 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "mic"
+       }
+      },
+      {
+       "label": "노트북(BGM) 입력 레벨 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "lap"
+       }
+      },
+      {
+       "label": "모든 채널 클리핑(빨간 불) 없애기",
+       "check": {
+        "type": "noClip"
+       }
+      },
+      {
+       "label": "BGM이 스피커로 나가기",
+       "check": {
+        "type": "reaches",
+        "source": "lap",
+        "at": "main"
+       }
+      },
+      {
+       "label": "말하기 테스트: 찢어지지 않는 목소리 확인",
+       "check": {
+        "type": "talkTest",
+        "at": "main"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "채널 미터가 빨간색(0 dB 이상)이면 클리핑입니다. 원인은 페이더가 아니라 채널 맨 위의 GAIN입니다.",
+      "마이크는 아주 작은 신호(약 -45 dBu)라 GAIN 30 dB 안팎이 적당합니다. '말하기'를 누른 채 미터를 보며 맞추세요.",
+      "노트북은 라인 레벨(약 -8 dBu)이라 GAIN을 0 ~ 2 dB까지 거의 다 내려야 합니다. 마이크 GAIN은 25 ~ 39 dB 사이로 맞추세요."
+     ],
+     "lessons": [
+      "GAIN은 소스마다 따로 맞춥니다. 마이크는 30 dB 안팎, 노트북·키보드 같은 라인 레벨은 0 dB 근처면 충분합니다.",
+      "클리핑은 입력단에서 소리가 찢어지는 것이라 뒤의 페이더로는 고칠 수 없습니다. 입력 미터 -20 ~ -6 dB가 목표입니다.",
+      "돌아보기: 노브 위치를 똑같이 맞추지 말고, 실제로 말하거나 재생하면서 미터를 보고 맞추세요."
+     ]
+    },
+    {
+     "id": "seminar-3",
+     "chapter": "seminar",
+     "venue": "seminar",
+     "title": "삐— 하울링",
+     "tag": "하울링 · 게인 스테이징",
+     "briefing": [
+      "강연 30분 전 리허설. 전임자가 볼륨을 잔뜩 올리고 스피커를 강연자 바로 앞에 둔 탓에 \"삐이이—\" 하울링이 세미나실을 울립니다.",
+      "하울링은 스피커 소리가 다시 마이크로 들어가 끝없이 커지는 루프입니다. GAIN·EQ·페이더·스피커 위치로 루프를 끊되, 강연 소리는 또렷하게 남겨야 합니다."
+     ],
+     "mission": "하울링과 클리핑을 없애고, 적정 레벨로 강연 소리를 내세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mic",
+       "type": "dynamic_mic",
+       "slot": "presenter_mic",
+       "placed": true,
+       "name": "핸드 마이크"
+      },
+      {
+       "id": "mixer",
+       "type": "analog_mixer",
+       "slot": "desk1",
+       "placed": true,
+       "name": "아날로그 믹서"
+      },
+      {
+       "id": "pa",
+       "type": "speaker",
+       "slot": "pa_alt",
+       "placed": true,
+       "name": "액티브 스피커 (강연자 바로 앞)"
+      }
+     ],
+     "connections": [
+      {
+       "from": "mic.out",
+       "to": "mixer.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "trs": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 54,
+        "fader": 75,
+        "eqHigh": 4,
+        "eqMid": 9,
+        "eqLow": 0
+       }
+      },
+      "master": {
+       "mainFader": 88
+      },
+      "devices": {
+       "pa": {
+        "power": true,
+        "position": "front"
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "하울링(피드백) 없애기",
+       "check": {
+        "type": "noFeedback"
+       }
+      },
+      {
+       "label": "입력 클리핑 없애기 (GAIN 과다)",
+       "check": {
+        "type": "noClip"
+       }
+      },
+      {
+       "label": "게인 스테이징: 말할 때 입력 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "mic"
+       }
+      },
+      {
+       "label": "EQ MID 부스트 되돌리기 (0 dB 이하)",
+       "check": {
+        "type": "eq",
+        "source": "mic",
+        "band": "eqMid",
+        "min": -15,
+        "max": 0
+       }
+      },
+      {
+       "label": "하울링 없이 스피커로 강연 소리 확인",
+       "check": {
+        "type": "talkTest",
+        "at": "main"
+       }
+      }
+     ],
+     "hints": [
+      "하울링은 마이크 → 믹서 → 스피커 → 다시 마이크로 도는 루프입니다. 급하면 메인 페이더부터 내려 소리를 멈추고, 원인을 하나씩 정리하세요.",
+      "GAIN이 54dB라 입력이 빨간색(클리핑)입니다. 말하기를 누른 채 입력 미터가 -20 ~ -6 dB에 오도록 GAIN을 30 안팎으로 낮추세요. EQ MID +9도 하울링 주파수를 키우고 있으니 0 이하로 돌립니다.",
+      "스피커가 강연자 바로 앞에서 마이크를 정면으로 보고 있습니다. 스피커를 청중 쪽 자리(pa_main)로 옮기거나 위치를 '마이크 뒤쪽'으로 바꾸면 하울링 여유가 크게 늘어납니다."
+     ],
+     "lessons": [
+      "게인 스테이징: 입력단(GAIN)에서 적정 레벨(-20 ~ -6 dB)을 먼저 잡고, 음량은 페이더로 조절합니다.",
+      "하울링 대처 순서: 메인 내리기 → GAIN 확인 → 부스트된 EQ 대역 컷 → 스피커·마이크 배치 바꾸기.",
+      "스피커는 마이크보다 청중 쪽 앞에 두고, 마이크가 스피커 정면을 향하지 않게 합니다."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "youtube",
+   "title": "2장. 1인 방송 스튜디오",
+   "venue": "youtube_room",
+   "summary": "콘덴서 마이크와 오디오 인터페이스, 악기 입력, 미러리스 카메라와 ATEM으로 유튜브 라이브를 직접 꾸립니다.",
+   "stages": [
+    {
+     "id": "youtube-1",
+     "chapter": "youtube",
+     "venue": "youtube_room",
+     "title": "콘덴서와 오디오 인터페이스",
+     "tag": "+48V · 다이렉트 모니터",
+     "briefing": [
+      "구독자 1만 명 유튜버 '하늘'님의 SOS입니다. 새로 산 콘덴서 마이크와 오디오 인터페이스를 연결했는데 헤드폰에도, OBS에도 소리가 하나도 안 들린답니다.",
+      "콘덴서 마이크의 +48V 팬텀 전원, 인터페이스 GAIN, 지연 없는 다이렉트 모니터, OBS 입력 장치 선택까지 홈 스튜디오 오디오의 기본기를 익힙니다."
+     ],
+     "mission": "콘덴서 마이크 소리를 헤드폰과 OBS 양쪽에서 적정 레벨로 들리게 하세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mic",
+       "type": "condenser_mic",
+       "slot": "boom_mic",
+       "placed": true,
+       "name": "콘덴서 마이크 (붐 암)"
+      },
+      {
+       "id": "ai",
+       "type": "audio_interface",
+       "slot": "desk1",
+       "placed": true,
+       "name": "오디오 인터페이스 (2in/2out)"
+      },
+      {
+       "id": "pc",
+       "type": "pc",
+       "slot": "desk2",
+       "placed": true,
+       "name": "방송용 PC (OBS)"
+      },
+      {
+       "id": "hp",
+       "type": "headphones",
+       "slot": "headphone_hook",
+       "placed": true,
+       "name": "모니터 헤드폰 (밀폐형)"
+      }
+     ],
+     "connections": [
+      {
+       "from": "mic.out",
+       "to": "ai.in1",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "usb": 1,
+      "trs": 1
+     },
+     "state": {
+      "devices": {
+       "ai": {
+        "in": [
+         {
+          "gain": 10,
+          "phantom": false,
+          "inst": false
+         },
+         {
+          "gain": 0,
+          "phantom": false,
+          "inst": false
+         }
+        ],
+        "direct": false,
+        "monitor": 60
+       }
+      },
+      "obs": {
+       "video": "none",
+       "audio": "builtin",
+       "muted": false,
+       "streaming": false
+      }
+     },
+     "objectives": [
+      {
+       "label": "인터페이스 USB → PC 연결",
+       "check": {
+        "type": "connected",
+        "from": "ai.usb",
+        "to": "pc"
+       }
+      },
+      {
+       "label": "인터페이스 PHONES → 헤드폰 연결",
+       "check": {
+        "type": "connected",
+        "from": "ai.phones",
+        "to": "hp.plug"
+       }
+      },
+      {
+       "label": "마이크 입력 레벨 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "mic"
+       }
+      },
+      {
+       "label": "헤드폰으로 내 목소리 바로 듣기 (다이렉트 모니터)",
+       "check": {
+        "type": "talkTest",
+        "at": "headphones"
+       }
+      },
+      {
+       "label": "OBS 오디오에 콘덴서 마이크 소리 들어가기",
+       "check": {
+        "type": "reaches",
+        "source": "mic",
+        "at": "stream"
+       }
+      }
+     ],
+     "hints": [
+      "콘덴서 마이크는 스스로 전기를 만들지 못합니다. 인터페이스 INPUT 1의 +48V 팬텀 전원을 켜야 소리가 납니다.",
+      "말하기를 누른 채 INPUT 1 GAIN을 올려 미터가 -20 ~ -6 dB에 오게 하세요(약 30). 헤드폰은 PHONES 단자에 꽂고 DIRECT MONITOR를 켜면 지연 없이 내 목소리가 들립니다.",
+      "USB 케이블로 인터페이스 → PC를 연결한 뒤, OBS 오디오 소스를 '내장 마이크'에서 '오디오 인터페이스'로 바꾸세요."
+     ],
+     "lessons": [
+      "콘덴서 마이크는 +48V 팬텀 전원이 있어야 동작합니다. 다이나믹 마이크는 필요 없습니다.",
+      "다이렉트 모니터는 PC를 거치지 않고 입력을 바로 헤드폰으로 보내, 내 목소리가 늦게 들리는 지연(레이턴시)을 없앱니다.",
+      "OBS 입력 장치가 노트북 내장 마이크로 잡혀 있는 실수가 아주 흔합니다. 방송 전 오디오 미터로 꼭 확인하세요."
+     ]
+    },
+    {
+     "id": "youtube-2",
+     "chapter": "youtube",
+     "venue": "youtube_room",
+     "title": "기타 커버 라이브",
+     "tag": "악기 레벨 · INST 입력",
+     "briefing": [
+      "싱어송라이터 '도윤'님이 일렉 기타 커버 라이브를 준비합니다. 노래 마이크는 세팅이 끝났고, 기타만 인터페이스에 꽂으면 된다고 하네요.",
+      "기타는 마이크보다 훨씬 큰 '악기 레벨' 신호를 냅니다. INST 입력과 GAIN을 맞춰 노래와 기타가 찢어지지 않고 함께 방송에 들어가게 하세요."
+     ],
+     "mission": "기타를 인터페이스 INPUT 2에 연결해 클리핑 없이 헤드폰과 방송에 내보내세요.",
+     "talk": "auto",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vox",
+       "type": "condenser_mic",
+       "slot": "boom_mic",
+       "placed": true,
+       "name": "보컬 콘덴서 마이크"
+      },
+      {
+       "id": "gtr",
+       "type": "e_guitar",
+       "slot": "desk3",
+       "placed": true,
+       "name": "일렉 기타"
+      },
+      {
+       "id": "ai",
+       "type": "audio_interface",
+       "slot": "desk1",
+       "placed": true,
+       "name": "오디오 인터페이스 (2in/2out)"
+      },
+      {
+       "id": "pc",
+       "type": "pc",
+       "slot": "desk2",
+       "placed": true,
+       "name": "방송용 PC (OBS)"
+      },
+      {
+       "id": "hp",
+       "type": "headphones",
+       "slot": "headphone_hook",
+       "placed": true,
+       "name": "모니터 헤드폰"
+      }
+     ],
+     "connections": [
+      {
+       "from": "vox.out",
+       "to": "ai.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "ai.usb",
+       "to": "pc.usb1",
+       "cable": "usb"
+      },
+      {
+       "from": "ai.phones",
+       "to": "hp.plug",
+       "cable": "trs"
+      }
+     ],
+     "inventory": {
+      "trs": 1,
+      "xlr": 1
+     },
+     "state": {
+      "devices": {
+       "ai": {
+        "in": [
+         {
+          "gain": 30,
+          "phantom": true,
+          "inst": false
+         },
+         {
+          "gain": 40,
+          "phantom": false,
+          "inst": false
+         }
+        ],
+        "direct": true,
+        "monitor": 60
+       }
+      },
+      "obs": {
+       "video": "none",
+       "audio": "interface",
+       "muted": false,
+       "streaming": false
+      }
+     },
+     "objectives": [
+      {
+       "label": "기타 OUT → 인터페이스 INPUT 2 (TS 케이블)",
+       "check": {
+        "type": "connected",
+        "from": "gtr.out",
+        "to": "ai.in2"
+       }
+      },
+      {
+       "label": "기타 입력 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "gtr"
+       }
+      },
+      {
+       "label": "모든 입력 클리핑 없음",
+       "check": {
+        "type": "noClip"
+       }
+      },
+      {
+       "label": "헤드폰에서 기타 소리 듣기",
+       "check": {
+        "type": "reaches",
+        "source": "gtr",
+        "at": "headphones"
+       }
+      },
+      {
+       "label": "방송(OBS)에 기타 소리 넣기",
+       "check": {
+        "type": "reaches",
+        "source": "gtr",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "방송(OBS)에 노래 소리도 유지",
+       "check": {
+        "type": "reaches",
+        "source": "vox",
+        "at": "stream"
+       }
+      }
+     ],
+     "hints": [
+      "일렉 기타 출력은 6.3mm TS 잭입니다. TRS(TS) 케이블로 기타 OUT → 인터페이스 INPUT 2 콤보 단자에 꽂으세요. XLR은 기타에 맞지 않습니다.",
+      "기타는 마이크보다 신호가 훨씬 큽니다(약 -20 dBu). INPUT 2의 INST 스위치를 켜고, 연주 중 미터가 빨간색에 닿지 않게 GAIN을 크게 낮추세요.",
+      "GAIN 40이면 +20 dB로 찢어집니다. GAIN을 0 ~ 14 사이(약 8)로 내리면 -12 dB 안팎의 깨끗한 레벨이 됩니다. 다이렉트 모니터가 켜져 있으니 헤드폰으로 바로 확인하세요."
+     ],
+     "lessons": [
+      "신호 크기: 마이크 레벨(약 -45 dBu) < 악기 레벨(약 -20) < 라인 레벨(약 -8). 소스마다 GAIN이 달라야 합니다.",
+      "일렉 기타는 임피던스가 높아(Hi-Z) INST 입력에 꽂아야 소리가 얇아지지 않습니다.",
+      "한 번 찢어진(클리핑) 녹음·방송 소리는 되살릴 수 없습니다. 가장 세게 칠 때도 빨간불이 안 들어오게 맞춥니다."
+     ]
+    },
+    {
+     "id": "youtube-3",
+     "chapter": "youtube",
+     "venue": "youtube_room",
+     "title": "미러리스로 라이브 켜기",
+     "tag": "클린 HDMI · ATEM 웹캠",
+     "briefing": [
+      "'하늘'님이 웹캠 대신 미러리스 카메라로 화질을 올리고 싶어 합니다. 오늘 밤 9시 라이브까지 카메라 세팅을 끝내야 합니다.",
+      "PC에는 HDMI 입력이 없습니다. ATEM Mini를 USB 웹캠처럼 써서 카메라 영상을 OBS로 넣고, 방송 화면에 카메라 정보가 뜨지 않게 클린 HDMI를 켜는 법을 배웁니다."
+     ],
+     "mission": "미러리스 → ATEM Mini → PC로 영상을 넣고, 깨끗한 화면과 소리로 라이브를 시작하세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mic",
+       "type": "condenser_mic",
+       "slot": "boom_mic",
+       "placed": true,
+       "name": "콘덴서 마이크 (붐 암)"
+      },
+      {
+       "id": "ai",
+       "type": "audio_interface",
+       "slot": "desk1",
+       "placed": true,
+       "name": "오디오 인터페이스"
+      },
+      {
+       "id": "pc",
+       "type": "pc",
+       "slot": "desk2",
+       "placed": true,
+       "name": "방송용 PC (OBS)"
+      },
+      {
+       "id": "atem",
+       "type": "atem",
+       "slot": "desk3",
+       "placed": false,
+       "name": "ATEM Mini"
+      },
+      {
+       "id": "cam1",
+       "type": "mirrorless",
+       "slot": "cam_tripod",
+       "placed": false,
+       "name": "미러리스 카메라"
+      },
+      {
+       "id": "hp",
+       "type": "headphones",
+       "slot": "headphone_hook",
+       "placed": true,
+       "name": "모니터 헤드폰"
+      }
+     ],
+     "connections": [
+      {
+       "from": "mic.out",
+       "to": "ai.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "ai.usb",
+       "to": "pc.usb1",
+       "cable": "usb"
+      },
+      {
+       "from": "ai.phones",
+       "to": "hp.plug",
+       "cable": "trs"
+      }
+     ],
+     "inventory": {
+      "hdmi": 1,
+      "usb": 1,
+      "sdi": 1
+     },
+     "state": {
+      "devices": {
+       "ai": {
+        "in": [
+         {
+          "gain": 30,
+          "phantom": true,
+          "inst": false
+         },
+         {
+          "gain": 0,
+          "phantom": false,
+          "inst": false
+         }
+        ],
+        "direct": true,
+        "monitor": 50
+       },
+       "cam1": {
+        "clean": false
+       }
+      },
+      "obs": {
+       "video": "none",
+       "audio": "interface",
+       "muted": false,
+       "streaming": false
+      },
+      "atem": {
+       "program": 0,
+       "preview": 1
+      }
+     },
+     "objectives": [
+      {
+       "label": "미러리스와 ATEM Mini 배치",
+       "check": {
+        "type": "placed",
+        "devices": [
+         "cam1",
+         "atem"
+        ]
+       }
+      },
+      {
+       "label": "미러리스 HDMI → ATEM IN 1",
+       "check": {
+        "type": "connected",
+        "from": "cam1.hdmi",
+        "to": "atem.in1"
+       }
+      },
+      {
+       "label": "클린 HDMI 켜기 (화면 표시 정보 제거)",
+       "check": {
+        "type": "cleanHdmi",
+        "device": "cam1"
+       }
+      },
+      {
+       "label": "ATEM USB → PC (웹캠으로 인식)",
+       "check": {
+        "type": "connected",
+        "from": "atem.usb",
+        "to": "pc"
+       }
+      },
+      {
+       "label": "ATEM 프로그램(PGM)에 미러리스 올리기",
+       "check": {
+        "type": "program",
+        "camera": "cam1"
+       }
+      },
+      {
+       "label": "OBS 방송 시작: 영상 + 소리 정상",
+       "check": {
+        "type": "live"
+       }
+      }
+     ],
+     "hints": [
+      "PC에는 HDMI 입력이 없습니다. 카메라 영상은 ATEM Mini를 거쳐 USB(웹캠)로 PC에 들어가야 합니다. SDI 케이블은 미러리스에 맞지 않습니다.",
+      "미러리스 설정에서 'HDMI 정보 표시'를 끄세요(클린 HDMI). 켜 두면 배터리·초점·REC 표시가 방송 화면에 그대로 나갑니다.",
+      "ATEM에서 IN 1을 PVW로 고른 뒤 CUT으로 PGM에 올리세요. ATEM USB는 PC의 빈 USB 2에 꽂고, OBS 영상 소스를 ATEM으로 지정한 다음 방송 시작을 누르세요."
+     ],
+     "lessons": [
+      "방송용 카메라 출력은 '클린 HDMI'로 화면 표시(배터리·초점·REC)를 빼야 합니다.",
+      "ATEM Mini의 USB 출력은 PC에서 웹캠(UVC)으로 잡혀 따로 캡처보드가 필요 없습니다.",
+      "미러리스로 장시간 방송할 때는 더미 배터리(상시 전원)와 발열·자동 꺼짐 설정을 꼭 챙깁니다."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "church",
+   "title": "3장. 교회 예배당 방송실",
+   "venue": "church",
+   "summary": "디지털 믹서(X32) 패치, 무선 마이크, DI 박스, 그리고 PC 없는 온라인 예배 생중계까지 교회 방송실의 하루를 경험합니다.",
+   "stages": [
+    {
+     "id": "church-1",
+     "chapter": "church",
+     "venue": "church",
+     "title": "강대상 마이크와 X32",
+     "tag": "입력 패치 · 팬텀 전원",
+     "briefing": [
+      "주일 방송실 봉사를 시작했습니다. 리모델링 업체가 X32 디지털 믹서를 새로 설치하고 갔는데, 강대상 구즈넥 마이크 소리가 전혀 안 나옵니다. 예배까지 1시간 남았습니다.",
+      "디지털 믹서는 '꽂은 단자 = 채널'이 아닙니다. 입력 패치로 단자와 채널을 이어 주고, 콘덴서 구즈넥에 +48V를 공급하는 법을 배웁니다."
+     ],
+     "mission": "강대상 마이크를 X32 CH1에 패치하고 본당 스피커로 테스트하세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "pulpit",
+       "type": "condenser_mic",
+       "slot": "pulpit_mic",
+       "placed": true,
+       "name": "강대상 구즈넥 마이크 (콘덴서)"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "본당 메인 스피커"
+      }
+     ],
+     "connections": [
+      {
+       "from": "pulpit.out",
+       "to": "mixer.local3",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "xlr": 1,
+      "trs": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "phantom": false,
+        "patch": "local1"
+       }
+      },
+      "master": {
+       "mainFader": 75
+      },
+      "devices": {
+       "pa_l": {
+        "power": false,
+        "position": "behind"
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "강대상 마이크 신호가 X32 채널에 들어오기",
+       "check": {
+        "type": "reaches",
+        "source": "pulpit",
+        "at": "mixer"
+       }
+      },
+      {
+       "label": "강대상 입력 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "pulpit"
+       }
+      },
+      {
+       "label": "본당 스피커 전원 ON (팬텀을 켠 뒤에)",
+       "check": {
+        "type": "power",
+        "device": "pa_l"
+       }
+      },
+      {
+       "label": "하울링 없이 운영",
+       "check": {
+        "type": "noFeedback"
+       }
+      },
+      {
+       "label": "강대상 마이크 테스트 (\"아, 아, 하나 둘\")",
+       "check": {
+        "type": "talkTest",
+        "at": "main"
+       }
+      }
+     ],
+     "hints": [
+      "디지털 믹서는 꽂은 단자와 채널이 따로 놉니다. 강대상 마이크가 X32 뒷면 몇 번 LOCAL 단자에 꽂혀 있는지 먼저 확인하세요.",
+      "케이블은 LOCAL 3에, CH1 입력 패치는 LOCAL 1에 걸려 있습니다. CH1 패치를 LOCAL 3으로 바꾸세요. 구즈넥은 콘덴서라 CH1의 +48V도 켜야 합니다.",
+      "팬텀은 스피커를 켜기 전에 켜야 '퍽' 소리가 본당으로 나가지 않습니다. 말하기를 누른 채 GAIN을 -20 ~ -6 dB로 맞추고, 마지막에 스피커 전원을 켜 테스트하세요."
+     ],
+     "lessons": [
+      "디지털 믹서: 물리 입력(LOCAL) → 입력 패치 → 채널. 소리가 안 나면 패치부터 의심합니다.",
+      "콘덴서 구즈넥은 +48V가 필요하고 감도가 높아 다이나믹보다 하울링에 약합니다.",
+      "XLR은 밸런스드라 무대에서 방송실까지 수십 m를 끌어도 잡음이 거의 없습니다."
+     ]
+    },
+    {
+     "id": "church-2",
+     "chapter": "church",
+     "venue": "church",
+     "title": "찬양팀 무선 마이크",
+     "tag": "무선 채널 · 배터리",
+     "briefing": [
+      "주일 아침 7시 찬양팀 리허설. 인도자 무선 마이크는 소리가 안 나고, 싱어 무선 마이크는 아직 방송실 믹서에 연결도 안 돼 있습니다.",
+      "무선 마이크는 송신기와 수신기의 채널이 같아야 하고, 배터리가 충분해야 합니다. 예배 중에 꺼지는 사고를 막는 사전 점검 습관을 익힙니다."
+     ],
+     "mission": "인도자·싱어 무선 마이크 두 대를 모두 살려 본당 스피커로 내보내세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "rx1",
+       "type": "wireless_mic",
+       "slot": "foh2",
+       "placed": true,
+       "name": "인도자 무선 (수신기)"
+      },
+      {
+       "id": "rx2",
+       "type": "wireless_mic",
+       "slot": "foh3",
+       "placed": true,
+       "name": "싱어 무선 (수신기)"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "본당 메인 스피커"
+      }
+     ],
+     "connections": [
+      {
+       "from": "rx1.af",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "xlr": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75
+       },
+       "2": {
+        "gain": 30,
+        "fader": 75
+       }
+      },
+      "master": {
+       "mainFader": 75
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "rx1": {
+        "txPower": true,
+        "txChannel": 7,
+        "rxChannel": 3,
+        "battery": 90
+       },
+       "rx2": {
+        "txPower": true,
+        "txChannel": 5,
+        "rxChannel": 5,
+        "battery": 10
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "인도자 무선: 송신기·수신기 채널 맞추기",
+       "check": {
+        "type": "wireless",
+        "device": "rx1"
+       }
+      },
+      {
+       "label": "싱어 무선: 배터리 교체",
+       "check": {
+        "type": "wireless",
+        "device": "rx2"
+       }
+      },
+      {
+       "label": "싱어 수신기 AF OUT → X32 LOCAL 2 (XLR)",
+       "check": {
+        "type": "connected",
+        "from": "rx2.af",
+        "to": "mixer.local2"
+       }
+      },
+      {
+       "label": "인도자 목소리가 본당 스피커로",
+       "check": {
+        "type": "reaches",
+        "source": "rx1",
+        "at": "main"
+       }
+      },
+      {
+       "label": "싱어 목소리가 본당 스피커로",
+       "check": {
+        "type": "reaches",
+        "source": "rx2",
+        "at": "main"
+       }
+      },
+      {
+       "label": "하울링 없이 리허설",
+       "check": {
+        "type": "noFeedback"
+       }
+      }
+     ],
+     "hints": [
+      "무선 마이크는 송신기(손에 든 마이크)와 수신기의 채널이 같아야 소리가 갑니다. 수신기 화면의 RF 표시와 배터리 칸부터 보세요.",
+      "인도자 송신기는 7번, 수신기는 3번입니다. 둘 중 하나를 바꿔 같은 채널로 맞추세요. 싱어 송신기는 배터리가 10%라 예배 중에 꺼집니다. 새 배터리로 교체하세요.",
+      "싱어 수신기는 아직 믹서에 연결되지 않았습니다. XLR로 AF OUT → LOCAL 2에 꽂으면 CH2가 기본 패치로 바로 받습니다."
+     ],
+     "lessons": [
+      "무선 마이크는 송신기·수신기 채널(주파수)이 같아야 하고, 수신기 RF 표시로 전파가 들어오는지 확인합니다.",
+      "배터리는 예배·행사 전에 남은 양과 상관없이 새것(또는 완충)으로 교체하는 것이 현장 원칙입니다.",
+      "수신기 안테나는 무대가 보이는 곳에 두고, 금속 랙 깊숙이 가두지 않습니다."
+     ]
+    },
+    {
+     "id": "church-3",
+     "chapter": "church",
+     "venue": "church",
+     "title": "건반 DI와 '웅—' 소리",
+     "tag": "DI 박스 · 그라운드 리프트",
+     "briefing": [
+      "새로 온 반주자가 신디사이저를 가져왔습니다. 건반 출력은 6.3mm 잭인데 방송실 X32 입력은 모두 XLR이고, 무대에서 방송실까지는 20m가 넘습니다.",
+      "DI 박스로 언밸런스 악기 신호를 밸런스드 XLR로 바꿔 먼 거리를 보내고, 접지 차이로 생기는 '웅—' 험을 GROUND LIFT로 없애는 법을 배웁니다."
+     ],
+     "mission": "건반 → DI → X32 LOCAL 3으로 연결하고 험 없이 본당 스피커로 내보내세요.",
+     "talk": "ptt",
+     "performing": true,
+     "devices": [
+      {
+       "id": "keys",
+       "type": "keyboard",
+       "slot": "keys",
+       "placed": true,
+       "name": "신디사이저 건반"
+      },
+      {
+       "id": "di1",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": false,
+       "name": "DI 박스"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "본당 메인 스피커"
+      }
+     ],
+     "connections": [
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "trs": 1,
+      "xlr": 1
+     },
+     "state": {
+      "channels": {
+       "3": {
+        "gain": 40,
+        "fader": 75
+       }
+      },
+      "master": {
+       "mainFader": 75
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "di1": {
+        "groundLift": false,
+        "pad": false
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "DI 박스를 무대 위 건반 옆에 배치",
+       "check": {
+        "type": "placed",
+        "devices": [
+         "di1"
+        ]
+       }
+      },
+      {
+       "label": "건반 OUT → DI INPUT (짧은 TS 케이블)",
+       "check": {
+        "type": "connected",
+        "from": "keys.out",
+        "to": "di1.input"
+       }
+      },
+      {
+       "label": "DI OUTPUT → X32 LOCAL 3 (XLR)",
+       "check": {
+        "type": "connected",
+        "from": "di1.out",
+        "to": "mixer.local3"
+       }
+      },
+      {
+       "label": "건반 입력 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "keys"
+       }
+      },
+      {
+       "label": "건반 채널 클리핑 없음",
+       "check": {
+        "type": "noClip"
+       }
+      },
+      {
+       "label": "'웅—' 험 노이즈 없애기",
+       "check": {
+        "type": "noHum"
+       }
+      },
+      {
+       "label": "건반 소리가 본당 스피커로",
+       "check": {
+        "type": "reaches",
+        "source": "keys",
+        "at": "main"
+       }
+      }
+     ],
+     "faults": [
+      {
+       "type": "groundLoop",
+       "device": "di1"
+      }
+     ],
+     "hints": [
+      "X32 입력은 모두 XLR이라 건반의 TS 잭을 바로 꽂을 수 없습니다. 무대 위 건반 옆 자리에 DI 박스부터 배치하세요.",
+      "건반 OUT → DI INPUT은 짧은 TS 케이블, DI OUTPUT → X32 LOCAL 3(건반 채널)은 XLR로 연결합니다. 건반은 라인 레벨이라 DI를 거쳐도 마이크보다 훨씬 큽니다. CH3 GAIN 40이면 찢어지니 15 안팎으로 내리거나 DI의 PAD(-20 dB)를 켜세요.",
+      "'웅—' 하는 낮은 험은 건반과 음향 장비의 접지가 서로 달라 생기는 그라운드 루프입니다. DI 박스의 GROUND LIFT 스위치를 켜면 사라집니다."
+     ],
+     "lessons": [
+      "DI 박스는 언밸런스(TS) 악기·라인 신호를 밸런스드 XLR로 바꿔 긴 케이블에서도 잡음을 막습니다. 건반처럼 신호가 큰 소스는 DI의 PAD로 미리 줄여 줍니다.",
+      "DI는 소스(악기) 가까이 무대에 두고, 먼 구간은 XLR로 보냅니다.",
+      "60Hz '웅—' 험은 대부분 그라운드 루프입니다. 전원 플러그의 접지를 뽑지 말고 DI의 GROUND LIFT로 해결합니다."
+     ]
+    },
+    {
+     "id": "church-4",
+     "chapter": "church",
+     "venue": "church",
+     "title": "온라인 예배 생중계",
+     "tag": "ATEM Pro 직접 송출",
+     "briefing": [
+      "이번 주부터 예배를 유튜브로 생중계합니다. 방송실에는 PC가 없고 ATEM Mini Pro 한 대가 있습니다. 카메라 두 대는 이미 연결되어 있습니다.",
+      "ATEM Mini Pro는 인터넷만 연결하면 PC 없이 바로 송출합니다. 방송용 소리를 믹서 AUX로 따로 보내 '영상·소리·인터넷' 세 줄을 완성하는 방법을 배웁니다."
+     ],
+     "mission": "믹서 AUX → ATEM 마이크 입력, ATEM → 공유기를 연결하고 설교 화면과 소리로 생중계를 시작하세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "pulpit",
+       "type": "dynamic_mic",
+       "slot": "pulpit_mic",
+       "placed": true,
+       "name": "강대상 마이크"
+      },
+      {
+       "id": "mixer",
+       "type": "analog_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "방송실 아날로그 믹서"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "메인 스피커"
+      },
+      {
+       "id": "ptz1",
+       "type": "ptz",
+       "slot": "ptz_side",
+       "placed": true,
+       "name": "PTZ 카메라 · 강대상"
+      },
+      {
+       "id": "cam1",
+       "type": "camera",
+       "slot": "cam_rear",
+       "placed": true,
+       "name": "후방 와이드 카메라"
+      },
+      {
+       "id": "atem",
+       "type": "atem_pro",
+       "slot": "foh3",
+       "placed": true,
+       "name": "ATEM Mini Pro"
+      },
+      {
+       "id": "net",
+       "type": "router",
+       "slot": "router_foh",
+       "placed": true,
+       "name": "인터넷 공유기"
+      }
+     ],
+     "connections": [
+      {
+       "from": "pulpit.out",
+       "to": "mixer.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "ptz1.hdmi",
+       "to": "atem.in1",
+       "cable": "hdmi"
+      },
+      {
+       "from": "cam1.hdmi",
+       "to": "atem.in2",
+       "cable": "hdmi"
+      }
+     ],
+     "inventory": {
+      "mini": 1,
+      "eth": 1,
+      "usb": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "aux": 0
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "mainMute": false,
+       "auxMaster": 0
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       }
+      },
+      "atem": {
+       "program": 0,
+       "preview": 1,
+       "streaming": false,
+       "recording": false,
+       "pip": false
+      }
+     },
+     "objectives": [
+      {
+       "label": "믹서 AUX1 → ATEM MIC 입력 연결 (3.5mm)",
+       "check": {
+        "type": "connected",
+        "from": "mixer.aux1",
+        "to": "atem"
+       }
+      },
+      {
+       "label": "ATEM ETHERNET → 공유기 연결 (랜 케이블)",
+       "check": {
+        "type": "connected",
+        "from": "atem.eth",
+        "to": "net"
+       }
+      },
+      {
+       "label": "방송에 설교 소리 들어가기 (AUX 센드)",
+       "check": {
+        "type": "reaches",
+        "source": "pulpit",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "PTZ(강대상) 화면을 PGM으로",
+       "check": {
+        "type": "program",
+        "camera": "ptz1"
+       }
+      },
+      {
+       "label": "ATEM 스트리밍 시작 — 영상·소리 모두 정상",
+       "check": {
+        "type": "live"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "생중계에는 영상·소리·인터넷 세 가지가 들어가야 합니다. 영상은 연결되어 있으니 소리와 인터넷을 확인하세요.",
+      "3.5mm 변환 케이블로 믹서 AUX1 → ATEM MIC 1을, 랜 케이블로 ATEM ETHERNET → 공유기를 연결하세요. ATEM Pro는 PC 없이 송출하므로 USB는 필요 없습니다.",
+      "AUX는 처음에 0입니다. CH1의 AUX 센드와 AUX 마스터를 60 ~ 75로 올리고, ATEM에서 PTZ 카메라를 PGM에 올린 뒤 스트리밍을 시작하세요."
+     ],
+     "lessons": [
+      "ATEM Mini Pro는 랜 케이블로 인터넷에 연결하면 PC 없이 바로 유튜브 송출을 할 수 있습니다.",
+      "방송 소리는 믹서 AUX로 따로 보냅니다. AUX는 페이더 앞(Pre)에서 갈라지므로 예배당 볼륨을 바꿔도 방송 볼륨은 흔들리지 않습니다.",
+      "돌아보기: '예배당에 잘 들리니 방송도 되겠지'가 가장 흔한 실수입니다. ATEM 오디오 미터와 실제 방송 화면으로 확인하세요."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "live",
+   "title": "4장. 밴드 공연장",
+   "venue": "live_stage",
+   "summary": "무대와 음향 부스(FOH) 사이의 긴 거리, 모니터 믹스, EQ와 리버브로 밴드 소리를 완성합니다.",
+   "stages": [
+    {
+     "id": "live-1",
+     "chapter": "live",
+     "venue": "live_stage",
+     "title": "밴드 라인체크",
+     "tag": "장거리 험 · 레벨 차이",
+     "briefing": [
+      "홍대 라이브 클럽, 오늘 밤 인디 밴드 공연입니다. 하우스 엔지니어가 \"기타랑 건반은 대충 꽂아 놨어\" 하고 급히 나갔는데, 스피커에서 '지— 웅—' 잡음이 나고 BGM은 찢어집니다.",
+      "무대에서 FOH까지 긴 6.3mm 언밸런스 케이블은 잡음을 주워 담습니다. 악기는 무대 DI로 받고, 마이크·악기·라인 소스마다 다른 레벨에 맞춰 GAIN을 잡는 라인체크를 배웁니다."
+     ],
+     "mission": "기타·건반을 무대 DI로 다시 연결하고, 모든 채널을 적정 레벨로 라인체크하세요.",
+     "talk": "ptt",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vox",
+       "type": "dynamic_mic",
+       "slot": "vocal_mic",
+       "placed": true,
+       "name": "보컬 마이크 (SM58)"
+      },
+      {
+       "id": "gtr",
+       "type": "e_guitar",
+       "slot": "gtr",
+       "placed": true,
+       "name": "일렉 기타 (멀티 이펙터)"
+      },
+      {
+       "id": "keys",
+       "type": "keyboard",
+       "slot": "keys",
+       "placed": true,
+       "name": "건반"
+      },
+      {
+       "id": "di1",
+       "type": "di_box",
+       "slot": "di_gtr",
+       "placed": true,
+       "name": "기타 DI"
+      },
+      {
+       "id": "di2",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": true,
+       "name": "건반 DI"
+      },
+      {
+       "id": "mixer",
+       "type": "analog_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "FOH 아날로그 믹서"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "메인 PA"
+      },
+      {
+       "id": "lap",
+       "type": "laptop",
+       "slot": "laptop_foh",
+       "placed": true,
+       "name": "BGM 노트북"
+      }
+     ],
+     "connections": [
+      {
+       "from": "vox.out",
+       "to": "mixer.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "gtr.out",
+       "to": "mixer.in2",
+       "cable": "trs"
+      },
+      {
+       "from": "keys.out",
+       "to": "mixer.in3",
+       "cable": "trs"
+      },
+      {
+       "from": "lap.out",
+       "to": "mixer.in4",
+       "cable": "mini"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "trs": 2,
+      "xlr": 2
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75
+       },
+       "2": {
+        "gain": 10,
+        "fader": 75
+       },
+       "3": {
+        "gain": 0,
+        "fader": 75
+       },
+       "4": {
+        "gain": 30,
+        "fader": 60
+       }
+      },
+      "master": {
+       "mainFader": 75
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "lap": {
+        "playing": true
+       },
+       "di1": {
+        "groundLift": false,
+        "pad": false
+       },
+       "di2": {
+        "groundLift": false,
+        "pad": false
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "험 노이즈 없애기 (무대↔FOH 언밸런스 케이블 제거)",
+       "check": {
+        "type": "noHum"
+       }
+      },
+      {
+       "label": "기타 OUT → 무대 기타 DI",
+       "check": {
+        "type": "connected",
+        "from": "gtr.out",
+        "to": "di1.input"
+       }
+      },
+      {
+       "label": "건반 OUT → 무대 건반 DI",
+       "check": {
+        "type": "connected",
+        "from": "keys.out",
+        "to": "di2.input"
+       }
+      },
+      {
+       "label": "기타 채널 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "gtr"
+       }
+      },
+      {
+       "label": "건반 채널 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "keys"
+       }
+      },
+      {
+       "label": "BGM 노트북 채널 -20 ~ -6 dB (라인 레벨)",
+       "check": {
+        "type": "gainOk",
+        "source": "lap"
+       }
+      },
+      {
+       "label": "기타 소리가 메인 PA로",
+       "check": {
+        "type": "reaches",
+        "source": "gtr",
+        "at": "main"
+       }
+      }
+     ],
+     "hints": [
+      "기타·건반이 6.3mm TS 케이블로 무대에서 FOH 믹서까지 직결돼 있습니다. 언밸런스 케이블은 길어질수록 잡음을 주워 담습니다. 이 두 케이블부터 뽑으세요.",
+      "무대 DI로 악기를 받고(짧은 TS), DI OUTPUT에서 FOH 믹서 IN 2·IN 3까지는 XLR로 보내세요. DI를 거치면 신호가 약 20 dB 작아지니 기타 GAIN은 25 ~ 30, 건반 GAIN은 10 ~ 20으로 다시 맞춥니다.",
+      "BGM 노트북은 라인 레벨(약 -8)이라 GAIN 30이면 +22 dB로 찢어집니다. 노트북 채널(IN 4) GAIN은 0 ~ 2까지 내리세요."
+     ],
+     "lessons": [
+      "무대 ↔ FOH처럼 먼 구간은 반드시 밸런스드(XLR)로 보냅니다. 6.3mm TS는 짧은 구간 전용입니다.",
+      "라인체크는 소스 종류부터 확인하는 일입니다. 마이크·DI는 GAIN을 크게, 노트북 같은 라인 소스는 거의 0으로.",
+      "FOH 안에서 짧게 꽂은 노트북 미니잭은 괜찮지만, 무대에서 끌어오는 언밸런스 케이블은 험의 주범입니다."
+     ]
+    },
+    {
+     "id": "live-2",
+     "chapter": "live",
+     "venue": "live_stage",
+     "title": "\"모니터에 제 목소리요!\"",
+     "tag": "AUX 센드 · 웨지 하울링",
+     "briefing": [
+      "사운드체크 중 보컬이 손을 듭니다. \"모니터에 제 목소리 좀 주세요! 기타는 빼 주시고, 음정 잡게 건반은 조금만요.\"",
+      "무대 모니터(웨지)는 메인과 별개인 AUX 믹스를 받습니다. 채널별 AUX 센드로 연주자가 원하는 믹스를 만들고, 마이크를 정면으로 보는 웨지의 하울링을 관리하는 법을 배웁니다."
+     ],
+     "mission": "보컬 웨지를 설치하고, 보컬·건반은 넣고 기타는 뺀 모니터 믹스를 만드세요.",
+     "talk": "ptt",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vox",
+       "type": "dynamic_mic",
+       "slot": "vocal_mic",
+       "placed": true,
+       "name": "보컬 마이크 (SM58)"
+      },
+      {
+       "id": "gtr",
+       "type": "e_guitar",
+       "slot": "gtr",
+       "placed": true,
+       "name": "일렉 기타"
+      },
+      {
+       "id": "di1",
+       "type": "di_box",
+       "slot": "di_gtr",
+       "placed": true,
+       "name": "기타 DI"
+      },
+      {
+       "id": "keys",
+       "type": "keyboard",
+       "slot": "keys",
+       "placed": true,
+       "name": "건반"
+      },
+      {
+       "id": "di2",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": true,
+       "name": "건반 DI"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "메인 PA"
+      },
+      {
+       "id": "wedge1",
+       "type": "monitor",
+       "slot": "wedge_vocal",
+       "placed": false,
+       "name": "보컬 웨지 모니터"
+      }
+     ],
+     "connections": [
+      {
+       "from": "vox.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "gtr.out",
+       "to": "di1.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di1.out",
+       "to": "mixer.local2",
+       "cable": "xlr"
+      },
+      {
+       "from": "keys.out",
+       "to": "di2.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di2.out",
+       "to": "mixer.local3",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "xlr": 1,
+      "trs": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "eqMid": 6,
+        "aux": 0
+       },
+       "2": {
+        "gain": 28,
+        "fader": 70,
+        "aux": 70
+       },
+       "3": {
+        "gain": 16,
+        "fader": 70,
+        "aux": 30
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "auxMaster": 0
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "wedge1": {
+        "power": false
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "보컬 앞에 웨지 모니터 배치",
+       "check": {
+        "type": "placed",
+        "devices": [
+         "wedge1"
+        ]
+       }
+      },
+      {
+       "label": "X32 AUX 1 → 웨지 입력 (XLR)",
+       "check": {
+        "type": "connected",
+        "from": "mixer.aux1",
+        "to": "wedge1.in"
+       }
+      },
+      {
+       "label": "웨지 전원 ON",
+       "check": {
+        "type": "power",
+        "device": "wedge1"
+       }
+      },
+      {
+       "label": "웨지에 보컬 목소리 넣기",
+       "check": {
+        "type": "reaches",
+        "source": "vox",
+        "at": "monitor"
+       }
+      },
+      {
+       "label": "웨지에 음정용 건반 넣기",
+       "check": {
+        "type": "reaches",
+        "source": "keys",
+        "at": "monitor"
+       }
+      },
+      {
+       "label": "웨지에서 기타 빼기",
+       "check": {
+        "type": "absent",
+        "source": "gtr",
+        "at": "monitor"
+       }
+      },
+      {
+       "label": "하울링 없이 웨지로 \"원 투\" 체크",
+       "check": {
+        "type": "talkTest",
+        "at": "monitor"
+       }
+      }
+     ],
+     "hints": [
+      "웨지는 메인 믹스가 아니라 AUX 1 믹스를 받습니다. X32 AUX 1은 XLR 출력이라 TRS 케이블은 맞지 않습니다. 채널마다 AUX 노브로 '모니터에 보낼 양'을 따로 정합니다.",
+      "AUX 마스터가 0이라 아무것도 나가지 않습니다. AUX 마스터를 70 정도로 올리고, 보컬 AUX는 60 안팎, 건반 AUX는 50 ~ 60으로 올리고, 기타 AUX는 0으로 내리세요. AUX는 프리 페이더라 메인 페이더를 움직여도 모니터는 그대로입니다.",
+      "웨지는 마이크를 정면으로 바라봐서 메인 스피커보다 하울링에 약합니다. 울리기 시작하면 보컬 EQ MID 부스트(+6)를 0 이하로 내리고 보컬 AUX를 조금 줄이세요."
+     ],
+     "lessons": [
+      "모니터는 AUX 믹스입니다. 채널마다 AUX 센드로 '모니터에 보낼 양'을 정하고, AUX 마스터로 전체 볼륨을 조절합니다.",
+      "모니터 AUX는 프리 페이더라 FOH에서 메인 믹스를 바꿔도 연주자 모니터가 흔들리지 않습니다.",
+      "웨지는 마이크를 정면으로 봐서 하울링에 약합니다. 모니터에는 연주자에게 필요한 소리만, 보컬 EQ 부스트는 최소로."
+     ]
+    },
+    {
+     "id": "live-3",
+     "chapter": "live",
+     "venue": "live_stage",
+     "title": "믹스 다듬기",
+     "tag": "로우컷 · EQ · 리버브",
+     "briefing": [
+      "공연 30분 전. 소리는 다 나오는데 보컬은 웅웅거리고 건조하며, 기타는 리버브에 묻혀 보컬과 뒤엉킵니다. 밴드 리더가 \"조금만 더 공연장 소리처럼요\"라고 부탁합니다.",
+      "로우컷으로 불필요한 저음을 정리하고, EQ로 악기끼리 자리를 나누고, 리버브(FX)는 센드와 리턴으로 적당히 섞는 라이브 믹싱의 기본을 배웁니다."
+     ],
+     "mission": "보컬 로우컷과 리버브, 기타 EQ·리버브를 정리해 보컬이 또렷한 믹스를 만드세요.",
+     "talk": "auto",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vox",
+       "type": "dynamic_mic",
+       "slot": "vocal_mic",
+       "placed": true,
+       "name": "보컬 마이크 (SM58)"
+      },
+      {
+       "id": "gtr",
+       "type": "e_guitar",
+       "slot": "gtr",
+       "placed": true,
+       "name": "일렉 기타"
+      },
+      {
+       "id": "di1",
+       "type": "di_box",
+       "slot": "di_gtr",
+       "placed": true,
+       "name": "기타 DI"
+      },
+      {
+       "id": "keys",
+       "type": "keyboard",
+       "slot": "keys",
+       "placed": true,
+       "name": "건반"
+      },
+      {
+       "id": "di2",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": true,
+       "name": "건반 DI"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "메인 PA"
+      },
+      {
+       "id": "wedge1",
+       "type": "monitor",
+       "slot": "wedge_vocal",
+       "placed": true,
+       "name": "보컬 웨지 모니터"
+      }
+     ],
+     "connections": [
+      {
+       "from": "vox.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "gtr.out",
+       "to": "di1.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di1.out",
+       "to": "mixer.local2",
+       "cable": "xlr"
+      },
+      {
+       "from": "keys.out",
+       "to": "di2.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di2.out",
+       "to": "mixer.local3",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.aux1",
+       "to": "wedge1.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {
+      "xlr": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "lowCut": false,
+        "eqLow": 4,
+        "eqMid": 0,
+        "eqHigh": 0,
+        "fx": 0,
+        "aux": 60
+       },
+       "2": {
+        "gain": 28,
+        "fader": 72,
+        "eqMid": 4,
+        "fx": 50,
+        "aux": 0
+       },
+       "3": {
+        "gain": 16,
+        "fader": 68,
+        "fx": 10,
+        "aux": 55
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "auxMaster": 70,
+       "fxReturn": 0
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "wedge1": {
+        "power": true
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "보컬 로우컷 ON (웅웅거림·핸들링 노이즈 제거)",
+       "check": {
+        "type": "lowCut",
+        "source": "vox"
+       }
+      },
+      {
+       "label": "보컬 리버브 살짝 (FX 센드 15 ~ 40)",
+       "check": {
+        "type": "fx",
+        "source": "vox",
+        "min": 15,
+        "max": 40
+       }
+      },
+      {
+       "label": "기타 리버브 줄이기 (FX 센드 20 이하)",
+       "check": {
+        "type": "fx",
+        "source": "gtr",
+        "min": 0,
+        "max": 20
+       }
+      },
+      {
+       "label": "기타 EQ MID 컷으로 보컬 자리 만들기 (-2 ~ -9)",
+       "check": {
+        "type": "eq",
+        "source": "gtr",
+        "band": "eqMid",
+        "min": -9,
+        "max": -2
+       }
+      },
+      {
+       "label": "보컬이 메인 PA로 또렷하게",
+       "check": {
+        "type": "reaches",
+        "source": "vox",
+        "at": "main"
+       }
+      },
+      {
+       "label": "하울링 없이",
+       "check": {
+        "type": "noFeedback"
+       }
+      },
+      {
+       "label": "클리핑 없이",
+       "check": {
+        "type": "noClip"
+       }
+      }
+     ],
+     "hints": [
+      "보컬 마이크는 목소리보다 낮은 저음(무대 진동, 손으로 잡는 소리)을 함께 받습니다. 보컬 채널 LOW CUT을 켜는 것이 라이브 믹스의 첫 단계입니다.",
+      "리버브는 채널 FX 센드로 보내고 FX 리턴으로 섞어야 들립니다. FX 리턴이 0이면 센드를 올려도 안 들립니다. 보컬 센드는 15 ~ 40, 기타는 20 이하로 맞추고 FX 리턴을 60 정도로 올리세요.",
+      "기타와 보컬은 중음대에서 부딪힙니다. 기타 EQ MID를 +4에서 -3 ~ -6 정도로 깎아 보컬이 앞으로 나오게 하세요. 보컬을 올리는 것보다 다른 악기를 깎는 편이 하울링에 안전합니다."
+     ],
+     "lessons": [
+      "보컬·스피치 채널은 로우컷을 기본으로 켭니다. 무대 진동·핸들링 노이즈·저음 뭉침이 사라집니다.",
+      "EQ는 올리기보다 깎기: 보컬을 살리려면 겹치는 악기의 중음을 깎는 편이 자연스럽고 하울링에도 안전합니다.",
+      "리버브는 FX 센드로 보내고 FX 리턴으로 섞습니다. 보컬엔 살짝, 리듬 악기엔 적게 써야 소리가 또렷합니다."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "lecture",
+   "title": "5장. 강의 중계 스튜디오",
+   "venue": "lecture_hall",
+   "summary": "디지털 믹서 USB 라우팅, 카메라 두 대 스위칭, OBS 소스 설정, ATEM Mini Pro 단독 송출을 익힙니다.",
+   "stages": [
+    {
+     "id": "lecture-1",
+     "chapter": "lecture",
+     "venue": "lecture_hall",
+     "title": "유튜브 강의 생중계",
+     "tag": "USB 라우팅 · 스위처 · OBS",
+     "briefing": [
+      "대학 평생교육원의 유튜브 생중계 강의를 맡았습니다. 강사는 이미 마이크 앞에서 말하고 있고, 카메라 두 대가 창고에서 막 나왔습니다.",
+      "오디오는 마이크 → X32 → USB → PC, 영상은 카메라 → ATEM → USB → PC로 각자 다른 길을 따라 OBS에서 합쳐집니다. 디지털 장비는 케이블만 꽂아선 끝나지 않으니 패치와 USB 라우팅까지 확인하세요."
+     ],
+     "mission": "X32 패치·USB 라우팅, ATEM 화면 전환, OBS 소스 설정을 마치고 영상과 소리가 모두 나가게 ON AIR 하세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "host",
+       "type": "dynamic_mic",
+       "slot": "host_mic",
+       "placed": true,
+       "name": "강사 마이크"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "desk1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "atem",
+       "type": "atem",
+       "slot": "desk2",
+       "placed": true,
+       "name": "ATEM Mini"
+      },
+      {
+       "id": "pc",
+       "type": "pc",
+       "slot": "desk3",
+       "placed": true,
+       "name": "송출 PC (OBS)"
+      },
+      {
+       "id": "cam1",
+       "type": "camera",
+       "slot": "cam1",
+       "placed": false,
+       "name": "카메라 1 · 클로즈업"
+      },
+      {
+       "id": "cam2",
+       "type": "camera",
+       "slot": "cam2",
+       "placed": false,
+       "name": "카메라 2 · 와이드"
+      }
+     ],
+     "connections": [],
+     "inventory": {
+      "xlr": 1,
+      "hdmi": 2,
+      "usb": 2,
+      "sdi": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 28,
+        "fader": 75,
+        "patch": "local8"
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "usbOut": "off"
+      },
+      "devices": {},
+      "obs": {
+       "video": "none",
+       "audio": "none",
+       "muted": false,
+       "streaming": false
+      },
+      "atem": {
+       "program": 0,
+       "preview": 1
+      }
+     },
+     "objectives": [
+      {
+       "label": "강사 마이크 → X32 LOCAL 입력 (XLR)",
+       "check": {
+        "type": "connected",
+        "from": "host.out",
+        "to": "mixer"
+       }
+      },
+      {
+       "label": "X32 CH1 패치: 마이크가 꽂힌 LOCAL로",
+       "check": {
+        "type": "reaches",
+        "source": "host",
+        "at": "mixer"
+       }
+      },
+      {
+       "label": "카메라 1 → ATEM 입력 (HDMI)",
+       "check": {
+        "type": "connected",
+        "from": "cam1.hdmi",
+        "to": "atem"
+       }
+      },
+      {
+       "label": "카메라 2 → ATEM 입력 (HDMI)",
+       "check": {
+        "type": "connected",
+        "from": "cam2.hdmi",
+        "to": "atem"
+       }
+      },
+      {
+       "label": "ATEM PGM에 클로즈업 카메라 올리기",
+       "check": {
+        "type": "program",
+        "camera": "cam1"
+       }
+      },
+      {
+       "label": "X32 USB → PC, OBS 오디오에 강사 목소리",
+       "check": {
+        "type": "reaches",
+        "source": "host",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "방송 시작: 영상과 소리 모두 정상 송출",
+       "check": {
+        "type": "live"
+       }
+      }
+     ],
+     "hints": [
+      "오디오와 영상은 서로 다른 길로 PC에 들어갑니다. 먼저 카메라 2대를 배치하세요. ATEM Mini는 HDMI 입력만 있어 SDI 케이블은 쓸 수 없습니다.",
+      "X32를 열어 보세요. CH1 입력 패치가 LOCAL 8, USB 출력은 OFF로 되어 있습니다. CH1 패치를 마이크를 꽂은 LOCAL 단자로, USB 출력을 MAIN으로 바꾸세요.",
+      "ATEM에서 카메라 1을 PVW로 고른 뒤 CUT으로 PGM에 올리세요. ATEM과 X32를 각각 USB로 PC에 연결하고, OBS 영상 = ATEM, 오디오 = 믹서로 지정한 뒤 방송 시작을 누르면 됩니다."
+     ],
+     "lessons": [
+      "디지털 믹서는 입력 패치와 출력(USB) 라우팅을 소프트웨어로 지정해야 소리가 납니다.",
+      "스위처는 PVW에서 다음 화면을 준비하고 CUT/AUTO로 PGM에 송출합니다.",
+      "OBS는 영상 소스와 오디오 소스를 각각 지정합니다. 송출 전 미리보기와 오디오 미터를 꼭 확인하세요."
+     ]
+    },
+    {
+     "id": "lecture-2",
+     "chapter": "lecture",
+     "venue": "lecture_hall",
+     "title": "PC 없이 토크 콘서트 송출",
+     "tag": "ATEM Pro · 방송 믹스 · PIP",
+     "briefing": [
+      "저자 초청 북토크. 현장 관객 80명과 유튜브 시청자가 동시에 봅니다. 그런데 송출 PC가 윈도우 업데이트에 걸려 꼼짝을 안 합니다. 남은 30분 안에 ATEM Mini Pro로 PC 없이 바로 송출해야 합니다.",
+      "ATEM Mini Pro의 이더넷 직접 송출, 믹서 AUX로 만든 방송용 믹스를 ATEM MIC 입력에 넣는 법, PTZ 와이드 위에 게스트 클로즈업을 얹는 PIP를 배웁니다. 대기 시간에 트는 상업 음원 BGM은 현장에만 나가고 유튜브에는 나가면 안 됩니다(저작권)."
+     ],
+     "mission": "ATEM Mini Pro로 PC 없이 생중계하고, 방송 믹스에서 BGM을 뺀 채 PIP 화면으로 토크를 송출하세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "host",
+       "type": "dynamic_mic",
+       "slot": "host_mic",
+       "placed": true,
+       "name": "진행자 마이크"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "desk1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "atem",
+       "type": "atem_pro",
+       "slot": "desk2",
+       "placed": true,
+       "name": "ATEM Mini Pro"
+      },
+      {
+       "id": "rx1",
+       "type": "wireless_mic",
+       "slot": "desk3",
+       "placed": true,
+       "name": "게스트 무선 (수신기)"
+      },
+      {
+       "id": "lap",
+       "type": "laptop",
+       "slot": "desk4",
+       "placed": true,
+       "name": "BGM 노트북 (대기 음악)"
+      },
+      {
+       "id": "cam1",
+       "type": "mirrorless",
+       "slot": "cam1",
+       "placed": true,
+       "name": "미러리스 · 게스트 클로즈업"
+      },
+      {
+       "id": "ptz1",
+       "type": "ptz",
+       "slot": "cam2",
+       "placed": true,
+       "name": "PTZ · 무대 와이드"
+      },
+      {
+       "id": "pa",
+       "type": "speaker",
+       "slot": "pa_main",
+       "placed": true,
+       "name": "현장 스피커"
+      },
+      {
+       "id": "net",
+       "type": "router",
+       "slot": "router_rack",
+       "placed": true,
+       "name": "공유기 (네트워크 랙)"
+      }
+     ],
+     "connections": [
+      {
+       "from": "host.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "rx1.af",
+       "to": "mixer.local2",
+       "cable": "xlr"
+      },
+      {
+       "from": "lap.out",
+       "to": "mixer.local3",
+       "cable": "mini"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "cam1.hdmi",
+       "to": "atem.in1",
+       "cable": "hdmi"
+      }
+     ],
+     "inventory": {
+      "hdmi": 1,
+      "sdi": 1,
+      "eth": 1,
+      "mini": 1,
+      "xlr": 1
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "lowCut": true,
+        "aux": 60
+       },
+       "2": {
+        "gain": 30,
+        "fader": 75,
+        "lowCut": true,
+        "aux": 60
+       },
+       "3": {
+        "gain": 0,
+        "fader": 60,
+        "aux": 60
+       }
+      },
+      "master": {
+       "mainFader": 72,
+       "auxMaster": 75
+      },
+      "devices": {
+       "pa": {
+        "power": true,
+        "position": "behind"
+       },
+       "rx1": {
+        "txPower": false,
+        "txChannel": 4,
+        "rxChannel": 4,
+        "battery": 85
+       },
+       "lap": {
+        "playing": true
+       },
+       "cam1": {
+        "clean": true
+       }
+      },
+      "atem": {
+       "program": 1,
+       "preview": 2,
+       "pip": false,
+       "streaming": false,
+       "recording": false
+      }
+     },
+     "objectives": [
+      {
+       "label": "PTZ HDMI → ATEM IN 2 (와이드 화면)",
+       "check": {
+        "type": "connected",
+        "from": "ptz1.hdmi",
+        "to": "atem.in2"
+       }
+      },
+      {
+       "label": "X32 AUX 1 → ATEM MIC 1 (방송용 믹스, 3.5mm)",
+       "check": {
+        "type": "connected",
+        "from": "mixer.aux1",
+        "to": "atem.mic1"
+       }
+      },
+      {
+       "label": "ATEM ETHERNET → 공유기 (PC 없이 송출)",
+       "check": {
+        "type": "connected",
+        "from": "atem.eth",
+        "to": "net"
+       }
+      },
+      {
+       "label": "게스트 무선 마이크 살리기",
+       "check": {
+        "type": "wireless",
+        "device": "rx1"
+       }
+      },
+      {
+       "label": "유튜브 송출에서 저작권 BGM 빼기",
+       "check": {
+        "type": "absent",
+        "source": "lap",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "PIP: 와이드 위에 게스트 클로즈업",
+       "check": {
+        "type": "pip"
+       }
+      },
+      {
+       "label": "ATEM 단독 생중계: 영상 + 소리 정상",
+       "check": {
+        "type": "live"
+       }
+      }
+     ],
+     "hints": [
+      "PC가 없으니 ATEM Mini Pro가 직접 인터넷으로 송출합니다. ATEM ETHERNET → 공유기는 랜선으로, PTZ 영상은 HDMI로 IN 2에 연결하세요. ATEM Mini Pro에는 SDI 입력이 없습니다.",
+      "ATEM에 들어갈 소리는 X32 AUX 1으로 따로 만듭니다. 3.5mm 변환 케이블로 AUX 1 → ATEM MIC 1을 잇고, 노트북 채널(CH3)의 AUX만 0으로 내리면 현장엔 BGM이 나가고 유튜브엔 안 나갑니다.",
+      "게스트 수신기에 RF 표시가 없습니다. 송신기 전원을 켜세요. ATEM에서 IN 2(PTZ 와이드)를 PGM에 올리고 PIP를 켠 뒤(IN 1이 작은 창), ON AIR(스트리밍 시작)를 누르세요."
+     ],
+     "lessons": [
+      "ATEM Mini Pro는 이더넷만 연결하면 PC 없이 유튜브로 직접 송출할 수 있어, PC 고장 시 훌륭한 백업 경로가 됩니다.",
+      "방송용 믹스는 AUX로 따로 만듭니다. 현장(MAIN)과 송출(AUX)의 구성이 다를 수 있고, 상업 음원은 유튜브 저작권 차단·음소거의 원인이 됩니다.",
+      "PIP는 와이드와 클로즈업을 한 화면에 보여 줍니다. PTZ는 영상 선(HDMI/SDI)과 제어 선(LAN)이 따로라, 프리셋을 저장해 두면 혼자서도 여러 앵글을 운영할 수 있습니다."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crisis",
+   "title": "9장. 돌발 상황",
+   "venue": "mixed",
+   "summary": "지금까지 배운 모든 것을 동원해 실제 현장에서 일어나는 사고를 시간 안에 찾아 고칩니다.",
+   "stages": [
+    {
+     "id": "crisis-1",
+     "chapter": "crisis",
+     "venue": "church",
+     "title": "예배 10분 전",
+     "tag": "현장 트러블슈팅",
+     "briefing": [
+      "주일 오전 9시 50분, X32로 새로 바꾼 예배당입니다. '인도자 마이크가 안 나와요', '성가대 소리가 없어요', '키보드에서 웅— 소리가 나요', '목사님이 모니터가 안 들린대요'가 한꺼번에 쏟아집니다.",
+      "무선·팬텀·DI·모니터 지식을 모두 씁니다. 증상마다 소스에서 출력까지 신호를 따라가며 숨은 원인을 찾는 방법을 배웁니다."
+     ],
+     "mission": "예배 시작 전까지 숨은 문제 4개를 모두 찾아 해결하고 모든 소리를 정상으로 되돌리세요.",
+     "talk": "auto",
+     "performing": true,
+     "devices": [
+      {
+       "id": "pulpit",
+       "type": "dynamic_mic",
+       "slot": "pulpit_mic",
+       "placed": true,
+       "name": "강대상 마이크"
+      },
+      {
+       "id": "rx1",
+       "type": "wireless_mic",
+       "slot": "foh2",
+       "placed": true,
+       "name": "인도자 무선 마이크 수신기"
+      },
+      {
+       "id": "choir",
+       "type": "condenser_mic",
+       "slot": "choir_mic",
+       "placed": true,
+       "name": "성가대 콘덴서 마이크"
+      },
+      {
+       "id": "keys",
+       "type": "keyboard",
+       "slot": "keys",
+       "placed": true,
+       "name": "찬양팀 키보드"
+      },
+      {
+       "id": "di1",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": true,
+       "name": "키보드 DI"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "X32 디지털 믹서"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "메인 스피커"
+      },
+      {
+       "id": "wedge1",
+       "type": "monitor",
+       "slot": "wedge_pulpit",
+       "placed": true,
+       "name": "강대상 모니터"
+      }
+     ],
+     "connections": [
+      {
+       "from": "pulpit.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "rx1.af",
+       "to": "mixer.local2",
+       "cable": "xlr"
+      },
+      {
+       "from": "choir.out",
+       "to": "mixer.local3",
+       "cable": "xlr"
+      },
+      {
+       "from": "keys.out",
+       "to": "di1.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di1.out",
+       "to": "mixer.local4",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.aux1",
+       "to": "wedge1.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "aux": 60
+       },
+       "2": {
+        "gain": 30,
+        "fader": 75,
+        "aux": 40
+       },
+       "3": {
+        "gain": 30,
+        "fader": 70,
+        "aux": 0,
+        "phantom": true
+       },
+       "4": {
+        "gain": 15,
+        "fader": 70,
+        "aux": 40
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "mainMute": false,
+       "auxMaster": 70
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "wedge1": {
+        "power": true
+       },
+       "rx1": {
+        "txPower": true,
+        "txChannel": 4,
+        "rxChannel": 4,
+        "battery": 80
+       },
+       "di1": {
+        "groundLift": false,
+        "pad": false
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "숨은 문제 4개 모두 해결",
+       "check": {
+        "type": "faultsFixed"
+       }
+      },
+      {
+       "label": "인도자 무선 마이크 소리 복구",
+       "check": {
+        "type": "reaches",
+        "source": "rx1",
+        "at": "main"
+       }
+      },
+      {
+       "label": "성가대 마이크 소리 복구",
+       "check": {
+        "type": "reaches",
+        "source": "choir",
+        "at": "main"
+       }
+      },
+      {
+       "label": "강대상 모니터에 설교 마이크 복구",
+       "check": {
+        "type": "reaches",
+        "source": "pulpit",
+        "at": "monitor"
+       }
+      },
+      {
+       "label": "키보드 잡음(험) 없애기",
+       "check": {
+        "type": "noHum"
+       }
+      },
+      {
+       "label": "하울링 없이 운영",
+       "check": {
+        "type": "noFeedback"
+       }
+      }
+     ],
+     "faults": [
+      {
+       "type": "wirelessBattery",
+       "device": "rx1"
+      },
+      {
+       "type": "phantomOff",
+       "source": "choir"
+      },
+      {
+       "type": "groundLoop",
+       "device": "di1"
+      },
+      {
+       "type": "auxZero",
+       "source": "pulpit"
+      }
+     ],
+     "hints": [
+      "증상이 네 개면 원인도 네 군데입니다. 안 나오는 소스 하나를 골라 소스 → 채널 → 출력 순서로 따라가세요.",
+      "무선 마이크는 수신기 상태(전원·채널·배터리)를, 콘덴서 마이크는 +48V 팬텀을 먼저 의심하세요.",
+      "키보드 '웅—' 소리는 DI 박스의 GROUND LIFT로, 강대상 모니터는 CH1(강대상) AUX 센드를 40 이상으로 올려 해결합니다."
+     ],
+     "lessons": [
+      "트러블슈팅은 증상 하나를 골라 소스부터 출력까지 순서대로 따라가는 일입니다. 아무 버튼이나 누르지 않습니다.",
+      "무선 배터리·팬텀 전원·AUX 센드처럼 평소 신경 쓰지 않는 설정이 사고의 단골입니다. DI의 접지 험은 GROUND LIFT로 끊습니다.",
+      "돌아보기: 예배 30분 전 체크리스트(배터리·48V·모니터·잡음)를 만들어 매번 같은 순서로 점검하세요."
+     ]
+    },
+    {
+     "id": "crisis-2",
+     "chapter": "crisis",
+     "venue": "youtube_room",
+     "title": "라이브 중 방송 사고",
+     "tag": "영상·음성 트러블슈팅",
+     "briefing": [
+      "'하늘'님의 정기 라이브 도중 채팅창이 난리입니다. \"화면이 까매요\", \"소리 안 나와요\", \"화면에 배터리 표시가 떠요\". 고양이가 책상 위를 지나간 직후랍니다.",
+      "숨은 문제 4가지가 있습니다. 영상(카메라 → ATEM → OBS)과 오디오(마이크 → 인터페이스 → OBS) 두 경로를 소스부터 차례로 따라가며 원인을 찾으세요."
+     ],
+     "mission": "방송을 끄지 않은 채 숨은 문제 4가지를 찾아 화면과 소리를 되살리세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mic",
+       "type": "condenser_mic",
+       "slot": "boom_mic",
+       "placed": true,
+       "name": "콘덴서 마이크 (붐 암)"
+      },
+      {
+       "id": "ai",
+       "type": "audio_interface",
+       "slot": "desk1",
+       "placed": true,
+       "name": "오디오 인터페이스"
+      },
+      {
+       "id": "pc",
+       "type": "pc",
+       "slot": "desk2",
+       "placed": true,
+       "name": "방송용 PC (OBS)"
+      },
+      {
+       "id": "atem",
+       "type": "atem",
+       "slot": "desk3",
+       "placed": true,
+       "name": "ATEM Mini"
+      },
+      {
+       "id": "cam1",
+       "type": "mirrorless",
+       "slot": "cam_tripod",
+       "placed": true,
+       "name": "미러리스 카메라"
+      },
+      {
+       "id": "hp",
+       "type": "headphones",
+       "slot": "headphone_hook",
+       "placed": true,
+       "name": "모니터 헤드폰"
+      }
+     ],
+     "connections": [
+      {
+       "from": "mic.out",
+       "to": "ai.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "ai.usb",
+       "to": "pc.usb1",
+       "cable": "usb"
+      },
+      {
+       "from": "ai.phones",
+       "to": "hp.plug",
+       "cable": "trs"
+      },
+      {
+       "from": "cam1.hdmi",
+       "to": "atem.in1",
+       "cable": "hdmi"
+      },
+      {
+       "from": "atem.usb",
+       "to": "pc.usb2",
+       "cable": "usb"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "devices": {
+       "ai": {
+        "in": [
+         {
+          "gain": 30,
+          "phantom": true,
+          "inst": false
+         },
+         {
+          "gain": 0,
+          "phantom": false,
+          "inst": false
+         }
+        ],
+        "direct": true,
+        "monitor": 50
+       },
+       "cam1": {
+        "clean": true
+       }
+      },
+      "obs": {
+       "video": "atem",
+       "audio": "interface",
+       "muted": false,
+       "streaming": true
+      },
+      "atem": {
+       "program": 1,
+       "preview": 1
+      }
+     },
+     "objectives": [
+      {
+       "label": "숨은 문제 4가지 해결",
+       "check": {
+        "type": "faultsFixed"
+       }
+      },
+      {
+       "label": "방송 화면에서 카메라 정보 표시 없애기",
+       "check": {
+        "type": "cleanHdmi",
+        "device": "cam1"
+       }
+      },
+      {
+       "label": "검은 화면 대신 카메라 송출",
+       "check": {
+        "type": "program",
+        "camera": "cam1"
+       }
+      },
+      {
+       "label": "시청자에게 목소리 복구",
+       "check": {
+        "type": "reaches",
+        "source": "mic",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "방송 유지: 영상 + 소리 정상",
+       "check": {
+        "type": "live"
+       }
+      }
+     ],
+     "faults": [
+      {
+       "type": "unplug",
+       "conn": "ai.usb>pc.usb1"
+      },
+      {
+       "type": "obsAudioNone"
+      },
+      {
+       "type": "cleanHdmiOff",
+       "device": "cam1"
+      },
+      {
+       "type": "atemBlack"
+      }
+     ],
+     "hints": [
+      "방송 사고는 소스 → 연결 → 장비 설정 → 소프트웨어 순서로 봅니다. 신호 추적기에서 영상과 오디오 경로가 각각 처음 끊긴 곳을 찾으세요.",
+      "화면이 까만 건 ATEM PGM이 블랙으로 넘어갔기 때문입니다. 카메라 정보 표시는 미러리스의 클린 HDMI가 꺼져서입니다.",
+      "오디오는 두 군데가 끊겼습니다. 인터페이스 USB 케이블이 PC에서 빠졌고, OBS 오디오 소스도 '없음'으로 바뀌었습니다."
+     ],
+     "lessons": [
+      "방송 중에는 송출을 끊지 말고, 안내 자막이나 멘트로 시청자를 붙잡으면서 원인을 찾습니다.",
+      "영상과 오디오는 서로 다른 경로라서 따로 추적해야 빨리 찾습니다.",
+      "케이블은 타이로 정리·고정해 두어야 '빠짐' 사고를 막습니다."
+     ]
+    },
+    {
+     "id": "crisis-3",
+     "chapter": "crisis",
+     "venue": "live_stage",
+     "title": "공연 5분 전 콘솔 사고",
+     "tag": "라이브 트러블슈팅",
+     "briefing": [
+      "오프닝 밴드가 끝나고 메인 밴드 입장 5분 전. 오프닝 팀 엔지니어가 콘솔을 만지고 간 뒤로 보컬 웨지에서 '삐—' 소리가 나고, 기타·건반은 안 나오고, 메인 PA는 아예 조용합니다.",
+      "숨은 문제 4가지를 찾아야 합니다. 메인 스피커를 무작정 먼저 켜면 큰일 날 수도 있습니다. 채널마다 입력부터 확인하고 안전한 순서로 복구하세요."
+     ],
+     "mission": "숨은 문제 4가지를 해결하고 하울링 없이 공연을 시작할 수 있게 하세요.",
+     "talk": "auto",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vox",
+       "type": "dynamic_mic",
+       "slot": "vocal_mic",
+       "placed": true,
+       "name": "보컬 마이크 (SM58)"
+      },
+      {
+       "id": "gtr",
+       "type": "e_guitar",
+       "slot": "gtr",
+       "placed": true,
+       "name": "일렉 기타"
+      },
+      {
+       "id": "di1",
+       "type": "di_box",
+       "slot": "di_gtr",
+       "placed": true,
+       "name": "기타 DI"
+      },
+      {
+       "id": "keys",
+       "type": "keyboard",
+       "slot": "keys",
+       "placed": true,
+       "name": "건반"
+      },
+      {
+       "id": "di2",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": true,
+       "name": "건반 DI"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "메인 PA"
+      },
+      {
+       "id": "wedge1",
+       "type": "monitor",
+       "slot": "wedge_vocal",
+       "placed": true,
+       "name": "보컬 웨지 모니터"
+      }
+     ],
+     "connections": [
+      {
+       "from": "vox.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "gtr.out",
+       "to": "di1.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di1.out",
+       "to": "mixer.local2",
+       "cable": "xlr"
+      },
+      {
+       "from": "keys.out",
+       "to": "di2.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di2.out",
+       "to": "mixer.local3",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.aux1",
+       "to": "wedge1.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "lowCut": true,
+        "fx": 25,
+        "aux": 60
+       },
+       "2": {
+        "gain": 28,
+        "fader": 72,
+        "eqMid": -4,
+        "fx": 10,
+        "aux": 0
+       },
+       "3": {
+        "gain": 16,
+        "fader": 68,
+        "fx": 10,
+        "aux": 55
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "auxMaster": 70,
+       "fxReturn": 60
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "wedge1": {
+        "power": true
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "숨은 문제 4가지 해결",
+       "check": {
+        "type": "faultsFixed"
+       }
+      },
+      {
+       "label": "보컬 입력 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "vox"
+       }
+      },
+      {
+       "label": "클리핑 없음",
+       "check": {
+        "type": "noClip"
+       }
+      },
+      {
+       "label": "기타 소리 메인 PA로 복구",
+       "check": {
+        "type": "reaches",
+        "source": "gtr",
+        "at": "main"
+       }
+      },
+      {
+       "label": "건반 소리 메인 PA로 복구",
+       "check": {
+        "type": "reaches",
+        "source": "keys",
+        "at": "main"
+       }
+      },
+      {
+       "label": "하울링 없이 공연 시작",
+       "check": {
+        "type": "noFeedback"
+       }
+      }
+     ],
+     "faults": [
+      {
+       "type": "gainHigh",
+       "source": "vox"
+      },
+      {
+       "type": "unplug",
+       "conn": "di1.out>mixer.local2"
+      },
+      {
+       "type": "mute",
+       "source": "keys"
+      },
+      {
+       "type": "speakerOff",
+       "device": "pa_l"
+      }
+     ],
+     "hints": [
+      "사운드체크 때와 지금 상태가 다릅니다. 신호 추적기로 채널마다 어디서 끊겼는지 보세요. 메인 스피커를 켜기 전에 보컬 GAIN부터 확인하는 게 안전합니다.",
+      "보컬 입력이 빨간색입니다. 오프닝 팀이 GAIN을 올려 둔 채 갔네요. 기타 채널은 신호가 아예 없으니 DI에서 X32 LOCAL 2로 가는 XLR을 확인하세요.",
+      "건반 채널 MUTE가 눌려 있고, 메인 스피커 전원이 꺼져 있습니다. 보컬 GAIN을 30 안팎으로 맞춘 뒤 마지막에 스피커를 켜세요."
+     ],
+     "lessons": [
+      "다른 팀이 쓴 콘솔은 반드시 처음부터 다시 확인합니다. 씬(Scene) 저장·불러오기 습관이 사고를 막습니다.",
+      "스피커는 GAIN·페이더를 확인한 뒤 마지막에 켭니다. GAIN이 높은 채로 켜면 바로 하울링이 납니다.",
+      "소리가 안 나는 채널은 입력 미터 → 뮤트 → 페이더 → 케이블 순서로 봅니다."
+     ]
+    },
+    {
+     "id": "crisis-4",
+     "chapter": "crisis",
+     "venue": "church",
+     "title": "온라인 예배 생중계 사고",
+     "tag": "하이브리드 종합 점검",
+     "briefing": [
+      "주일 11시 예배, 생중계 시작 직후 담당 목사님 휴대폰으로 \"온라인으로 말씀이 안 들려요\" 메시지가 쏟아집니다. 본당에서도 강대상 마이크가 안 나오고, 건반에서 험이 나고, 인도자 마이크는 깜빡거립니다.",
+      "본당 PA·찬양팀 모니터·온라인 송출이 한 시스템에 얽혀 있습니다. 숨은 문제 5가지를 소스부터 출력까지 경로별로 추적해 예배를 지켜 내세요."
+     ],
+     "mission": "숨은 문제 5가지를 해결해 본당·모니터·온라인 모두 정상으로 예배를 이어 가세요.",
+     "talk": "auto",
+     "performing": true,
+     "devices": [
+      {
+       "id": "pulpit",
+       "type": "condenser_mic",
+       "slot": "pulpit_mic",
+       "placed": true,
+       "name": "강대상 구즈넥 마이크"
+      },
+      {
+       "id": "keys",
+       "type": "keyboard",
+       "slot": "keys",
+       "placed": true,
+       "name": "건반"
+      },
+      {
+       "id": "di1",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": true,
+       "name": "건반 DI"
+      },
+      {
+       "id": "wedge1",
+       "type": "monitor",
+       "slot": "wedge_band",
+       "placed": true,
+       "name": "찬양팀 모니터"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "본당 메인 스피커"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "디지털 믹서 (X32)"
+      },
+      {
+       "id": "atem",
+       "type": "atem",
+       "slot": "foh2",
+       "placed": true,
+       "name": "ATEM Mini"
+      },
+      {
+       "id": "pc",
+       "type": "pc",
+       "slot": "foh3",
+       "placed": true,
+       "name": "송출 PC (OBS)"
+      },
+      {
+       "id": "rx1",
+       "type": "wireless_mic",
+       "slot": "foh4",
+       "placed": true,
+       "name": "인도자 무선 (수신기)"
+      },
+      {
+       "id": "cam1",
+       "type": "camera",
+       "slot": "cam_rear",
+       "placed": true,
+       "name": "후방 카메라 · 와이드"
+      },
+      {
+       "id": "ptz1",
+       "type": "ptz",
+       "slot": "ptz_side",
+       "placed": true,
+       "name": "측면 PTZ · 설교자 클로즈업"
+      }
+     ],
+     "connections": [
+      {
+       "from": "pulpit.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "rx1.af",
+       "to": "mixer.local2",
+       "cable": "xlr"
+      },
+      {
+       "from": "keys.out",
+       "to": "di1.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di1.out",
+       "to": "mixer.local3",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.aux1",
+       "to": "wedge1.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "cam1.hdmi",
+       "to": "atem.in1",
+       "cable": "hdmi"
+      },
+      {
+       "from": "ptz1.hdmi",
+       "to": "atem.in2",
+       "cable": "hdmi"
+      },
+      {
+       "from": "atem.usb",
+       "to": "pc.usb1",
+       "cable": "usb"
+      },
+      {
+       "from": "mixer.usb",
+       "to": "pc.usb2",
+       "cable": "usb"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "phantom": true,
+        "lowCut": true,
+        "aux": 0
+       },
+       "2": {
+        "gain": 30,
+        "fader": 75,
+        "lowCut": true,
+        "aux": 65
+       },
+       "3": {
+        "gain": 16,
+        "fader": 70,
+        "aux": 55
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "auxMaster": 65,
+       "usbOut": "main"
+      },
+      "devices": {
+       "pa_l": {
+        "power": true,
+        "position": "behind"
+       },
+       "wedge1": {
+        "power": true
+       },
+       "rx1": {
+        "txPower": true,
+        "txChannel": 2,
+        "rxChannel": 2,
+        "battery": 90
+       },
+       "di1": {
+        "groundLift": false,
+        "pad": false
+       }
+      },
+      "obs": {
+       "video": "atem",
+       "audio": "mixer",
+       "muted": false,
+       "streaming": true
+      },
+      "atem": {
+       "program": 2,
+       "preview": 1
+      }
+     },
+     "objectives": [
+      {
+       "label": "숨은 문제 5가지 해결",
+       "check": {
+        "type": "faultsFixed"
+       }
+      },
+      {
+       "label": "본당: 설교 말씀이 스피커로",
+       "check": {
+        "type": "reaches",
+        "source": "pulpit",
+        "at": "main"
+       }
+      },
+      {
+       "label": "찬양팀 모니터: 인도자 목소리",
+       "check": {
+        "type": "reaches",
+        "source": "rx1",
+        "at": "monitor"
+       }
+      },
+      {
+       "label": "온라인: 설교 말씀 송출",
+       "check": {
+        "type": "reaches",
+        "source": "pulpit",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "건반 험 제거",
+       "check": {
+        "type": "noHum"
+       }
+      },
+      {
+       "label": "온라인 예배 생중계 유지 (영상 + 소리)",
+       "check": {
+        "type": "live"
+       }
+      },
+      {
+       "label": "본당·모니터 하울링 없이",
+       "check": {
+        "type": "noFeedback"
+       }
+      }
+     ],
+     "faults": [
+      {
+       "type": "phantomOff",
+       "source": "pulpit"
+      },
+      {
+       "type": "wirelessBattery",
+       "device": "rx1"
+      },
+      {
+       "type": "groundLoop",
+       "device": "di1"
+      },
+      {
+       "type": "usbRoute"
+      },
+      {
+       "type": "obsMute"
+      }
+     ],
+     "hints": [
+      "경로를 셋으로 나눠 보세요. 본당(MAIN → 스피커), 찬양팀(AUX 1 → 모니터), 온라인(USB → OBS). 여러 경로가 동시에 안 되면 공통 구간(소스·채널)부터 봅니다.",
+      "강대상 구즈넥은 +48V가 꺼졌고, 인도자 수신기에 배터리 경고가 떠 있습니다. 건반 험은 DI의 GROUND LIFT로 잡습니다.",
+      "본당에선 들리는데 온라인만 안 들리면 X32 USB 출력 라우팅(MAIN이어야 함)과 OBS 오디오 음소거를 확인하세요."
+     ],
+     "lessons": [
+      "하이브리드 시스템은 경로별로 나눠 추적합니다. 공통 구간 고장은 모든 경로에, 개별 구간 고장은 한 경로에만 나타납니다.",
+      "예배 전 체크리스트: 배터리 교체 → 팬텀·패치 → 라인체크 → 모니터 → 송출 테스트까지 매주 같은 순서로 확인합니다.",
+      "온라인 송출 소리는 본당 소리와 다를 수 있습니다. 송출 PC 쪽 소리를 헤드폰으로 직접 들으며 운영하세요."
+     ]
+    }
+   ]
+  }
+ ]
+}
