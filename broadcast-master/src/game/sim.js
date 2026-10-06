@@ -44,7 +44,7 @@ export const VENUE_ZONES = {
     foh: ['foh1', 'foh2', 'foh3', 'foh4', 'cam_rear', 'ptz_side', 'router_foh'],
   },
   live_stage: {
-    stage: ['vocal_mic', 'gtr', 'keys', 'di_gtr', 'di_keys', 'wedge_vocal', 'wedge_keys', 'pa_left', 'pa_right', 'cam_stage'],
+    stage: ['vocal_mic', 'gtr', 'keys', 'di_gtr', 'di_keys', 'wedge_vocal', 'wedge_keys', 'pa_left', 'pa_right', 'cam_stage', 'kick_mic', 'snare_mic', 'oh_l', 'oh_r', 'bass', 'di_bass', 'di_keys2'],
     foh: ['foh1', 'foh2', 'foh3', 'laptop_foh'],
   },
 };
@@ -549,6 +549,8 @@ export function checkObjective(check, st, sim, ctx = {}) {
     case 'recording': return !!st.atem.recording && sim.video.isPro;
     case 'pip': return !!st.atem.pip && (!check.base || sim.video.programCam === check.base);
     case 'talkTest': return !!ctx.latched?.includes(`talk:${check.at}`);
+    // 채널 설정 값 범위 (예: PAN)
+    case 'chValue': { const v = st.channels[check.ch - 1]?.[check.key]; return v != null && v >= (check.min ?? -Infinity) && v <= (check.max ?? Infinity); }
     // 디지털 믹서 입력 패치: 소스가 정해진 채널로 들어오는지
     case 'onChannel': return channelIndexOf(st, check.source) === check.ch && sim.reaches(check.source, 'mixer');
     // 스피커가 켜진 채로 케이블을 꽂거나 +48V를 바꿔 "퍽" 소리가 났는지

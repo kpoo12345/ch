@@ -8,7 +8,7 @@ import { runOps } from '../src/game/ops.js';
 
 const STORY = JSON.parse(readFileSync(new URL('../src/game/data/story.json', import.meta.url)));
 const { SOLUTIONS } = await import('../src/game/data/solutions.js');
-const OBJ = ['placed', 'connected', 'reaches', 'absent', 'gainOk', 'noClip', 'noFeedback', 'noHum', 'lowCut', 'fx', 'eq', 'power', 'wireless', 'cleanHdmi', 'program', 'live', 'recording', 'pip', 'talkTest', 'faultsFixed', 'onChannel', 'noPop', 'fade', 'noCut',
+const OBJ = ['placed', 'connected', 'reaches', 'absent', 'gainOk', 'noClip', 'noFeedback', 'noHum', 'lowCut', 'fx', 'eq', 'power', 'wireless', 'cleanHdmi', 'program', 'live', 'recording', 'pip', 'talkTest', 'faultsFixed', 'onChannel', 'noPop', 'fade', 'noCut', 'chValue',
   'lit', 'dark', 'stageLit', 'dmxOk', 'fixtureColor', 'patched', 'playback', 'recorded', 'display', 'noScaling', 'ptzControl', 'ptzFrames', 'ptzPreset', 'noOnAirMove'];
 const FAULTS = ['unplug', 'mute', 'faderDown', 'mainMute', 'phantomOff', 'patchWrong', 'usbRoute', 'obsMute', 'obsAudioNone', 'speakerOff', 'wirelessChannel', 'wirelessBattery', 'groundLoop', 'auxZero', 'atemBlack', 'cleanHdmiOff', 'gainHigh',
   'dmxAddress', 'blackout', 'gmZero', 'dmxMicCable', 'fixturePower', 'ptzIp', 'resolumeOutputOff', 'layerZero', 'displayOff', 'resMismatch'];

@@ -32,7 +32,7 @@
        "type": "analog_mixer",
        "slot": "desk1",
        "placed": false,
-       "name": "8채널 아날로그 믹서"
+       "name": "아날로그 믹서 (12채널)"
       },
       {
        "id": "pa",
@@ -155,7 +155,7 @@
        "type": "analog_mixer",
        "slot": "desk1",
        "placed": true,
-       "name": "8채널 아날로그 믹서"
+       "name": "아날로그 믹서 (12채널)"
       },
       {
        "id": "pa",
@@ -375,6 +375,144 @@
       "게인 스테이징: 입력단(GAIN)에서 적정 레벨(-20 ~ -6 dB)을 먼저 잡고, 음량은 페이더로 조절합니다.",
       "하울링 대처 순서: 메인 내리기 → GAIN 확인 → 부스트된 EQ 대역 컷 → 스피커·마이크 배치 바꾸기.",
       "스피커는 마이크보다 청중 쪽 앞에 두고, 마이크가 스피커 정면을 향하지 않게 합니다."
+     ]
+    },
+    {
+     "id": "seminar-4",
+     "chapter": "seminar",
+     "venue": "seminar",
+     "title": "\"음악 언제 꺼요?\"",
+     "tag": "페이드 아웃 · ON 버튼",
+     "briefing": [
+      "강연 시작 1분 전입니다. 노트북 BGM이 깔려 있고, 사회자가 손짓으로 \"음악 빼 주세요\" 신호를 줍니다.",
+      "음악을 MUTE나 페이더 한 번에 끄면 '뚝' 끊겨 사고처럼 들립니다. 페이더를 몇 초에 걸쳐 내리는 페이드 아웃과, 마이크 채널의 ON 버튼으로 강연을 여는 순서를 배웁니다."
+     ],
+     "mission": "BGM을 2초 이상에 걸쳐 페이드 아웃하고, 강연자 마이크 채널을 켜서 말하기 테스트를 하세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "mic",
+       "type": "dynamic_mic",
+       "slot": "presenter_mic",
+       "placed": true,
+       "name": "강연자 마이크"
+      },
+      {
+       "id": "lap",
+       "type": "laptop",
+       "slot": "desk2",
+       "placed": true,
+       "name": "BGM 노트북"
+      },
+      {
+       "id": "mixer",
+       "type": "analog_mixer",
+       "slot": "desk1",
+       "placed": true,
+       "name": "아날로그 믹서 (12채널)"
+      },
+      {
+       "id": "pa",
+       "type": "speaker",
+       "slot": "pa_main",
+       "placed": true,
+       "name": "메인 스피커"
+      }
+     ],
+     "connections": [
+      {
+       "from": "mic.out",
+       "to": "mixer.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "lap.out",
+       "to": "mixer.st9L",
+       "cable": "mini"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa.in",
+       "cable": "xlr"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "mute": true,
+        "lowCut": true
+       },
+       "9": {
+        "gain": 20,
+        "fader": 75
+       }
+      },
+      "master": {
+       "mainFader": 75
+      },
+      "devices": {
+       "pa": {
+        "power": true
+       },
+       "lap": {
+        "playing": true
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "BGM 페이드 아웃 (2초 이상에 걸쳐 끝까지)",
+       "check": {
+        "type": "fade",
+        "source": "lap",
+        "dir": "out"
+       }
+      },
+      {
+       "label": "음악을 '뚝' 끊지 않기",
+       "check": {
+        "type": "noCut",
+        "source": "lap"
+       }
+      },
+      {
+       "label": "강연 중에는 BGM이 스피커로 나가지 않게",
+       "check": {
+        "type": "absent",
+        "source": "lap",
+        "at": "main"
+       }
+      },
+      {
+       "label": "강연자 마이크 채널 ON",
+       "check": {
+        "type": "reaches",
+        "source": "mic",
+        "at": "main"
+       }
+      },
+      {
+       "label": "말하기 테스트",
+       "check": {
+        "type": "talkTest",
+        "at": "main"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "BGM은 노트북 → 스테레오 채널 9/10으로 들어옵니다. 믹서 콘솔에서 CH 9/10 ST 페이더를 찾으세요.",
+      "페이더를 한 번에 내리거나 ON 버튼을 끄면 '뚝' 끊깁니다. 페이더를 잡고 2~3초 동안 일정한 속도로 맨 아래까지 내리세요. 이미 끊었다면 다시 올렸다가 천천히 내리면 됩니다.",
+      "강연자 마이크 채널(CH1)은 ON 버튼이 꺼져 있습니다. ON을 눌러 불이 들어오게 한 뒤 말하기로 확인하세요."
+     ],
+     "lessons": [
+      "페이드 아웃은 소리를 몇 초에 걸쳐 서서히 줄이는 것입니다. BGM은 보통 3~5초에 걸쳐 내립니다.",
+      "아날로그 믹서의 ON 버튼은 불이 켜져 있어야 소리가 나갑니다. 강연 전에는 마이크 채널을 꺼 두었다가 시작할 때 켭니다.",
+      "돌아보기: 영상의 디졸브·FTB, 조명의 페이드 타임도 같은 원리입니다. 교육 모드의 '페이드' 실습실에서 CUT과 비교해 들어 보세요."
      ]
     }
    ]
@@ -2073,6 +2211,291 @@
       "보컬·스피치 채널은 로우컷을 기본으로 켭니다. 무대 진동·핸들링 노이즈·저음 뭉침이 사라집니다.",
       "EQ는 올리기보다 깎기: 보컬을 살리려면 겹치는 악기의 중음을 깎는 편이 자연스럽고 하울링에도 안전합니다.",
       "리버브는 FX 센드로 보내고 FX 리턴으로 섞습니다. 보컬엔 살짝, 리듬 악기엔 적게 써야 소리가 또렷합니다."
+     ]
+    },
+    {
+     "id": "live-4",
+     "chapter": "live",
+     "venue": "live_stage",
+     "title": "\"방송엔 드럼이 하나도 안 들려요\"",
+     "tag": "드럼 마이킹 · 스테레오 건반 · 방송 믹스",
+     "briefing": [
+      "공연을 유튜브로 생중계하는 중인데 댓글이 쏟아집니다. \"드럼 소리가 하나도 안 들려요\", \"피아노가 한쪽에서만 나와요\".",
+      "공연장 안에서는 드럼 생소리가 워낙 커서 잘 들리지만, 방송에는 마이크로 잡아 믹서로 보낸 소리만 나갑니다. 드럼에 마이크를 세우고, 스테레오 피아노를 양쪽으로 벌리고, 방송용 AUX 2 믹스를 다시 잡으세요. 아래 A/B 비교로 현장과 방송을 번갈아 들어 보면 차이가 확실히 들립니다."
+     ],
+     "mission": "킥·스네어·오버헤드 마이크를 세워 방송에 드럼을 넣고, 피아노 L/R을 좌우로 벌리세요.",
+     "talk": "ptt",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vox",
+       "type": "dynamic_mic",
+       "slot": "vocal_mic",
+       "placed": true,
+       "name": "보컬 마이크"
+      },
+      {
+       "id": "kick",
+       "type": "kick_mic",
+       "slot": "kick_mic",
+       "placed": false,
+       "name": "킥 마이크"
+      },
+      {
+       "id": "snare",
+       "type": "snare_mic",
+       "slot": "snare_mic",
+       "placed": false,
+       "name": "스네어 마이크"
+      },
+      {
+       "id": "oh",
+       "type": "overhead_mic",
+       "slot": "oh_l",
+       "placed": false,
+       "name": "오버헤드 마이크"
+      },
+      {
+       "id": "pno",
+       "type": "digital_piano",
+       "slot": "keys",
+       "placed": true,
+       "name": "디지털 피아노"
+      },
+      {
+       "id": "di2",
+       "type": "di_box",
+       "slot": "di_keys",
+       "placed": true,
+       "name": "피아노 DI (L)"
+      },
+      {
+       "id": "di3",
+       "type": "di_box",
+       "slot": "di_keys2",
+       "placed": true,
+       "name": "피아노 DI (R)"
+      },
+      {
+       "id": "mixer",
+       "type": "analog_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "아날로그 믹서 (12채널)"
+      },
+      {
+       "id": "pa_l",
+       "type": "speaker",
+       "slot": "pa_left",
+       "placed": true,
+       "name": "메인 PA"
+      },
+      {
+       "id": "atem",
+       "type": "atem_pro",
+       "slot": "foh2",
+       "placed": true,
+       "name": "ATEM Mini Pro"
+      },
+      {
+       "id": "cam",
+       "type": "camera",
+       "slot": "cam_stage",
+       "placed": true,
+       "name": "무대 카메라"
+      },
+      {
+       "id": "net",
+       "type": "router",
+       "slot": "router_foh",
+       "placed": true,
+       "name": "공유기"
+      }
+     ],
+     "connections": [
+      {
+       "from": "vox.out",
+       "to": "mixer.in1",
+       "cable": "xlr"
+      },
+      {
+       "from": "pno.outL",
+       "to": "di2.input",
+       "cable": "trs"
+      },
+      {
+       "from": "pno.outR",
+       "to": "di3.input",
+       "cable": "trs"
+      },
+      {
+       "from": "di2.out",
+       "to": "mixer.in5",
+       "cable": "xlr"
+      },
+      {
+       "from": "di3.out",
+       "to": "mixer.in6",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.main",
+       "to": "pa_l.in",
+       "cable": "xlr"
+      },
+      {
+       "from": "cam.hdmi",
+       "to": "atem.in1",
+       "cable": "hdmi"
+      },
+      {
+       "from": "atem.eth",
+       "to": "net.lan1",
+       "cable": "eth"
+      },
+      {
+       "from": "mixer.aux2",
+       "to": "atem.mic1",
+       "cable": "mini"
+      }
+     ],
+     "inventory": {
+      "xlr": 3
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "aux2": 65,
+        "lowCut": true
+       },
+       "2": {
+        "gain": 30,
+        "fader": 70
+       },
+       "3": {
+        "gain": 30,
+        "fader": 70
+       },
+       "4": {
+        "gain": 30,
+        "fader": 65
+       },
+       "5": {
+        "gain": 22,
+        "fader": 70,
+        "aux2": 50,
+        "pan": 0
+       },
+       "6": {
+        "gain": 22,
+        "fader": 70,
+        "aux2": 50,
+        "pan": 0
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "aux2Master": 75,
+       "phantom": false
+      },
+      "atem": {
+       "program": 1,
+       "preview": 1,
+       "streaming": true
+      },
+      "devices": {
+       "pa_l": {
+        "power": true
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "드럼 마이크 세우기 (킥·스네어·오버헤드)",
+       "check": {
+        "type": "placed",
+        "devices": [
+         "kick",
+         "snare",
+         "oh"
+        ]
+       }
+      },
+      {
+       "label": "킥 드럼이 방송에 들리게",
+       "check": {
+        "type": "reaches",
+        "source": "kick",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "스네어가 방송에 들리게",
+       "check": {
+        "type": "reaches",
+        "source": "snare",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "오버헤드(심벌)가 방송에 들리게",
+       "check": {
+        "type": "reaches",
+        "source": "oh",
+        "at": "stream"
+       }
+      },
+      {
+       "label": "킥 마이크 입력 -20 ~ -6 dB (드럼은 소리가 커요)",
+       "check": {
+        "type": "gainOk",
+        "source": "kick"
+       }
+      },
+      {
+       "label": "스네어 마이크 입력 -20 ~ -6 dB",
+       "check": {
+        "type": "gainOk",
+        "source": "snare"
+       }
+      },
+      {
+       "label": "피아노 L 채널(CH5) PAN 왼쪽",
+       "check": {
+        "type": "chValue",
+        "ch": 5,
+        "key": "pan",
+        "max": -60
+       }
+      },
+      {
+       "label": "피아노 R 채널(CH6) PAN 오른쪽",
+       "check": {
+        "type": "chValue",
+        "ch": 6,
+        "key": "pan",
+        "min": 60
+       }
+      },
+      {
+       "label": "모든 채널 클리핑 없애기",
+       "check": {
+        "type": "noClip"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "드럼은 생소리가 커서 객석에선 잘 들려도 방송에는 마이크로 잡은 소리만 나갑니다. 드럼 주변의 + 버튼으로 킥·스네어·오버헤드 마이크를 세우고 XLR로 믹서 빈 MIC 단자(CH2·3·4)에 꽂으세요.",
+      "오버헤드는 콘덴서 마이크라 +48V가 필요합니다. 이 믹서는 마스터 섹션의 PHANTOM +48V 스위치 하나로 모든 MIC 단자에 전원이 들어갑니다. 드럼은 소리가 커서 GAIN 30이면 찢어집니다. 킥은 15 ~ 20, 스네어는 15 ~ 22 정도로 내리세요.",
+      "방송은 AUX 2 믹스(→ ATEM MIC 1)로 나갑니다. 드럼 채널들의 AUX2를 50 ~ 60으로 올리세요. 피아노는 DI 두 개로 CH5(L)·CH6(R)에 들어오니 CH5 PAN을 왼쪽 끝, CH6 PAN을 오른쪽 끝으로 돌리면 스테레오가 됩니다."
+     ],
+     "lessons": [
+      "현장(객석)에서 들리는 소리와 방송으로 나가는 소리는 다릅니다. 생소리가 큰 악기도 방송에 넣으려면 반드시 마이크로 잡아야 합니다.",
+      "드럼 마이킹 기본: 킥(쿵) · 스네어(딱)는 가까이 다이나믹, 심벌과 전체는 위에서 콘덴서 오버헤드. 드럼은 소리가 커서 GAIN을 낮게 씁니다.",
+      "스테레오 악기를 모노 채널 두 개로 받으면 PAN을 좌우 끝으로 벌려야 넓게 들립니다. 방송 믹스(AUX)는 현장 믹스와 따로 균형을 잡고, 꼭 헤드폰·A/B 비교로 확인합니다."
      ]
     }
    ]
