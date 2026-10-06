@@ -920,6 +920,13 @@ export default function Venue3D({
     return { key: `${l.spk}-${l.src}`, from: [ws.pos[0], ws.pos[1] + hs, ws.pos[2]], to: [wm.pos[0], wm.pos[1] + hm, wm.pos[2]], hot: l.loop >= 0 };
   }).filter(Boolean) : [];
 
+  // 책상별로 장비를 x 순서로 세어 이름표 높이를 엇갈리게
+  const deskRank = {};
+  {
+    const byDesk = {};
+    placed.forEach((d) => { const w = worldOf(d.id); const k = deskOfSlot(w?.slot); if (k != null && k >= 0) (byDesk[k] ??= []).push([w.pos[0], d.id]); });
+    Object.values(byDesk).forEach((arr) => arr.sort((x, y) => x[0] - y[0]).forEach(([, id], i) => { deskRank[id] = i; }));
+  }
   // 연결 순서대로 케이블 묶음 안의 자리(lane)를 정한다
   const lanes = {};
   st.connections.forEach((c, i) => { lanes[c.id] = i; });
@@ -974,7 +981,9 @@ export default function Venue3D({
             const def = DEVICE_TYPES[d.type];
             const ports = w.mount.base === 'deskMic' ? deskMicPorts(d.type, w.mount.H) : (PORTS_ALL[d.type] ?? {});
             const gh = GHOST_ALL[d.type] ?? [0.4, 0.4, 0.4];
-            const labelY = w.mount.base === 'deskMic' ? w.mount.H + 0.2 : gh[1] * w.scale + 0.16;
+            // 같은 책상 위 장비 이름표는 높이를 엇갈려 겹치지 않게
+            const stagger = deskRank[d.id] ? (deskRank[d.id] % 2) * 0.17 : 0;
+            const labelY = (w.mount.base === 'deskMic' ? w.mount.H + 0.2 : gh[1] * w.scale + 0.16) + stagger;
             const hi = highlight?.device === d.id || highlight?.device2 === d.id;
             return (
               <group key={d.id}>

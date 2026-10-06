@@ -59,6 +59,17 @@ export default function GameScreen({
   const [focusRequest, setFocusRequest] = useState(null);
   const [resetKey, setResetKey] = useState(0);
   const [resultOpen, setResultOpen] = useState(false);
+  // 경과 시간 (돌발 상황 스테이지는 제한 시간)
+  const [elapsed, setElapsed] = useState(0);
+  const [overtime, setOvertime] = useState(false);
+  useEffect(() => {
+    if (mode !== 'story' || showBrief || cleared) return undefined;
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
+  }, [mode, showBrief, cleared]);
+  useEffect(() => {
+    if (spec.timeLimit && elapsed >= spec.timeLimit && !overtime && !cleared) { setOvertime(true); game.notify('err', '제한 시간이 지났습니다! 계속 해결할 수 있지만 평가가 한 단계 내려갑니다.'); }
+  }, [elapsed]); // eslint-disable-line react-hooks/exhaustive-deps
   const gl = useMemo(() => hasWebGL(), []);
   // 스튜디오 모드: 장비 놓기/옮기기
   const [placing, setPlacing] = useState(null);
@@ -147,7 +158,7 @@ export default function GameScreen({
   const onePending = game.pending ? `${st.devices[game.pending.d]?.name ?? game.pending.d} · ${portLabel(st, game.pending.d, game.pending.p)}` : null;
   const doneCount = game.objectives.filter((o) => o.ok).length;
 
-  const stars = usedAuto ? 1 : hints > 0 ? 2 : 3;
+  const stars = usedAuto ? 1 : Math.max(1, (hints > 0 ? 2 : 3) - (overtime ? 1 : 0));
   useEffect(() => {
     if (!cleared || mode !== 'story') return;
     const prog = loadProgress('bm2-progress', {});
@@ -165,6 +176,9 @@ export default function GameScreen({
         </div>
         {mode === 'story' && (
           <>
+            <span className={`text-xs tabular-nums font-mono px-1.5 py-0.5 rounded ${spec.timeLimit ? (overtime ? 'bg-red-600 text-white' : spec.timeLimit - elapsed <= 30 ? 'bg-amber-500 text-slate-900 animate-pulse' : 'bg-slate-800 text-amber-200') : 'text-slate-400'}`} title={spec.timeLimit ? '남은 시간' : '경과 시간'}>
+              {spec.timeLimit ? fmtTime(Math.max(0, spec.timeLimit - elapsed)) : fmtTime(elapsed)}
+            </span>
             <span className="hidden sm:inline text-xs text-slate-300 tabular-nums">{doneCount}/{game.objectives.length}</span>
             <button type="button" onClick={() => { setHints((h) => Math.min((spec.hints?.length ?? 0), h + 1)); setTab('mission'); }} className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 text-xs font-bold"><Lightbulb size={14} /> <span className="hidden sm:inline">힌트</span></button>
             {spec.solution && <button type="button" onClick={startAuto} className="flex items-center gap-1 px-2 py-1 rounded bg-violet-500/20 text-violet-200 hover:bg-violet-500/30 text-xs font-bold" title="정답을 유령 손이 직접 보여 줍니다"><Wand2 size={14} /> <span className="hidden sm:inline">정답 보기</span></button>}
@@ -285,11 +299,13 @@ export default function GameScreen({
 
       {showBrief && <Briefing spec={spec} heading={heading} onStart={() => { setShowBrief(false); getAudio().unlock(); }} onAuto={spec.solution ? startAuto : null} />}
       {resultOpen && (
-        <Result spec={spec} stars={stars} usedAuto={usedAuto} onNext={onNext} onRetry={() => { setResultOpen(false); onRestart?.(); }} onExit={onExit} onClose={() => setResultOpen(false)} />
+        <Result spec={spec} stars={stars} usedAuto={usedAuto} elapsed={elapsed} onNext={onNext} onRetry={() => { setResultOpen(false); onRestart?.(); }} onExit={onExit} onClose={() => setResultOpen(false)} />
       )}
     </div>
   );
 }
+
+const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
 function ViewBtn({ on, onClick, icon: Icon, label }) {
   return (
@@ -395,6 +411,7 @@ function Briefing({ spec, heading, onStart, onAuto }) {
         <h2 className="text-xl font-black">{spec.title}</h2>
         {spec.briefing?.map((b, i) => <p key={i} className="text-sm text-slate-300 leading-relaxed">{b}</p>)}
         <div className="rounded-lg bg-sky-950/50 border border-sky-800/60 p-3 text-sm text-sky-100"><b>미션</b> · {spec.mission}</div>
+        {spec.timeLimit && <div className="rounded-lg bg-red-950/50 border border-red-700/60 p-2 text-sm text-red-100">⏱ 제한 시간 {fmtTime(spec.timeLimit)} — 시간 안에 해결하면 ★3까지 받을 수 있어요.</div>}
         <ul className="text-sm text-slate-300 space-y-1">{spec.objectives.map((o, i) => <li key={i} className="flex gap-2"><Circle size={14} className="mt-0.5 shrink-0 text-slate-500" />{o.label}</li>)}</ul>
         <div className="flex flex-wrap gap-2 pt-1">
           <button type="button" onClick={onStart} autoFocus className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-black">시작하기</button>
@@ -406,15 +423,16 @@ function Briefing({ spec, heading, onStart, onAuto }) {
   );
 }
 
-function Result({ spec, stars, usedAuto, onNext, onRetry, onExit, onClose }) {
+function Result({ spec, stars, usedAuto, elapsed, onNext, onRetry, onExit, onClose }) {
   useEffect(() => { getAudio().star(); }, []);
   return (
     <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="스테이지 완료">
       <div className="w-full max-w-lg rounded-2xl border border-green-500/40 bg-slate-900 p-5 space-y-3 shadow-2xl max-h-[90dvh] overflow-y-auto">
         <div className="text-center">
           <div className="text-green-300 font-black text-2xl">미션 완료!</div>
+          <div className="text-xs text-slate-400 mt-1 font-mono">소요 시간 {fmtTime(elapsed ?? 0)}{spec.timeLimit ? ` / 제한 ${fmtTime(spec.timeLimit)}` : ''}</div>
           <div className="flex justify-center gap-1 mt-2">{[1, 2, 3].map((n) => <Star key={n} size={30} className={n <= stars ? 'text-yellow-300 fill-yellow-300' : 'text-slate-600'} />)}</div>
-          <div className="text-xs text-slate-400 mt-1">{usedAuto ? '정답 보기로 완료 (★1) — 다시 도전하면 ★3!' : stars === 3 ? '힌트 없이 완벽!' : '힌트를 사용했어요'}</div>
+          <div className="text-xs text-slate-400 mt-1">{usedAuto ? '정답 보기로 완료 (★1) — 다시 도전하면 ★3!' : stars === 3 ? '힌트 없이 완벽!' : '힌트 사용 또는 시간 초과 — 다시 도전해 ★3을 노려 보세요'}</div>
         </div>
         <div className="space-y-1.5">
           <div className="text-xs font-bold text-slate-400">오늘 배운 것</div>

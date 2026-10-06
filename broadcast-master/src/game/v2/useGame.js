@@ -25,6 +25,8 @@ export function useGame(spec, { onClear } = {}) {
   const [performing, setPerforming] = useState(spec.performing !== false);
   const [scriptTalk, setScriptTalk] = useState(null);
   const [latched, setLatched] = useState(() => new Set());
+  const latchedRef = useRef(latched);
+  latchedRef.current = latched;
   const [action, setAction] = useState(null);
   const [toast, setToast] = useState(null);
   const [log, setLog] = useState([]);
@@ -73,8 +75,10 @@ export function useGame(spec, { onClear } = {}) {
     if (op.op === 'wait' || op.op === 'say') return true;
     const lat = new Set();
     if (noteOnAirMove(cur, op, lat)) {
+      // 드래그 중 계속 경고가 쌓이지 않게 처음 한 번만 알린다
+      const fresh = [...lat].some((k) => !latchedRef.current.has(k));
       setLatched((s) => new Set([...s, ...lat]));
-      notify('err', '방송 중(PGM, 빨간 탈리)인 카메라를 움직였습니다! 시청자에게 흔들리는 화면이 나갔어요.');
+      if (fresh) notify('err', '방송 중(PGM, 빨간 탈리)인 카메라를 움직였습니다! 시청자에게 흔들리는 화면이 나갔어요.');
     }
     const next = applyOp(cur, op);
     if (next.lastError) {

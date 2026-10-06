@@ -72,3 +72,34 @@ for (const part of TUTORIAL) {
     assert.deepEqual(errors, []);
   });
 }
+
+test('ptz-2: moving the on-air PTZ is recorded and fails the objective', () => {
+  const spec = stages.find((s) => s.id === 'ptz-2');
+  const st0 = buildRuntime(spec);
+  const { st, latched } = runOps(st0, [
+    { op: 'ptz', device: 'joy', act: 'select', value: 0 },
+    { op: 'ptz', device: 'joy', act: 'recall', value: 1 },
+  ]);
+  assert.ok(latched.has('onAirMove:ptz1'));
+  const sim = computeSim(st, { talking: true, performing: true });
+  assert.equal(checkObjective({ type: 'noOnAirMove', device: 'ptz1' }, st, sim, { latched: [...latched] }), false);
+});
+
+test('sandbox ops: add, move, remove devices keep state consistent', async () => {
+  const { applyOp, addDeviceOp } = await import('../src/game/ops.js');
+  let st = buildRuntime({ venue: 'sandbox', unlimited: true, devices: [], connections: [] });
+  const a = addDeviceOp(st, 'dynamic_mic', [0, 0.35, -2], 'floor'); st = applyOp(st, a);
+  const b = addDeviceOp(st, 'analog_mixer', [1, 0.75, 2.6], 'desk'); st = applyOp(st, b);
+  const c = addDeviceOp(st, 'speaker', [3, 0, -0.5], 'floor'); st = applyOp(st, c);
+  assert.equal(st.mixerId, b.device.id);
+  st = applyOp(st, { op: 'connect', from: `${a.device.id}.out`, to: `${b.device.id}.in1`, cable: 'xlr' });
+  st = applyOp(st, { op: 'connect', from: `${b.device.id}.main`, to: `${c.device.id}.in`, cable: 'xlr' });
+  assert.ok(computeSim(st).reaches(a.device.id, 'main'));
+  st = applyOp(st, { op: 'moveDevice', device: c.device.id, pos: [-3, 0, -0.5] });
+  assert.deepEqual(st.devices[c.device.id].pos, [-3, 0, -0.5]);
+  st = applyOp(st, { op: 'removeDevice', device: b.device.id });
+  assert.equal(st.mixerId, null);
+  assert.equal(st.connections.length, 0);
+  const d2 = addDeviceOp(st, 'dynamic_mic', [0, 0, 0], 'floor');
+  assert.notEqual(d2.device.id, a.device.id);
+});
