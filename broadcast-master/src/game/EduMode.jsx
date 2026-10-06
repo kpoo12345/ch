@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, BookOpen, CheckCircle2, XCircle, Lightbulb, AlertTriangle, MapPin, Cpu, Plug, Play,
-  Mic, SlidersHorizontal, Camera, Tv, MonitorPlay, Cable, GraduationCap, ArrowRight,
+  Mic, SlidersHorizontal, Camera, Tv, MonitorPlay, Cable, GraduationCap, ArrowRight, AudioLines, Workflow, Check,
 } from 'lucide-react';
 import { DEVICE_TYPES, PORT_KIND_LABEL, PORT_COLOR, CABLES, MIXER_DEFAULT, MIC_LEVEL, faderDb, fmtDb } from './engine.js';
-import { EquipmentViewer, CableShowcase } from './Studio3D.jsx';
+import { EquipmentViewer, CableShowcase, MixerSizeViewer } from './Studio3D.jsx';
+import AudioLab from './AudioLab.jsx';
 import { Meter, Slider, ToggleBtn, Scene, loadProgress, saveProgress } from './ui.jsx';
 import { EDU_CATEGORIES, EDU_ITEMS } from './eduContent.js';
 
@@ -12,7 +13,7 @@ import { EDU_CATEGORIES, EDU_ITEMS } from './eduContent.js';
  * 교육 모드 — 장비를 3D로 돌려 보고, 직접 만져 보고, 퀴즈로 확인한다
  * ===================================================================== */
 
-const CAT_ICON = { 마이크: Mic, '음향 장비': SlidersHorizontal, 카메라: Camera, 'ATEM · 스위처': Tv, 송출: MonitorPlay, 케이블: Cable, '기초 개념': GraduationCap };
+const CAT_ICON = { '기초 개념': Workflow, 마이크: Mic, '음향 장비': SlidersHorizontal, '소리 다루기': AudioLines, 카메라: Camera, 'ATEM · 스위처': Tv, 송출: MonitorPlay, 케이블: Cable };
 
 const DEMO_DEFAULT = {
   talking: true,
@@ -496,9 +497,156 @@ function TransitionsVisual() {
   );
 }
 
+/* ---------------------------- 케이블 개념 그림 ---------------------------- */
+function wavePath(fn, w, h, mid) {
+  let d = '';
+  for (let x = 0; x <= w; x += 2) d += `${x ? 'L' : 'M'}${x},${(mid - fn(x)).toFixed(1)} `;
+  return d;
+}
+function BalancedVisual() {
+  const [mode, setMode] = useState('balanced');
+  const [amp, setAmp] = useState(10);
+  const W = 300;
+  const sig = (x) => Math.sin((x / W) * Math.PI * 4) * 16;
+  const noise = (x) => (Math.sin(x * 0.9) * 0.6 + Math.sin(x * 2.3 + 1) * 0.3 + Math.sin(x * 5.1) * 0.2) * amp;
+  const rows = mode === 'balanced'
+    ? [['Hot (+) · 원래 신호 + 잡음', (x) => sig(x) + noise(x), '#60a5fa'], ['Cold (-) · 뒤집은 신호 + 같은 잡음', (x) => -sig(x) + noise(x), '#a78bfa'], ['받는 쪽: (Hot − Cold) ÷ 2 = 깨끗한 신호', (x) => sig(x), '#4ade80']]
+    : [['보낸 신호', (x) => sig(x), '#60a5fa'], ['케이블을 지나며 잡음이 섞임', (x) => sig(x) + noise(x), '#fbbf24'], ['받은 소리: 잡음이 그대로 남음', (x) => sig(x) + noise(x), '#f87171']];
+  return (
+    <div className="p-5 space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {[['unbalanced', '언밸런스드 (TS · RCA)'], ['balanced', '밸런스드 (XLR · TRS)']].map(([k, t]) => (
+          <button key={k} type="button" onClick={() => setMode(k)} className={`px-3 py-1.5 rounded border text-xs font-bold ${mode === k ? 'bg-sky-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>{t}</button>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} 210`} className="w-full max-w-xl block mx-auto bg-slate-950 rounded-lg border border-slate-700" role="img" aria-label="케이블 신호와 잡음 파형">
+        {rows.map(([label, fn, color], i) => (
+          <g key={label}>
+            <line x1="0" x2={W} y1={40 + i * 66} y2={40 + i * 66} stroke="#1e293b" />
+            <path d={wavePath(fn, W, 50, 40 + i * 66)} fill="none" stroke={color} strokeWidth="2" />
+            <text x="6" y={14 + i * 66} fill="#cbd5e1" fontSize="10">{label}</text>
+          </g>
+        ))}
+      </svg>
+      <Slider id="bal-noise" label="잡음 크기 (케이블이 길수록, 주변 전원선이 많을수록)" value={amp} min={0} max={24} onChange={setAmp} display={`${amp}`} accent="accent-amber-300" />
+    </div>
+  );
+}
+
+const CABLE_ROWS = [
+  ['XLR', 'cable_xlr', '오디오', '마이크·라인', '예', '예', '~100m', '마이크, 장비 사이'],
+  ['TS 6.3mm', 'cable_trs', '오디오', '악기', '아니오', '아니오', '~5m', '기타·베이스'],
+  ['TRS 6.3mm', 'cable_trs', '오디오', '라인·헤드폰', '예(모노)', '아니오', '~30m', '라인 장비, 헤드폰'],
+  ['3.5mm', 'cable_mini', '오디오', '가정용 라인', '아니오', '아니오', '~3m', 'PC·폰·카메라 마이크'],
+  ['RCA', 'cable_rca', '오디오', '가정용 라인', '아니오', '아니오', '~3m', 'DJ·가정용 오디오'],
+  ['스피콘', 'cable_speakon', '오디오', '스피커 레벨', '-', '예', '굵기에 따라', '앰프 → 패시브 스피커'],
+  ['HDMI', 'cable_hdmi', '영상', '디지털 영상+음성', '-', '아니오', '5~10m', '카메라·스위처·모니터'],
+  ['SDI', 'cable_sdi', '영상', '디지털 영상+음성', '-', '예', '100m+', '방송 카메라, 장거리'],
+  ['USB-C', 'cable_usb', '데이터', '데이터·오디오·영상', '-', '아니오', '3~5m', '인터페이스·웹캠 → PC'],
+  ['이더넷', 'cable_eth', '데이터', '네트워크', '-', 'etherCON만', '100m', 'Dante·AES50·NDI·제어'],
+];
+function CableMapVisual({ onOpen }) {
+  const [f, setF] = useState('전체');
+  const rows = CABLE_ROWS.filter((r) => f === '전체' || r[2] === f);
+  return (
+    <div className="p-4 space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {['전체', '오디오', '영상', '데이터'].map((k) => (
+          <button key={k} type="button" onClick={() => setF(k)} className={`px-3 py-1 rounded-full border text-xs font-bold ${f === k ? 'bg-sky-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>{k}</button>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[620px]">
+          <thead><tr className="text-left text-xs text-slate-400 border-b border-slate-700">
+            {['케이블', '신호', '밸런스드', '잠금', '최대 길이', '주 용도'].map((h) => <th key={h} className="py-2 pr-3 font-semibold">{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r[0]} className="border-b border-slate-800 hover:bg-slate-800/60">
+                <td className="py-1.5 pr-3"><button type="button" onClick={() => onOpen(r[1])} className="font-bold text-sky-300 hover:underline">{r[0]}</button></td>
+                <td className="pr-3 text-slate-300">{r[3]}</td><td className="pr-3 text-slate-300">{r[4]}</td><td className="pr-3 text-slate-300">{r[5]}</td>
+                <td className="pr-3 font-mono text-slate-200">{r[6]}</td><td className="text-slate-300">{r[7]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-slate-500">케이블 이름을 누르면 자세한 설명으로 이동합니다.</p>
+    </div>
+  );
+}
+
+const CHECKLIST = [
+  '연결할 장비와 단자 목록을 적고 필요한 케이블 수 세기',
+  '종류별 예비 케이블 1개 이상 챙기기',
+  '변환 젠더 챙기기 (3.5mm↔6.3mm, XLR↔TRS, HDMI↔SDI)',
+  '케이블 테스터로 모든 케이블 점검하기',
+  '양 끝에 같은 번호 라벨 붙이기',
+  '바닥 고정용 테이프·케이블 커버 챙기기',
+  '멀티탭과 전원 케이블 여유 있게 준비하기',
+];
+function CableCareVisual() {
+  const [done, setDone] = useState([]);
+  const loops = Array.from({ length: 6 });
+  return (
+    <div className="p-5 grid md:grid-cols-2 gap-5 items-center">
+      <div>
+        <svg viewBox="0 0 220 160" className="w-full max-w-xs mx-auto block" role="img" aria-label="8자 감기(오버-언더) 그림">
+          {loops.map((_, i) => (
+            <ellipse key={i} cx={110 + (i % 2 ? 4 : -4)} cy="80" rx={70 - i * 3} ry={55 - i * 3} fill="none"
+              stroke={i % 2 ? '#60a5fa' : '#f8fafc'} strokeWidth="5" strokeDasharray={i % 2 ? '10 4' : '0'} opacity={0.9 - i * 0.08} />
+          ))}
+          <text x="110" y="155" textAnchor="middle" fill="#94a3b8" fontSize="11">흰색 = 바로 감기 · 파랑 = 뒤집어 감기</text>
+        </svg>
+        <p className="text-xs text-slate-400 text-center mt-1">한 번은 바로(오버), 한 번은 뒤집어(언더) 번갈아 감습니다.</p>
+      </div>
+      <div>
+        <div className="text-sm font-bold mb-2">출동 전 케이블 체크리스트 <span className="text-emerald-300 font-mono">{done.length}/{CHECKLIST.length}</span></div>
+        <ul className="space-y-1.5">
+          {CHECKLIST.map((c) => {
+            const on = done.includes(c);
+            return (
+              <li key={c}>
+                <button type="button" onClick={() => setDone((d) => (on ? d.filter((x) => x !== c) : [...d, c]))}
+                  className={`w-full text-left text-sm flex gap-2 items-start px-2 py-1.5 rounded border ${on ? 'bg-emerald-950 border-emerald-700 text-emerald-200' : 'bg-slate-900 border-slate-700 hover:bg-slate-800'}`}>
+                  <span className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${on ? 'bg-emerald-500 border-emerald-400' : 'border-slate-500'}`}>{on && <Check size={12} />}</span>{c}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function MixerSizes({ item }) {
+  const [size, setSize] = useState('small');
+  return (
+    <div>
+      <div className="h-[340px] sm:h-[420px] relative bg-[#131a27]">
+        <MixerSizeViewer key={size} size={size} />
+        <div className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-slate-400">드래그로 돌려 보기 · 휠/핀치로 확대</div>
+      </div>
+      <div className="p-3 border-t border-slate-700 bg-slate-900/60 grid sm:grid-cols-3 gap-2">
+        {item.sizes.map((z) => (
+          <button key={z.key} type="button" onClick={() => setSize(z.key)}
+            className={`text-left rounded-lg border p-3 space-y-1 ${size === z.key ? 'bg-sky-900/60 border-sky-400' : 'bg-slate-900 border-slate-700 hover:bg-slate-800'}`}>
+            <div className="flex items-baseline justify-between gap-2"><span className="text-lg font-bold">{z.name}</span><span className="text-xs font-mono text-amber-300">{z.ch}</span></div>
+            <div className="text-xs text-slate-300 leading-relaxed">{z.feature}</div>
+            <div className="text-[11px] text-slate-400"><b className="text-slate-300">쓰이는 곳</b> · {z.where}</div>
+            <div className="text-[11px] text-slate-500"><b className="text-slate-400">예시</b> · {z.examples}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const CONCEPT = {
   flow: FlowVisual, gain: GainVisual, feedback: FeedbackVisual, pgmpvw: PgmPvwVisual,
   levels: LevelsVisual, camsettings: CamSettingsVisual, multiview: MultiviewVisual, transitions: TransitionsVisual,
+  balanced: BalancedVisual, cablemap: CableMapVisual, cablecare: CableCareVisual,
 };
 
 /* ---------------------------- 퀴즈 ---------------------------- */
@@ -630,14 +778,16 @@ export default function EduMode({ onExit, onNavigate }) {
         {/* 본문 */}
         <main className="min-w-0 space-y-4">
           <div className="bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden">
-            <div className="h-[360px] sm:h-[440px] bg-[#131a27] relative">
-              {item.kind === 'device' && <EquipmentViewer key={item.type} type={item.type} demo={viewDemo} />}
-              {item.kind === 'cable' && <CableShowcase key={item.cable} kind={item.cable} />}
-              {item.kind === 'concept' && <div className="h-full overflow-y-auto flex items-center"><div className="w-full">{Concept && <Concept />}</div></div>}
-              {item.kind !== 'concept' && (
+            {(item.kind === 'device' || item.kind === 'cable') && (
+              <div className="h-[360px] sm:h-[440px] bg-[#131a27] relative">
+                {item.kind === 'device' && <EquipmentViewer key={item.type} type={item.type} demo={viewDemo} />}
+                {item.kind === 'cable' && <CableShowcase key={item.cable} kind={item.cable} color={item.color} />}
                 <div className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-slate-400">드래그로 돌려 보기 · 휠/핀치로 확대</div>
-              )}
-            </div>
+              </div>
+            )}
+            {item.kind === 'concept' && <div className="min-h-[300px] bg-[#131a27] flex items-center"><div className="w-full">{Concept && <Concept onOpen={setCurrentId} />}</div></div>}
+            {item.kind === 'audiolab' && <div className="bg-[#131a27]"><AudioLab key={item.id} focus={item.lab} /></div>}
+            {item.kind === 'mixersizes' && <MixerSizes item={item} />}
             {item.kind === 'device' && (
               <div className="p-3 border-t border-slate-700 bg-slate-900/60">
                 <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5"><Play size={12} /> 직접 만져 보기</div>
@@ -681,7 +831,7 @@ export default function EduMode({ onExit, onNavigate }) {
                   </ul>
                 </div>
               )}
-              {item.cable && (
+              {item.cable && CABLES[item.cable] && (
                 <p className="text-sm flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{ background: CABLES[item.cable].stroke }} /> 게임 안에서는 이 색의 케이블로 표시됩니다.</p>
               )}
             </section>

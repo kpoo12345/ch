@@ -4,13 +4,16 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  Mic, Monitor, Power, AlertCircle, Radio, Video, Cable, SlidersHorizontal, Lightbulb, Volume2, VolumeX, CheckCircle2, Circle, Trophy, RotateCcw, ChevronRight, Info, Zap, X, Activity, Users, ChevronLeft, MessageSquare, Tv, Hand, Wrench, MonitorPlay, Award, User, Package, Play, Box, Network, Tag,
+  Mic, Monitor, Power, AlertCircle, Radio, Video, Cable, SlidersHorizontal, Lightbulb, Volume2, VolumeX, CheckCircle2, Circle, Trophy, RotateCcw, ChevronRight, Info, Zap, X, Activity, Users, ChevronLeft, Lock, Unlock, Headphones, Ear, MessageSquare, Tv, Hand, Wrench, MonitorPlay, Award, User, Package, Play, Box, Network, Tag,
 } from 'lucide-react';
 import {
   CANVAS_W, CANVAS_H, HEADER_H, ROW_H, CABLES, PORT_ACCEPTS, PORT_KIND_LABEL, PORT_COLOR, MISMATCH_TIP, DEVICE_TYPES, deviceRows, deviceHeight, portPos, findPort, faderDb, fmtDb, clamp, conn, FAULTS, buildStage, computeSignal, buildTrace, faultFixed, STAGES, CHAT_BAD, CHAT_GOOD, CHAT_NAMES,
 } from './engine.js';
 import Studio3D, { hasWebGL, NoWebGL } from './Studio3D.jsx';
-import { useSfx, Meter, Slider, ToggleBtn, Section, Scene, loadProgress, saveProgress } from './ui.jsx';
+import {
+  useSfx, Meter, Slider, ToggleBtn, Section, Scene, loadProgress, saveProgress,
+  useVoice, VOICE_TEST, VOICE_HOST, speechSupported, VFader, VMeter,
+} from './ui.jsx';
 import { buildFullSystem, SANDBOX_CABLES } from './engine.js';
 
 const STUDIO_TYPES = { mic: ['dynamic_mic', 'condenser_mic'], mixer: ['analog_mixer', 'digital_mixer'] };
@@ -41,7 +44,9 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
   const [cleared, setCleared] = useState(false);
   const [stageScores, setStageScores] = useState(() => loadProgress('bm-story-scores', {}));
   const [modal, setModal] = useState({ type: 'briefing' });
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
+  const [monitor, setMonitor] = useState(() => (initial.devices.speaker ? 'pa' : 'obs')); // 듣는 위치: 현장 스피커 / 송출(OBS)
+  const [monitorVol, setMonitorVol] = useState(80);
   const [tracerOn, setTracerOn] = useState(true);
   const [viewers, setViewers] = useState(0);
   const [chat, setChat] = useState([]);
@@ -50,6 +55,7 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
   const [showLabels, setShowLabels] = useState(true);
   const [camReset, setCamReset] = useState(0);
   const [focusReq, setFocusReq] = useState(null);
+  const [lockView, setLockView] = useState(false);
   const [autoTalkOn, setAutoTalkOn] = useState(false);
   const [pgmSeen, setPgmSeen] = useState([]);
   const [drill, setDrill] = useState(null); // 스튜디오 모드 돌발 상황 훈련 중인 고장
@@ -62,7 +68,7 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
 
   const logId = useRef(1);
   const warnAt = useRef({});
-  const logEndRef = useRef(null);
+  const logBoxRef = useRef(null);
   const wrapRef = useRef(null);
   const innerRef = useRef(null);
   const dragRef = useRef(null);
@@ -87,7 +93,8 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
     addLog(`${reason} (-${pts}점)`, 'error');
   }, [addLog, isStudio]);
 
-  useEffect(() => { logEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [systemLog]);
+  // 로그 상자 안에서만 맨 아래로 스크롤 (scrollIntoView는 페이지 전체를 끌어내려서 쓰지 않는다)
+  useEffect(() => { const el = logBoxRef.current; if (el) el.scrollTop = el.scrollHeight; }, [systemLog]);
 
   /* ---------- 신호 계산 ---------- */
   const st = { devices, connections, mixer, speaker, atem, obs, faults };
@@ -122,6 +129,7 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
     setFaults(s.faults);
     setSelectedCable(Object.keys(s.cables)[0]);
     setSelectedDevice(STAGES[id].focus);
+    setMonitor(s.devices.speaker ? 'pa' : 'obs');
     setPending(null);
     if (id !== 'studio') setLatched([]);
     setCleared(false);
@@ -191,6 +199,15 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
   });
 
   useEffect(() => { sfx.setFeedback(actual.feedback); }, [actual.feedback, sfx]);
+
+  /* ---------- 실제 소리: 듣는 위치까지 도착한 신호만큼 말소리가 들린다 ---------- */
+  const listenLevel = monitor === 'pa' ? nominal.speakerLevel : nominal.obsAudio;
+  const voiceVolume = listenLevel == null ? 0 : clamp((listenLevel + 42) / 36, 0.1, 1) * (monitorVol / 100);
+  const hearing = talking && voiceVolume > 0;
+  const voiceOk = useVoice({ enabled: soundOn, active: talking, volume: voiceVolume, phrases: talkHeld ? VOICE_TEST : VOICE_HOST });
+  const clipping = hearing && nominal.chIn != null && nominal.chIn > 0;
+  useEffect(() => { sfx.setCrackle(clipping ? Math.min(1, 0.3 + nominal.chIn / 8) * (monitorVol / 100) : 0); }, [clipping, nominal.chIn, monitorVol, sfx]);
+  useEffect(() => () => sfx.setCrackle(0), [sfx]);
   useEffect(() => () => sfx.setFeedback(false), [sfx]);
 
   // 래치 미션 (예: 마이크 테스트)
@@ -653,6 +670,10 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
             )}
             <Section title={digital ? 'CH01 채널 스트립' : 'CH1 채널 스트립'} icon={SlidersHorizontal}>
               <div className="flex flex-wrap gap-2">
+                <ToggleBtn on={mixer.lowCut} color="green" title="100Hz 아래 저음(바람 소리, 손 잡음, 웅웅거림)을 깎는 필터"
+                  onClick={() => { setMix('lowCut', !mixer.lowCut); addLog(`LOW CUT(하이패스 100Hz) ${!mixer.lowCut ? 'ON: 웅웅거리는 저음 잡음을 깎습니다' : 'OFF'}`, 'info'); }}>
+                  LOW CUT
+                </ToggleBtn>
                 <ToggleBtn on={mixer.phantom} color="amber" title="콘덴서 마이크용 +48V 전원"
                   onClick={() => {
                     const on = !mixer.phantom;
@@ -677,6 +698,8 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
                   <Slider id="eql" label="LOW" value={mixer.eqLow} min={-15} max={15} onChange={(v) => setMix('eqLow', v)} display={`${mixer.eqLow > 0 ? '+' : ''}${mixer.eqLow}`} accent="accent-amber-300" />
                 </div>
               )}
+              <Slider id="fxsend" label="FX (리버브·에코 보내기)" value={mixer.fx} min={0} max={100} onChange={(v) => setMix('fx', v)} display={`${mixer.fx}%`} accent="accent-violet-400"
+                hint={mixer.fx > 60 ? '이펙트가 너무 많으면 말이 울려서 알아듣기 어렵습니다.' : '말소리에는 아주 약하게(10~25%)만 씁니다.'} />
               <Slider id="chf" label="채널 페이더" value={mixer.chFader} min={0} max={100} onChange={(v) => setMix('chFader', v)} display={fmtDb(faderDb(mixer.chFader))} />
             </Section>
             <Section title={digital ? 'MAIN L/R 버스' : 'MAIN 마스터'} icon={Volume2}>
@@ -755,6 +778,10 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
           <div className="space-y-3">
             {head}
             <Section title="OBS Studio" icon={MonitorPlay}>
+              <button type="button" onClick={() => { setMonitor('obs'); addLog('🎧 모니터: 송출(OBS) 소리를 듣습니다. 시청자가 듣는 소리와 같습니다.', 'info'); }}
+                className={`w-full py-1.5 rounded border text-xs font-bold flex items-center justify-center gap-1.5 ${monitor === 'obs' ? 'bg-sky-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>
+                <Headphones size={14} /> {monitor === 'obs' ? '송출 소리 듣는 중' : '송출 소리 들어 보기 (헤드폰 모니터)'}
+              </button>
               <div className="aspect-video rounded overflow-hidden border border-slate-600 relative">
                 <Scene src={nominal.obsVideo} fade={atem.transitioning} />
                 {obs.streaming && <span className="absolute top-1.5 right-1.5 text-[10px] font-bold bg-red-600 px-1.5 rounded animate-pulse">● LIVE</span>}
@@ -907,10 +934,17 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
         <div className="lg:col-span-2 lg:self-start bg-slate-800 rounded-lg p-3 border-2 border-slate-700 min-w-0 flex flex-col gap-3">
           {/* 툴바 */}
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-slate-400 flex items-center gap-1"><Cable size={15} /> 선택한 케이블:</span>
-            {selectedCable
-              ? <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900 border border-slate-600"><span className={`w-2.5 h-2.5 rounded-full ${CABLES[selectedCable].dot}`} />{CABLES[selectedCable].name} ×{Number.isFinite(cables[selectedCable]) ? cables[selectedCable] ?? 0 : '∞'}</span>
-              : <span className="text-amber-300">없음</span>}
+            <span className="text-slate-400 flex items-center gap-1"><Cable size={15} /> 케이블:</span>
+            {/* 3D 화면을 보면서 바로 케이블을 바꿀 수 있게 툴바에도 둔다 */}
+            <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="사용할 케이블">
+              {Object.entries(cables).map(([k, n]) => (
+                <button key={k} type="button" role="radio" aria-checked={selectedCable === k} onClick={() => setSelectedCable(k)} title={CABLES[k].desc}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded border text-xs ${selectedCable === k ? 'bg-blue-800 border-blue-300 text-white' : 'bg-slate-900 border-slate-600 text-slate-300 hover:bg-slate-700'} ${n === 0 ? 'opacity-50' : ''}`}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${CABLES[k].dot}`} />{CABLES[k].short}
+                  <span className="font-mono text-[10px] text-slate-400">×{Number.isFinite(n) ? n : '∞'}</span>
+                </button>
+              ))}
+            </div>
             {pending && <span className="text-sky-300 animate-pulse">→ 연결할 반대쪽 단자를 클릭하세요 (Esc 취소)</span>}
             <div className="ml-auto flex items-center gap-2">
               {isStudio && (
@@ -948,6 +982,11 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
                   className={`px-2.5 py-1.5 rounded-md border flex items-center gap-1 ${showLabels ? 'bg-slate-700 border-slate-500' : 'bg-slate-900 border-slate-700 text-slate-400'}`}>
                   <Tag size={13} /> 단자 이름 {showLabels ? 'ON' : 'OFF'}
                 </button>
+                <button type="button" onClick={() => setLockView((v) => !v)} aria-pressed={lockView}
+                  title="시점을 고정하면 드래그해도 화면이 돌지 않습니다 (확대/축소는 가능)"
+                  className={`px-2.5 py-1.5 rounded-md border flex items-center gap-1 ${lockView ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-900 border-slate-700 hover:bg-slate-700'}`}>
+                  {lockView ? <Lock size={13} /> : <Unlock size={13} />} 시점 {lockView ? '고정됨' : '고정'}
+                </button>
                 <button type="button" onClick={() => setCamReset((n) => n + 1)}
                   className="px-2.5 py-1.5 rounded-md border bg-slate-900 border-slate-700 hover:bg-slate-700 flex items-center gap-1">
                   <RotateCcw size={13} /> 전체 보기
@@ -969,13 +1008,13 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
               <Studio3D
                 stageId={currentStage} layoutKey={isStudio ? 'sandbox' : currentStage >= 3 ? 'studio' : 'pa'} devices={devices} connections={connections} mixer={mixer} speaker={speaker}
                 atem={atem} obs={obs} actual={actual} nominal={nominal} talking={talking} jitter={jitter} viewers={viewers}
-                pending={pending} selectedCable={selectedCable} selectedDevice={selectedDevice} labels={showLabels} resetKey={`${currentStage}-${camReset}`} focusRequest={focusReq}
+                pending={pending} selectedCable={selectedCable} selectedDevice={selectedDevice} labels={showLabels} resetKey={`${currentStage}-${camReset}`} focusRequest={focusReq} lockView={lockView}
                 onPortClick={handlePortClick} onSelectDevice={setSelectedDevice} onDisconnect={disconnect}
                 onPlace={placeDevice} onCancelPending={() => setPending(null)}
                 fallback={<NoWebGL hint="위쪽의 '배선도' 탭을 누르면 같은 게임을 2D 배선도로 계속할 수 있습니다." />}
               />
               <div className="pointer-events-none absolute bottom-2 left-3 right-3 text-[11px] text-slate-400 drop-shadow">
-                드래그: 회전 · 휠/핀치: 확대 · 장비 더블클릭: 가까이 보기 · 단자 클릭 → 반대쪽 단자 클릭: 연결 · 케이블 클릭: 분리
+                드래그: 회전 · 휠/핀치: 확대 · 장비 더블클릭: 가까이 보기 · 단자 클릭 → 반대쪽 단자 클릭: 연결 (연결 중에는 화면이 멈춤) · 케이블 클릭: 분리
               </div>
             </div>
           ) : (
@@ -1093,6 +1132,62 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
             </div>
           </div>
 
+          )}
+
+          {/* 믹서 콘솔: 페이더로 볼륨 조절 + 듣는 위치(모니터) */}
+          {devices.mixer?.placed && (
+            <div className="bg-slate-900 rounded-md p-3 border border-slate-700">
+              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
+                <SlidersHorizontal size={13} /> 믹서 콘솔 · {nominal.isDigital ? 'X32 CH01' : '아날로그 CH1'}
+              </div>
+              <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+                <div className="flex flex-col gap-2 w-44">
+                  <Slider id="dock-gain" label="GAIN" value={mixer.gain} min={0} max={60} onChange={(v) => setMix('gain', v)} display={`+${mixer.gain} dB`} accent="accent-red-400" />
+                  <div className="grid grid-cols-3 gap-1">
+                    {[['eqHigh', 'HIGH', 'accent-sky-300'], ['eqMid', 'MID', 'accent-emerald-300'], ['eqLow', 'LOW', 'accent-amber-300']].map(([k, t, a]) => (
+                      <Slider key={k} id={`dock-${k}`} label={t} value={mixer[k]} min={-15} max={15} onChange={(v) => setMix(k, v)} display={`${mixer[k] > 0 ? '+' : ''}${mixer[k]}`} accent={a} />
+                    ))}
+                  </div>
+                  <Slider id="dock-fx" label="FX 리버브·에코" value={mixer.fx} min={0} max={100} onChange={(v) => setMix('fx', v)} display={`${mixer.fx}%`} accent="accent-violet-400" />
+                  <div className="flex flex-wrap gap-1">
+                    <ToggleBtn on={mixer.lowCut} color="green" onClick={() => setMix('lowCut', !mixer.lowCut)}>LOW CUT</ToggleBtn>
+                    <ToggleBtn on={mixer.phantom} color="amber" onClick={() => { setMix('phantom', !mixer.phantom); addLog(`+48V 팬텀 전원 ${!mixer.phantom ? 'ON' : 'OFF'}`, 'info'); }}>48V</ToggleBtn>
+                    <ToggleBtn on={mixer.chMute} onClick={() => { setMix('chMute', !mixer.chMute); addLog(`CH1 MUTE ${!mixer.chMute ? 'ON' : 'OFF'}`, 'info'); }}>MUTE</ToggleBtn>
+                  </div>
+                </div>
+                <div className="flex items-end gap-1.5">
+                  <VFader label="CH1" value={mixer.chFader} onChange={(v) => setMix('chFader', v)} display={fmtDb(faderDb(mixer.chFader)).replace(' dB', '')} />
+                  <VMeter level={lv(actual.chPost)} />
+                </div>
+                <div className="flex items-end gap-1.5">
+                  <VFader label="MAIN" value={mixer.mainFader} onChange={(v) => setMix('mainFader', v)} display={fmtDb(faderDb(mixer.mainFader)).replace(' dB', '')} cap="#fca5a5" />
+                  <VMeter level={lv(actual.mainOut)} />
+                  <VMeter level={actual.mainOut == null ? null : lv(actual.mainOut) - 1.2} />
+                  <div className="self-center ml-1"><ToggleBtn on={mixer.mainMute} onClick={() => { setMix('mainMute', !mixer.mainMute); addLog(`MAIN MUTE ${!mixer.mainMute ? 'ON' : 'OFF'}`, 'info'); }}>MAIN<br />MUTE</ToggleBtn></div>
+                </div>
+                <div className="flex items-end gap-2 border-l border-slate-700 pl-4">
+                  <VFader label="모니터" value={monitorVol} onChange={setMonitorVol} display={`${monitorVol}%`} cap="#93c5fd" />
+                  <div className="flex flex-col gap-1.5 text-xs w-48">
+                    <div className="text-slate-400 flex items-center gap-1"><Ear size={13} /> 듣는 위치</div>
+                    {devices.speaker && (
+                      <button type="button" onClick={() => setMonitor('pa')}
+                        className={`px-2 py-1.5 rounded border text-left ${monitor === 'pa' ? 'bg-sky-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>현장 스피커 소리</button>
+                    )}
+                    {devices.pc && (
+                      <button type="button" onClick={() => setMonitor('obs')}
+                        className={`px-2 py-1.5 rounded border text-left ${monitor === 'obs' ? 'bg-sky-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>송출(OBS) 소리 · 시청자가 듣는 소리</button>
+                    )}
+                    <p className={`leading-snug ${!talking ? 'text-slate-500' : hearing ? 'text-green-300' : 'text-red-300'}`}>
+                      {!soundOn ? '소리가 꺼져 있습니다 (위쪽 스피커 버튼).'
+                        : !talking ? (stage.autoTalk || isStudio ? '진행자가 말하면 여기서 들립니다.' : '"말하기"를 누르면 실제 목소리가 들립니다.')
+                          : hearing ? `들리는 중 · ${clipping ? '찌그러짐(클리핑)!' : `크기 ${Math.round(voiceVolume * 100)}%`}`
+                            : '아무 소리도 들리지 않습니다. 신호가 어디서 끊겼는지 확인하세요.'}
+                    </p>
+                    {!voiceOk && <p className="text-[11px] text-amber-300">이 브라우저는 음성 합성을 지원하지 않아 효과음만 들립니다.</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* 신호 추적기 */}
@@ -1244,13 +1339,12 @@ export default function PlayScreen({ mode = 'story', startStage = 1, onExit }) {
             <h2 className="text-lg font-semibold">시스템 로그</h2>
             <span className="text-xs text-slate-500 font-mono">경과 {elapsedLabel()}</span>
           </div>
-          <div className="h-56 bg-black rounded-lg p-3 overflow-y-auto font-mono text-sm space-y-0.5">
+          <div ref={logBoxRef} className="h-56 bg-black rounded-lg p-3 overflow-y-auto font-mono text-sm space-y-0.5">
             {systemLog.map((log) => (
               <div key={log.id} className={LOG_COLORS[log.type] ?? 'text-green-400'}>
                 <span className="text-slate-600">{log.time ? `[${log.time}] ` : ''}</span>{`> ${log.msg}`}
               </div>
             ))}
-            <div ref={logEndRef} />
           </div>
         </div>
       </div>

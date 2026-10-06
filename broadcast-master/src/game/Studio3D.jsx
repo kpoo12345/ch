@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useEffect, useState, useContext, createContext 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, RoundedBox, Html, Grid } from '@react-three/drei';
 import * as THREE from 'three';
-import { CABLES, PORT_COLOR, DEVICE_TYPES } from './engine.js';
+import { CABLES, PORT_COLOR, DEVICE_TYPES, MIXER_DEFAULT } from './engine.js';
 
 /* =====================================================================
  * 3D 스튜디오 — 장비를 입체로 모델링하고 게임 상태(페이더·LED·탈리·
@@ -61,10 +61,10 @@ const PORTS3D = {
   dynamic_mic: { out: { p: [0, 1.42, 0.13], n: [0, -0.35, 1] } },
   condenser_mic: { out: { p: [0, 1.36, 0], n: [0, -1, 0.15] } },
   analog_mixer: {
-    ch1: { p: [-0.2, 0.118, -0.19], n: [0, 0.75, -0.65] },
-    ch2: { p: [-0.13, 0.118, -0.19], n: [0, 0.75, -0.65] },
-    main: { p: [0.13, 0.118, -0.19], n: [0, 0.75, -0.65] },
-    phones: { p: [0.2, 0.118, -0.19], n: [0, 0.75, -0.65] },
+    ch1: { p: [-0.2575, 0.118, -0.19], n: [0, 0.75, -0.65] },
+    ch2: { p: [-0.2025, 0.118, -0.19], n: [0, 0.75, -0.65] },
+    main: { p: [0.205, 0.118, -0.19], n: [0, 0.75, -0.65] },
+    phones: { p: [0.26, 0.118, -0.19], n: [0, 0.75, -0.65] },
   },
   digital_mixer: {
     local1: { p: [-0.33, 0.175, -0.255], n: [0, 0.75, -0.65] },
@@ -121,7 +121,7 @@ const PORTS3D = {
 };
 
 const GHOST = {
-  dynamic_mic: [0.34, 1.5, 0.34], condenser_mic: [0.34, 1.6, 0.34], analog_mixer: [0.54, 0.1, 0.44],
+  dynamic_mic: [0.34, 1.5, 0.34], condenser_mic: [0.34, 1.6, 0.34], analog_mixer: [0.63, 0.1, 0.44],
   speaker: [0.5, 1.75, 0.5], digital_mixer: [0.84, 0.18, 0.58], camera: [0.7, 1.5, 0.7],
   atem: [0.44, 0.06, 0.2], pc: [0.9, 0.5, 0.25],
 };
@@ -137,7 +137,7 @@ const FRONT_LABEL = new Set(['analog_mixer', 'digital_mixer', 'atem']);
 const STAGGER = new Set(['analog_mixer', 'digital_mixer', 'atem', 'atem_pro', 'audio_interface', 'ptz', 'di_box']);
 // 작은 장비는 단자 표시도 작게
 const PORT_SCALE = { audio_interface: 0.55, di_box: 0.7, ptz: 0.6, mirrorless: 0.6, headphones: 0.5, atem_pro: 0.8, wireless_mic: 0.8 };
-const SELECT_RADIUS = { dynamic_mic: 0.25, condenser_mic: 0.25, speaker: 0.42, camera: 0.5, analog_mixer: 0.36, digital_mixer: 0.52, atem: 0.27, pc: 0.55 };
+const SELECT_RADIUS = { dynamic_mic: 0.25, condenser_mic: 0.25, speaker: 0.42, camera: 0.5, analog_mixer: 0.4, digital_mixer: 0.52, atem: 0.27, pc: 0.55 };
 
 const MAT = { body: '#262b33', dark: '#14171c', panel: '#30363f', metal: '#a3acb7', black: '#08090b' };
 const UP = new THREE.Vector3(0, 1, 0);
@@ -487,53 +487,117 @@ function Presenter({ position, talking, captured }) {
   );
 }
 
-function AnalogMixerModel({ mixer, chLevel, mainLevel }) {
-  const xs = [-0.19, -0.12, -0.05, 0.02];
+// 아날로그 믹서: 채널 수에 따라 폭이 늘어난다. 1번 채널이 게임 상태와 연결되고 나머지는 장식용.
+const ANALOG_PITCH = 0.055;
+const analogWidth = (ch) => ch * ANALOG_PITCH + 0.17;
+function AnalogMixerModel({ mixer, chLevel, mainLevel, channels = 8 }) {
+  const W = analogWidth(channels);
+  const x0 = -W / 2 + 0.02 + ANALOG_PITCH / 2;
+  const xm = W / 2 - 0.085; // 마스터 섹션 중심
+  const xs = Array.from({ length: channels }, (_, i) => x0 + i * ANALOG_PITCH);
+  const decorFader = (i) => [0, 0, 62, 55, 0, 70, 48, 0, 66, 0, 58, 0, 40, 0, 72, 0][i % 16];
   return (
     <group>
-      <RoundedBox args={[0.52, 0.07, 0.42]} radius={0.012} position={[0, 0.035, 0]} castShadow receiveShadow>
+      <RoundedBox args={[W, 0.07, 0.42]} radius={0.012} position={[0, 0.035, 0]} castShadow receiveShadow>
         <meshStandardMaterial color="#2e333b" roughness={0.6} metalness={0.2} />
       </RoundedBox>
-      {[-0.27, 0.27].map((x) => (
+      {[-W / 2 - 0.012, W / 2 + 0.012].map((x) => (
         <mesh key={x} position={[x, 0.04, 0]} castShadow><boxGeometry args={[0.025, 0.085, 0.43]} /><meshStandardMaterial color="#3a2a1f" roughness={0.8} /></mesh>
       ))}
-      <mesh position={[0, 0.09, -0.19]} castShadow><boxGeometry args={[0.5, 0.05, 0.05]} /><meshStandardMaterial color="#1a1d22" /></mesh>
+      <mesh position={[0, 0.09, -0.19]} castShadow><boxGeometry args={[W - 0.02, 0.05, 0.05]} /><meshStandardMaterial color="#1a1d22" /></mesh>
       {xs.map((x, i) => {
         const ch1 = i === 0;
         return (
           <group key={x} position={[x, 0.071, 0]}>
-            <Knob position={[0, 0, -0.135]} value={ch1 ? mixer.gain : 20} min={0} max={60} color="#ef4444" />
+            {/* 뒤쪽 입력 단자 (1·2번은 게임 단자, 나머지는 장식) */}
+            {i >= 2 && (
+              <group position={[0, 0.048, -0.19]} rotation={[-0.71, 0, 0]}>
+                <mesh><cylinderGeometry args={[0.015, 0.015, 0.012, 18]} /><meshStandardMaterial color="#050608" /></mesh>
+                <mesh position={[0, 0.006, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.017, 0.003, 8, 20]} /><meshStandardMaterial color="#64748b" /></mesh>
+              </group>
+            )}
+            <Knob position={[0, 0, -0.135]} value={ch1 ? mixer.gain : 18 + ((i * 7) % 20)} min={0} max={60} color="#ef4444" />
             <Knob position={[0, 0, -0.095]} value={ch1 ? mixer.eqHigh : 0} min={-15} max={15} color="#60a5fa" size={0.012} />
             <Knob position={[0, 0, -0.06]} value={ch1 ? mixer.eqMid : 0} min={-15} max={15} color="#34d399" size={0.012} />
             <Knob position={[0, 0, -0.025]} value={ch1 ? mixer.eqLow : 0} min={-15} max={15} color="#fbbf24" size={0.012} />
             <Lamp position={[0, 0.004, 0.012]} on={ch1 && mixer.chMute} color="#ef4444" size={[0.022, 0.008, 0.014]} offColor="#40454d" />
-            <Fader position={[0, 0.002, 0.11]} value={ch1 ? mixer.chFader : 0} />
+            <Fader position={[0, 0.002, 0.11]} value={ch1 ? mixer.chFader : decorFader(i)} />
           </group>
         );
       })}
-      <group position={[0, 0.071, 0]}>
-        <LedMeter position={[0.125, 0.003, -0.02]} level={mainLevel} />
-        <LedMeter position={[0.145, 0.003, -0.02]} level={mainLevel == null ? null : mainLevel - 1.5} />
-        <LedMeter position={[0.17, 0.003, -0.02]} level={chLevel} />
-        <Lamp position={[0.21, 0.004, 0.012]} on={mixer.mainMute} color="#ef4444" size={[0.022, 0.008, 0.014]} offColor="#40454d" />
-        <Lamp position={[0.21, 0.004, -0.13]} on={mixer.phantom} color="#f59e0b" size={[0.012, 0.006, 0.008]} />
-        <Lamp position={[0.21, 0.004, -0.1]} on color="#22c55e" size={[0.008, 0.006, 0.008]} />
-        <Fader position={[0.21, 0.002, 0.11]} value={mixer.mainFader} color="#f87171" />
+      <group position={[xm, 0.071, 0]}>
+        <LedMeter position={[-0.045, 0.003, -0.02]} level={mainLevel} />
+        <LedMeter position={[-0.025, 0.003, -0.02]} level={mainLevel == null ? null : mainLevel - 1.5} />
+        <LedMeter position={[0.0, 0.003, -0.02]} level={chLevel} />
+        <Knob position={[-0.035, 0, -0.135]} value={0} color="#a78bfa" size={0.011} />
+        <Knob position={[0.0, 0, -0.135]} value={0} color="#a78bfa" size={0.011} />
+        <Lamp position={[0.04, 0.004, 0.012]} on={mixer.mainMute} color="#ef4444" size={[0.022, 0.008, 0.014]} offColor="#40454d" />
+        <Lamp position={[0.04, 0.004, -0.13]} on={mixer.phantom} color="#f59e0b" size={[0.012, 0.006, 0.008]} />
+        <Lamp position={[0.04, 0.004, -0.1]} on color="#22c55e" size={[0.008, 0.006, 0.008]} />
+        <Fader position={[0.02, 0.002, 0.11]} value={mixer.mainFader} color="#f87171" />
+        <Fader position={[0.05, 0.002, 0.11]} value={mixer.mainFader} color="#f87171" />
       </group>
     </group>
   );
 }
 
-function DigitalMixerModel({ mixer, chLevel, mainLevel, screenTex }) {
-  const xs = [-0.33, -0.255, -0.18, -0.105, -0.03, 0.045, 0.12, 0.195];
-  const decor = [0, 62, 55, 70, 0, 48, 66, 0];
+// 대형 디지털 콘솔 (교육 모드 "믹서 종류"용): 페이더 뱅크 3개 + 터치스크린 2개 + 미터 브리지
+function LargeConsoleModel({ screenTex }) {
+  const W = 1.5;
+  const banks = [-0.5, 0.0, 0.42];
   const strip = ['#38bdf8', '#a78bfa', '#f472b6', '#facc15', '#4ade80', '#fb923c', '#22d3ee', '#94a3b8'];
   return (
     <group>
-      <RoundedBox args={[0.82, 0.09, 0.56]} radius={0.015} position={[0, 0.045, 0]} castShadow receiveShadow>
+      <RoundedBox args={[W, 0.1, 0.7]} radius={0.02} position={[0, 0.05, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#1b1e24" roughness={0.5} metalness={0.3} />
+      </RoundedBox>
+      <mesh position={[0, 0.17, -0.31]} rotation={[-0.25, 0, 0]} castShadow><boxGeometry args={[W, 0.16, 0.06]} /><meshStandardMaterial color="#23272e" /></mesh>
+      {[-0.36, 0.36].map((x) => (
+        <group key={x} position={[x, 0.18, -0.275]} rotation={[-0.25, 0, 0]}>
+          <mesh><planeGeometry args={[0.5, 0.13]} /><meshBasicMaterial map={screenTex} toneMapped={false} /></mesh>
+        </group>
+      ))}
+      {/* 미터 브리지 */}
+      {Array.from({ length: 36 }).map((_, i) => (
+        <LedMeter key={i} position={[-0.7 + i * 0.04, 0.255, -0.335]} level={-30 + ((i * 13) % 28)} step={0.009} dir={[0, 0, 0]} />
+      ))}
+      {banks.map((bx, b) => (
+        <group key={bx} position={[bx, 0.101, 0.03]}>
+          {Array.from({ length: b === 2 ? 6 : 12 }).map((_, i) => {
+            const x = (i - (b === 2 ? 2.5 : 5.5)) * 0.036;
+            return (
+              <group key={i} position={[x, 0, 0]}>
+                <mesh position={[0, 0.001, -0.17]}><planeGeometry args={[0.03, 0.016]} /><meshBasicMaterial color={strip[(i + b * 3) % 8]} toneMapped={false} /></mesh>
+                <Knob position={[0, 0, -0.13]} value={0.2 * ((i % 5) - 2)} color="#94a3b8" size={0.009} />
+                <Lamp position={[0, 0.003, -0.095]} on={i % 7 === 3} color="#ef4444" size={[0.024, 0.006, 0.012]} offColor="#3a3f47" />
+                <Fader position={[0, 0.002, 0.07]} value={b === 2 && i === 5 ? 75 : 40 + ((i * 17 + b * 11) % 40)} length={0.2} color={b === 2 && i === 5 ? '#f87171' : '#e5e7eb'} />
+              </group>
+            );
+          })}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function DigitalMixerModel({ mixer, chLevel, mainLevel, screenTex }) {
+  // 채널 페이더 16개 (X32 Compact 배치) + 메인
+  const xs = Array.from({ length: 16 }, (_, i) => -0.37 + i * 0.043);
+  const decor = [0, 62, 55, 70, 0, 48, 66, 0, 58, 72, 0, 40, 64, 0, 50, 68];
+  const strip = ['#38bdf8', '#a78bfa', '#f472b6', '#facc15', '#4ade80', '#fb923c', '#22d3ee', '#94a3b8'];
+  return (
+    <group>
+      <RoundedBox args={[0.86, 0.09, 0.56]} radius={0.015} position={[0, 0.045, 0]} castShadow receiveShadow>
         <meshStandardMaterial color="#1d2026" roughness={0.55} metalness={0.25} />
       </RoundedBox>
-      <mesh position={[0, 0.125, -0.215]} castShadow><boxGeometry args={[0.82, 0.08, 0.13]} /><meshStandardMaterial color="#23272e" roughness={0.5} /></mesh>
+      <mesh position={[0, 0.125, -0.215]} castShadow><boxGeometry args={[0.86, 0.08, 0.13]} /><meshStandardMaterial color="#23272e" roughness={0.5} /></mesh>
+      {/* 뒤쪽 로컬 입력 단자 (3~8번은 장식) */}
+      {[-0.19, -0.12, -0.05, 0.02, 0.09, 0.16].map((x) => (
+        <group key={x} position={[x, 0.175, -0.255]} rotation={[-0.71, 0, 0]}>
+          <mesh><cylinderGeometry args={[0.015, 0.015, 0.012, 18]} /><meshStandardMaterial color="#050608" /></mesh>
+          <mesh position={[0, 0.006, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.017, 0.003, 8, 20]} /><meshStandardMaterial color="#64748b" /></mesh>
+        </group>
+      ))}
       <mesh position={[0.0, 0.127, -0.149]} rotation={[-0.35, 0, 0]}>
         <planeGeometry args={[0.3, 0.075]} />
         <meshBasicMaterial map={screenTex} toneMapped={false} />
@@ -543,18 +607,18 @@ function DigitalMixerModel({ mixer, chLevel, mainLevel, screenTex }) {
         const ch1 = i === 0;
         return (
           <group key={x} position={[x, 0.091, 0]}>
-            <mesh position={[0, 0.001, -0.005]}><planeGeometry args={[0.055, 0.022]} /><meshBasicMaterial color={strip[i]} toneMapped={false} transparent opacity={ch1 ? 1 : 0.55} /></mesh>
-            <Lamp position={[0, 0.003, 0.025]} on={ch1 ? mixer.chMute : false} color="#ef4444" size={[0.03, 0.007, 0.014]} offColor="#3a3f47" />
-            <LedMeter position={[0.022, 0.003, -0.03]} level={ch1 ? chLevel : null} step={0.008} />
+            <mesh position={[0, 0.001, -0.005]}><planeGeometry args={[0.036, 0.02]} /><meshBasicMaterial color={strip[i % 8]} toneMapped={false} transparent opacity={ch1 ? 1 : 0.55} /></mesh>
+            <Lamp position={[0, 0.003, 0.025]} on={ch1 ? mixer.chMute : false} color="#ef4444" size={[0.026, 0.007, 0.013]} offColor="#3a3f47" />
+            <LedMeter position={[0.016, 0.003, -0.03]} level={ch1 ? chLevel : null} step={0.008} />
             <Fader position={[0, 0.002, 0.15]} value={ch1 ? mixer.chFader : decor[i]} length={0.15} />
           </group>
         );
       })}
-      <group position={[-0.33, 0.091, -0.11]}>
+      <group position={[-0.37, 0.091, -0.11]}>
         <Lamp position={[0, 0.003, 0]} on={mixer.phantom} color="#f59e0b" size={[0.026, 0.007, 0.013]} offColor="#3a3f47" />
         <Knob position={[0.05, 0, 0]} value={mixer.gain} min={0} max={60} color="#ef4444" />
       </group>
-      <group position={[0.33, 0.091, 0]}>
+      <group position={[0.37, 0.091, 0]}>
         <mesh position={[0, 0.001, -0.005]}><planeGeometry args={[0.055, 0.022]} /><meshBasicMaterial color="#f8fafc" toneMapped={false} /></mesh>
         <Lamp position={[0, 0.003, 0.025]} on={mixer.mainMute} color="#ef4444" size={[0.03, 0.007, 0.014]} offColor="#3a3f47" />
         <LedMeter position={[-0.024, 0.003, -0.03]} level={mainLevel} step={0.008} />
@@ -1016,6 +1080,7 @@ function Plug({ p, n, color }) {
 }
 
 function Cable3D({ A, B, layout, cable, live, onDisconnect }) {
+  const hold = useHoldCamera();
   const color = CABLES[cable].stroke;
   const key = `${A.p.join()}|${B.p.join()}|${A.n.join()}|${B.n.join()}`;
   const curve = useMemo(() => new THREE.CatmullRomCurve3(routePoints(A, B, layout), false, 'centripetal'), [key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1034,7 +1099,8 @@ function Cable3D({ A, B, layout, cable, live, onDisconnect }) {
     <group>
       <mesh
         geometry={geo} castShadow
-        onClick={(e) => { e.stopPropagation(); if (e.delta < 6) onDisconnect(); }}
+        onPointerDown={(e) => { e.stopPropagation(); hold(); }}
+        onClick={(e) => { e.stopPropagation(); if (e.delta < 10) onDisconnect(); }}
         onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
       >
@@ -1080,6 +1146,17 @@ function PendingCable({ from, pointerRef, color }) {
 }
 
 /* ---------------------------- 단자 ---------------------------- */
+// 단자·케이블을 누르는 동안에는 시점 회전을 멈춰, 클릭할 때 화면이 미끄러지지 않게 한다
+function useHoldCamera() {
+  const controls = useThree((st) => st.controls);
+  return () => {
+    if (!controls) return;
+    controls.enabled = false;
+    const release = () => { controls.enabled = true; window.removeEventListener('pointerup', release); window.removeEventListener('pointercancel', release); };
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+  };
+}
 // 3D에서 단자가 촘촘한 장비는 짧은 이름을 쓴다
 const SHORT_LABEL = {
   'analog_mixer:ch2': 'CH2 LINE', 'analog_mixer:ch1': 'CH1 MIC', 'analog_mixer:main': 'MAIN', 'analog_mixer:phones': 'PHONES',
@@ -1092,6 +1169,7 @@ const SHORT_LABEL = {
 const SOCKET_R = { xlr: 0.017, combo: 0.018, trs: 0.011, hdmi: 0.012, sdi: 0.011, usb: 0.009, eth: 0.012, mini: 0.007 };
 
 function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, onClick }) {
+  const hold = useHoldCamera();
   const q = useMemo(() => quatFromNormal(n), [n]);
   const ring = useRef();
   const [hover, setHover] = useState(false);
@@ -1118,7 +1196,8 @@ function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, label
         </mesh>
         {/* 클릭 판정용 투명 구 */}
         <mesh
-          onClick={(e) => { e.stopPropagation(); if (e.delta < 6) onClick(); }}
+          onPointerDown={(e) => { e.stopPropagation(); hold(); }}
+          onClick={(e) => { e.stopPropagation(); if (e.delta < 10) onClick(); }}
           onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'crosshair'; }}
           onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
         >
@@ -1218,7 +1297,6 @@ function CameraRig({ layout, resetKey, shake, portWorld, focus }) {
       a.t += dt;
       if (a.t > 1.6 || camera.position.distanceTo(a.pos) < 0.01) anim.current = null;
     }
-    if (shake) camera.position.x += Math.sin(clock.elapsedTime * 90) * 0.0025;
   });
   return null;
 }
@@ -1236,7 +1314,7 @@ function AfterFirstFrame({ children }) {
  * ===================================================================== */
 export default function Studio3D({
   stageId, layoutKey, interactive = true, autoRotate = false, fallback, devices, connections, mixer, speaker, atem, obs, actual, nominal, talking, jitter, viewers,
-  pending, selectedCable, selectedDevice, labels, resetKey, focusRequest,
+  pending, selectedCable, selectedDevice, labels, resetKey, focusRequest, lockView = false,
   onPortClick, onSelectDevice, onDisconnect, onPlace, onCancelPending,
 }) {
   const layout = LAYOUTS[layoutKey] ?? (stageId >= 3 ? LAYOUTS.studio : LAYOUTS.pa);
@@ -1343,8 +1421,9 @@ export default function Studio3D({
 
       <CameraRig layout={layout} resetKey={resetKey} shake={actual.feedback} portWorld={portWorld} focus={focus} />
       <OrbitControls
-        makeDefault enableDamping dampingFactor={0.08}
-        autoRotate={autoRotate} autoRotateSpeed={0.5} enableZoom={interactive} enablePan={interactive}
+        makeDefault enableDamping dampingFactor={0.2}
+        enableRotate={!lockView && !pending} autoRotate={autoRotate} autoRotateSpeed={0.5}
+        enableZoom={interactive} enablePan={interactive && !lockView && !pending}
         minDistance={1.2} maxDistance={12} maxPolarAngle={Math.PI / 2.08}
       />
 
@@ -1446,7 +1525,7 @@ const VIEW = {
 };
 // 책상(받침대) 위에 올려 보여 줄 장비와 받침대 크기 [가로, 세로]
 const PEDESTAL = {
-  analog_mixer: [0.75, 0.65], digital_mixer: [1.3, 0.65], atem: [0.6, 0.4], pc: [1.3, 0.65], audio_interface: [0.42, 0.32],
+  analog_mixer: [0.85, 0.65], digital_mixer: [1.3, 0.65], atem: [0.6, 0.4], pc: [1.3, 0.65], audio_interface: [0.42, 0.32],
   wireless_mic: [0.55, 0.38], di_box: [0.32, 0.32], headphones: [0.45, 0.35], mirrorless: [0.42, 0.38], ptz: [0.4, 0.4], atem_pro: [0.75, 0.75],
 };
 
@@ -1609,6 +1688,44 @@ function ConnectorModel({ kind, color, female = false }) {
           <mesh position={[0, 0.012, 0]}><cylinderGeometry args={[0.0095, 0.0095, 0.006, 16]} /><meshStandardMaterial color={color} /></mesh>
         </group>
       );
+    case 'mini':
+      return (
+        <group>
+          <mesh position={[0, 0.02, 0]} castShadow><cylinderGeometry args={[0.006, 0.005, 0.04, 16]} />{body}</mesh>
+          <mesh position={[0, 0.048, 0]}><cylinderGeometry args={[0.0018, 0.0018, 0.016, 10]} />{metal}</mesh>
+          {[0.044, 0.05].map((y) => <mesh key={y} position={[0, y, 0]}><cylinderGeometry args={[0.00185, 0.00185, 0.0012, 10]} /><meshStandardMaterial color="#111" /></mesh>)}
+          <mesh position={[0, 0.057, 0]}><sphereGeometry args={[0.0018, 10, 8]} />{metal}</mesh>
+          <mesh position={[0, 0.006, 0]}><cylinderGeometry args={[0.0062, 0.0062, 0.004, 16]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
+    case 'rca':
+      return (
+        <group>
+          <mesh position={[0, 0.025, 0]} castShadow><cylinderGeometry args={[0.008, 0.007, 0.05, 18]} />{body}</mesh>
+          <mesh position={[0, 0.042, 0]}><cylinderGeometry args={[0.0082, 0.0082, 0.006, 18]} /><meshStandardMaterial color={color} /></mesh>
+          <mesh position={[0, 0.056, 0]}><cylinderGeometry args={[0.0048, 0.0048, 0.012, 16, 1, true]} />{metal}</mesh>
+          <mesh position={[0, 0.058, 0]}><cylinderGeometry args={[0.0013, 0.0013, 0.016, 8]} /><meshStandardMaterial color="#d4af37" metalness={0.9} /></mesh>
+        </group>
+      );
+    case 'speakon':
+      return (
+        <group>
+          <mesh position={[0, 0.035, 0]} castShadow><cylinderGeometry args={[0.016, 0.014, 0.07, 24]} /><meshStandardMaterial color="#1f2937" roughness={0.6} /></mesh>
+          <mesh position={[0, 0.074, 0]}><cylinderGeometry args={[0.017, 0.017, 0.012, 24]} /><meshStandardMaterial color="#2563eb" /></mesh>
+          <mesh position={[0, 0.082, 0]}><cylinderGeometry args={[0.011, 0.011, 0.01, 20]} /><meshStandardMaterial color="#111" /></mesh>
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0115, 0.084, 0]}><boxGeometry args={[0.004, 0.008, 0.005]} /><meshStandardMaterial color="#111" /></mesh>)}
+          <mesh position={[0, 0.06, 0]}><torusGeometry args={[0.0165, 0.0018, 8, 24]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
+    case 'eth':
+      return (
+        <group>
+          <mesh position={[0, 0.02, 0]} castShadow><boxGeometry args={[0.014, 0.04, 0.01]} /><meshStandardMaterial color={color} roughness={0.5} /></mesh>
+          <mesh position={[0, 0.05, 0]}><boxGeometry args={[0.0115, 0.022, 0.0075]} /><meshStandardMaterial color="#dbeafe" transparent opacity={0.55} roughness={0.1} /></mesh>
+          {Array.from({ length: 8 }).map((_, i) => <mesh key={i} position={[-0.0044 + i * 0.00126, 0.059, 0.0035]}><boxGeometry args={[0.0007, 0.004, 0.0006]} /><meshStandardMaterial color="#d4af37" metalness={0.9} /></mesh>)}
+          <mesh position={[0, 0.047, -0.0055]} rotation={[0.35, 0, 0]}><boxGeometry args={[0.005, 0.02, 0.0012]} /><meshStandardMaterial color="#dbeafe" transparent opacity={0.7} /></mesh>
+        </group>
+      );
     case 'usb':
     default:
       return (
@@ -1621,15 +1738,16 @@ function ConnectorModel({ kind, color, female = false }) {
   }
 }
 
-export function CableShowcase({ kind }) {
-  const color = CABLES[kind].stroke;
+export function CableShowcase({ kind, color: colorProp }) {
+  const color = colorProp ?? CABLES[kind]?.stroke ?? '#94a3b8';
+  const thick = { trs: 0.0065, xlr: 0.0065, speakon: 0.008, rca: 0.004, mini: 0.0025, eth: 0.003 }[kind] ?? 0.0045;
   const tube = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-0.12, 0.35, 0), new THREE.Vector3(-0.2, 0.18, 0.05), new THREE.Vector3(0, 0.05, 0.12),
       new THREE.Vector3(0.2, 0.18, 0.05), new THREE.Vector3(0.12, 0.35, 0),
     ]);
-    return new THREE.TubeGeometry(curve, 80, kind === 'trs' || kind === 'xlr' ? 0.0065 : 0.0045, 10, false);
-  }, [kind]);
+    return new THREE.TubeGeometry(curve, 80, thick, 10, false);
+  }, [kind, thick]);
   useEffect(() => () => tube.dispose(), [tube]);
   return (
     <CanvasShell shadows dpr={[1, 1.75]} camera={{ fov: 35, near: 0.01, far: 20, position: [0.25, 0.5, 0.75] }} style={{ touchAction: 'none' }}>
@@ -1639,15 +1757,45 @@ export function CableShowcase({ kind }) {
       <directionalLight position={[1, 2, 1.5]} intensity={2.4} castShadow />
       <OrbitControls makeDefault enableDamping autoRotate autoRotateSpeed={1.5} target={[0, 0.33, 0]} minDistance={0.2} maxDistance={1.6} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><circleGeometry args={[1, 48]} /><meshStandardMaterial color="#232b3a" /></mesh>
-      <mesh geometry={tube} castShadow><meshStandardMaterial color={kind === 'sdi' ? '#1e3a8a' : '#1f2329'} roughness={0.6} /></mesh>
-      <group position={[-0.12, 0.35, 0]}><ConnectorModel kind={kind} color={color} /></group>
-      <group position={[0.12, 0.35, 0]} rotation={[0, Math.PI / 2, 0]}><ConnectorModel kind={kind} color={color} female={kind === 'xlr'} /></group>
+      <mesh geometry={tube} castShadow><meshStandardMaterial color={kind === 'sdi' ? '#1e3a8a' : kind === 'eth' ? '#2563eb' : '#1f2329'} roughness={0.6} /></mesh>
+      <group position={[-0.12, 0.35, 0]}><ConnectorModel kind={kind} color={kind === 'rca' ? '#ef4444' : color} /></group>
+      <group position={[0.12, 0.35, 0]} rotation={[0, Math.PI / 2, 0]}><ConnectorModel kind={kind} color={kind === 'rca' ? '#f1f5f9' : color} female={kind === 'xlr'} /></group>
       {kind === 'xlr' && (
         <>
           <Label position={[-0.12, 0.5, 0]} center zIndexRange={[20, 0]} wrapperClass="bm-noevents"><div className="rounded bg-black/80 px-2 py-0.5 text-[11px] text-white whitespace-nowrap">수(Male) · 핀 3개</div></Label>
           <Label position={[0.12, 0.5, 0]} center zIndexRange={[20, 0]} wrapperClass="bm-noevents"><div className="rounded bg-black/80 px-2 py-0.5 text-[11px] text-white whitespace-nowrap">암(Female) · 구멍 3개</div></Label>
         </>
       )}
+    </CanvasShell>
+  );
+}
+
+/* ---------------------------- 믹서 크기 비교 (소형·중형·대형) ---------------------------- */
+const MIXER_SIZE_VIEW = {
+  small: { channels: 6, ped: [0.75, 0.6], target: [0, DESK_TOP + 0.05, 0], dist: 0.95 },
+  medium: { channels: 16, ped: [1.35, 0.65], target: [0, DESK_TOP + 0.05, 0], dist: 1.45 },
+  large: { ped: [1.95, 1.0], target: [0, DESK_TOP + 0.12, 0], dist: 1.75 },
+};
+const DEMO_MIX = { ...MIXER_DEFAULT, gain: 30, chFader: 70, mainFader: 75 };
+export function MixerSizeViewer({ size }) {
+  const v = MIXER_SIZE_VIEW[size];
+  const screenTex = useCanvasTexture(1024, 256, (ctx, w, h) => drawX32Screen(ctx, w, h, { mixer: DEMO_MIX, micAtCh: true, condenser: false, chLv: -14, mainLv: -12 }), []);
+  return (
+    <CanvasShell shadows dpr={[1, 1.75]} camera={{ fov: 38, near: 0.02, far: 40, position: [1, 1.5, 2] }} style={{ touchAction: 'none' }}>
+      <color attach="background" args={['#131a27']} />
+      <ambientLight intensity={0.8} />
+      <hemisphereLight args={['#d6e2f5', '#2a2622', 1.0]} />
+      <directionalLight position={[2, 4, 3]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
+      <ViewerRig target={v.target} dist={v.dist} />
+      <OrbitControls makeDefault enableDamping dampingFactor={0.2} autoRotate autoRotateSpeed={0.8} minDistance={v.dist * 0.4} maxDistance={v.dist * 2} maxPolarAngle={Math.PI / 2.05} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><circleGeometry args={[4, 64]} /><meshStandardMaterial color="#232b3a" /></mesh>
+      <Grid position={[0, 0.002, 0]} args={[8, 8]} cellSize={0.25} cellColor="#2c3850" sectionSize={1} sectionColor="#3b4a68" fadeDistance={8} infiniteGrid />
+      <RoundedBox args={[v.ped[0], DESK_TOP, v.ped[1]]} radius={0.01} position={[0, DESK_TOP / 2, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#6b4f3a" roughness={0.6} />
+      </RoundedBox>
+      <group position={[0, DESK_TOP, 0]}>
+        {size === 'large' ? <LargeConsoleModel screenTex={screenTex} /> : <AnalogMixerModel mixer={DEMO_MIX} chLevel={-14} mainLevel={-12} channels={v.channels} />}
+      </group>
     </CanvasShell>
   );
 }

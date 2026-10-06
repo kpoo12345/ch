@@ -52,7 +52,7 @@ export const DEVICE_TYPES = {
     info: '얇은 진동판과 축전기(콘덴서) 원리로 섬세한 소리를 잡습니다. 내부 회로가 동작하려면 믹서에서 XLR 케이블을 통해 +48V 팬텀 전원을 공급해야 합니다. 팬텀이 꺼져 있으면 소리가 전혀 나지 않습니다.',
   },
   analog_mixer: {
-    name: '아날로그 믹서', model: '소형 4채널', icon: SlidersHorizontal, w: 230,
+    name: '아날로그 믹서', model: '8채널 소형', icon: SlidersHorizontal, w: 230,
     ins: [{ id: 'ch1', label: 'CH1 MIC IN', kind: 'xlr' }, { id: 'ch2', label: 'CH2 LINE IN', kind: 'trs' }],
     outs: [{ id: 'main', label: 'MAIN OUT', kind: 'xlr' }, { id: 'phones', label: 'PHONES', kind: 'trs' }],
     info: '여러 입력을 모아 증폭(GAIN) → 음색 보정(EQ) → 음량 조절(페이더)을 거쳐 MAIN OUT으로 내보내는 오디오의 심장입니다. 신호는 위에서 아래로, 채널 스트립 순서대로 흐릅니다.',
@@ -150,7 +150,7 @@ export const conn = (fd, fp, td, tp, cable) => ({ id: `${fd}.${fp}>${td}.${tp}`,
 export const toMap = (arr) => Object.fromEntries(arr.map((d) => [d.id, d]));
 
 export const MIXER_DEFAULT = {
-  gain: 30, eqHigh: 0, eqMid: 0, eqLow: 0, chMute: false, chFader: 75,
+  gain: 30, eqHigh: 0, eqMid: 0, eqLow: 0, lowCut: false, fx: 0, chMute: false, chFader: 75,
   mainFader: 75, mainMute: false, phantom: false, ch1Source: 'local1', usbOut: 'main',
 };
 
