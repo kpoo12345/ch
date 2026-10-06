@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Move, RotateCw, Trash2, Trophy, CheckCircle2, Circle, Save } from 'lucide-react';
 import { DEVICE_TYPES } from '../engine.js';
 import { VENUES } from '../venues.js';
@@ -68,15 +68,19 @@ function makeSpec(venue, tpl) {
 }
 
 export default function Sandbox({ onExit }) {
-  const saved = useMemo(() => loadProgress('bm2-sandbox', null), []);
   const [setup, setSetup] = useState(null); // { spec, key }
   const [venue, setVenue] = useState('sandbox');
+  // 메뉴로 돌아오면 한 번 더 그려 게임 화면이 나가며 남긴 저장본까지 읽는다
+  const [, setSeen] = useState(0);
+  useEffect(() => { if (!setup) setSeen((n) => n + 1); }, [setup]);
   if (setup) {
     return (
       <GameScreen key={setup.key} spec={setup.spec} mode="sandbox" heading="스튜디오 모드 · 자유 설치" onExit={() => setSetup(null)}
         sandbox={{ Panel: SandboxPanel }} restore={setup.restore} />
     );
   }
+  // 저장본은 메뉴를 그릴 때마다 새로 읽는다 (게임 중 자동 저장된 최신 상태)
+  const saved = loadProgress('bm2-sandbox', null);
   return (
     <div className="min-h-[100dvh] bg-[#0b1220] text-slate-100">
       <header className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-950/90">

@@ -3,6 +3,7 @@ import { Power, Radio, Cable, Camera, Tv, MonitorPlay, Lightbulb, Clapperboard, 
 import { DEVICE_TYPES, CABLES } from '../engine.js';
 import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel } from '../sim.js';
 import { VENUES } from '../venues.js';
+import { nextDmxAddress, patchOverlap, discoverCams } from '../ops.js';
 import { Meter } from '../ui.jsx';
 import { Knob, Toggle, Seg, Stepper, Row, Card, HSlider } from './controls.jsx';
 import { drawSource, drawComposition, sourceOf, CLIPS, drawMeterBar } from '../scenes.js';
@@ -141,12 +142,17 @@ export function DevicePanel({ game, id }) {
     case 'ptz': {
       const r = nominal.ptz[id];
       const T = PTZ_TARGETS[st.venue]?.[d.slot];
+      const ipNet = String(s.ip).split('.').slice(0, 3).join('.');
+      const ipLast = Number(String(s.ip).split('.')[3]) || 1;
+      const joy = Object.values(st.devices).find((x) => x.placed && x.type === 'ptz_controller');
       body = (
         <Card title="PTZ 카메라 설정" icon={Camera}>
-          <Row label="IP 주소" hint="조이스틱과 같은 대역(앞 세 자리)이어야 합니다.">
-            <Seg small value={s.ip} options={[['192.168.1.21', '192.168.1.21'], ['192.168.1.22', '192.168.1.22'], ['192.168.0.21', '192.168.0.21']]} onChange={(v) => set('ip', v)} />
+          <Row label={`IP 주소 ${s.ip}`} hint="앞 세 자리(대역)는 조이스틱과 같게, 끝자리는 카메라마다 다르게.">
+            <Seg small value={ipNet} options={[['192.168.1', '192.168.1.x'], ['192.168.0', '192.168.0.x (다른 대역)']]} onChange={(v) => set('ip', `${v}.${ipLast}`)} />
+            <Stepper value={ipLast} min={1} max={254} onChange={(v) => set('ip', `${ipNet}.${v}`)} fmt={(v) => `.${v}`} label="IP 끝자리" />
           </Row>
-          <div className="text-[11px] text-slate-400">원격 제어: {r?.reachable ? <span className="text-green-300">조이스틱 {r.index}번으로 연결됨</span> : <span className="text-amber-300">{PTZ_REASON[r?.reason] ?? '—'}</span>}</div>
+          {joy && <div className="text-[11px] font-mono text-slate-500">조이스틱 목록: {(st.dev[joy.id]?.cams ?? []).map((ip, i) => `CAM${i + 1} ${ip}`).join(' · ')}</div>}
+          <div className="text-[11px] text-slate-400">원격 제어: {r?.reachable ? <span className="text-green-300">조이스틱 {r.index}번으로 연결됨</span> : <span className="text-amber-300">{PTZ_REASON[r?.reason] ?? '—'}{r?.dupWith?.length ? ` — ${r.dupWith.map((x) => st.devices[x]?.name ?? x).join(', ')}와(과) 같은 IP` : ''}</span>}</div>
           {T && <div className="text-[11px] text-slate-300">현재 구도: <b>{r?.framing ? T[r.framing].label : '대상 없음'}</b></div>}
           <Canvas2D w={320} h={180} draw={(ctx, w, h) => drawSource(ctx, sourceOf(st, nominal, id), 0, 0, w, h)} deps={[r?.framing, st.venue, s.pan, s.tilt, s.zoom]} />
           <p className="text-[11px] text-slate-500">PAN·TILT·ZOOM은 PTZ 조이스틱에서 움직입니다.</p>
@@ -239,6 +245,7 @@ export function DevicePanel({ game, id }) {
 const PTZ_REASON = {
   noController: 'PTZ 조이스틱이 없습니다', ctrlNet: '조이스틱이 네트워크에 연결되지 않음', camNet: '카메라 LAN이 연결되지 않음',
   otherNet: '서로 다른 공유기에 연결됨', subnet: 'IP 대역이 다름 (예: 192.168.0.x ≠ 192.168.1.x)', notInList: '조이스틱 카메라 목록에 이 IP가 없음',
+  dupIp: 'IP 충돌: 같은 IP를 쓰는 장비가 네트워크에 둘 이상 (끝자리를 바꾸세요)',
 };
 
 function lvOfInput(st, sim, id, i) {
@@ -328,6 +335,18 @@ function TigerTouchPanel({ game, id }) {
   const set = (key, value, visual = true) => apply({ op: 'dev', device: id, key, value }, { visual });
   const pr = cs.programmer ?? {};
   const toggleSel = (n) => { const sel = pr.sel ?? []; set('programmer.sel', sel.includes(n) ? sel.filter((x) => x !== n) : [...sel, n].sort()); };
+  // 패치 편집: 종류 · 시작 주소(기본 = 다음 빈 주소) · 이름
+  const [pType, setPType] = React.useState('par_led');
+  const [pAddr, setPAddr] = React.useState(null);
+  const [pLabel, setPLabel] = React.useState('');
+  const pMax = 513 - FOOTPRINT[pType];
+  const addr = Math.min(pAddr ?? nextDmxAddress(cs.patch), pMax);
+  const clash = patchOverlap(cs.patch, pType, addr);
+  const unpatched = Object.values(st.devices).filter((d) => d.placed && FOOTPRINT[d.type] && !cs.patch.some((e) => e.address === st.dev[d.id]?.address && e.type === d.type));
+  const addPatch = () => {
+    apply({ op: 'patchAdd', device: id, entry: { type: pType, address: addr, label: pLabel.trim() || `${DEVICE_TYPES[pType].name} ${cs.patch.length + 1}` } });
+    setPAddr(null); setPLabel('');
+  };
   return (
     <Card title="Avolites Tiger Touch II" icon={Lightbulb} right={<Seg small value={tab} options={[['pb', '플레이백'], ['prog', '프로그래머'], ['patch', '패치']]} onChange={setTab} />}>
       {tab === 'pb' && (
@@ -375,16 +394,39 @@ function TigerTouchPanel({ game, id }) {
         </>
       )}
       {tab === 'patch' && (
-        <table className="w-full text-xs">
-          <thead><tr className="text-slate-400"><th className="text-left">번호</th><th className="text-left">이름</th><th>종류</th><th>주소</th><th>채널</th></tr></thead>
-          <tbody>{cs.patch.map((e) => (
-            <tr key={e.n} className="text-slate-200 border-t border-slate-800">
-              <td>{e.n}</td><td>{e.label}</td><td className="text-center">{DEVICE_TYPES[e.type]?.name}</td>
-              <td className="text-center font-mono">{String(e.address).padStart(3, '0')}</td>
-              <td className="text-center font-mono text-slate-400">{e.address}~{e.address + (FOOTPRINT[e.type] ?? 8) - 1}</td>
-            </tr>
-          ))}</tbody>
-        </table>
+        <>
+          <table className="w-full text-xs">
+            <thead><tr className="text-slate-400"><th className="text-left">번호</th><th className="text-left">이름</th><th>종류</th><th>주소</th><th>채널</th><th /></tr></thead>
+            <tbody>{cs.patch.map((e) => (
+              <tr key={e.n} className="text-slate-200 border-t border-slate-800">
+                <td>{e.n}</td><td>{e.label}</td><td className="text-center">{DEVICE_TYPES[e.type]?.name}</td>
+                <td className="text-center font-mono">{String(e.address).padStart(3, '0')}</td>
+                <td className="text-center font-mono text-slate-400">{e.address}~{e.address + (FOOTPRINT[e.type] ?? 8) - 1}</td>
+                <td className="text-right"><button type="button" onClick={() => apply({ op: 'patchRemove', device: id, n: e.n })} aria-label={`${e.n}번 패치 삭제`} className="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-red-700 text-[10px]">삭제</button></td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {cs.patch.length === 0 && <div className="text-[11px] text-amber-300">패치가 비어 있습니다. 조명을 패치해야 프로그래머에서 고르고 켤 수 있습니다.</div>}
+          <div className="rounded border border-slate-700 p-2 space-y-1.5">
+            <div className="text-[11px] font-bold text-slate-300">조명 패치 추가</div>
+            {unpatched.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-400">패치 안 된 조명:
+                {unpatched.map((d) => <button key={d.id} type="button" onClick={() => { setPType(d.type); setPAddr(st.dev[d.id].address); setPLabel(d.name ?? ''); }} className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200">{d.name} ({String(st.dev[d.id].address).padStart(3, '0')})</button>)}
+              </div>
+            )}
+            <Row label="종류"><Seg small value={pType} options={[['par_led', 'LED 파 (8ch)'], ['moving_head', '무빙 헤드 (16ch)']]} onChange={setPType} /></Row>
+            <Row label="시작 주소" hint={`${String(addr).padStart(3, '0')} ~ ${String(addr + FOOTPRINT[pType] - 1).padStart(3, '0')}번 채널 · 조명기 본체 주소와 같아야 합니다.`}>
+              <Stepper value={addr} min={1} max={pMax} onChange={setPAddr} fmt={(v) => String(v).padStart(3, '0')} label="패치 시작 주소" />
+            </Row>
+            <Row label="이름">
+              <input type="text" value={pLabel} maxLength={20} onChange={(e) => setPLabel(e.target.value)} placeholder="예: 무대 앞 왼쪽" aria-label="패치 이름"
+                className="w-36 rounded border border-slate-700 bg-slate-950 px-1.5 py-1 text-xs text-slate-100" />
+            </Row>
+            {clash && <div className="text-[11px] text-amber-300">⚠ {clash.n}번({clash.label})과 채널이 겹칩니다. 그대로 추가하면 패치 충돌이 납니다.</div>}
+            <button type="button" onClick={addPatch} className="px-3 py-1 rounded bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold">+ 패치 추가</button>
+          </div>
+          {st.unlimited && <p className="text-[10px] text-slate-500">스튜디오 모드에서는 조명을 놓으면 다음 빈 주소로 자동 패치됩니다. 직접 지우고 다시 패치해 볼 수도 있습니다.</p>}
+        </>
       )}
       {game.nominal.light.conflicts.length > 0 && <div className="text-[11px] text-red-300">패치 충돌: 주소 범위가 겹칩니다.</div>}
     </Card>
@@ -465,6 +507,13 @@ function JoystickPanel({ game, id }) {
   const T = target ? PTZ_TARGETS[st.venue]?.[st.devices[target].slot] : null;
   const padRef = useRef(null);
   const aim = (pan, tilt, zoom) => apply({ op: 'ptz', device: id, act: 'aim', pan, tilt, zoom }, { visual: false });
+  // 카메라 목록 편집: 선택한 CAM의 IP 끝자리 · CAM 추가 · 네트워크에서 찾기
+  const selIp = String(cs.cams[cs.selected] ?? '');
+  const selNet = selIp.split('.').slice(0, 3).join('.') || String(cs.ip).split('.').slice(0, 3).join('.');
+  const selLast = Number(selIp.split('.')[3]) || 1;
+  const setCams = (cams) => apply({ op: 'dev', device: id, key: 'cams', value: cams });
+  const found = discoverCams(st, id);
+  const lastOf = (ip) => Number(String(ip).split('.')[3]) || 0;
   const drag = (e) => {
     if (!cam) return;
     const r = padRef.current.getBoundingClientRect();
@@ -474,14 +523,19 @@ function JoystickPanel({ game, id }) {
   return (
     <Card title="PTZ 조이스틱 컨트롤러" icon={Joystick}>
       <div className="text-[11px] text-slate-400">카메라 선택 (빨강 = 방송 중, 초록 = PVW)</div>
-      <div className="flex gap-1">
-        {[0, 1, 2, 3].map((i) => {
+      <div className="flex flex-wrap gap-1">
+        {cs.cams.map((_, i) => {
           const t = tally(i);
           return <button key={i} type="button" onClick={() => apply({ op: 'ptz', device: id, act: 'select', value: i })}
             className={`w-12 h-10 rounded font-bold text-xs border-2 ${cs.selected === i ? 'border-sky-300' : 'border-transparent'} ${t === 'pgm' ? 'bg-red-600 text-white' : t === 'pvw' ? 'bg-green-600 text-white' : camOf(i) ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-500'}`}>CAM {i + 1}</button>;
         })}
       </div>
-      <div className="text-[11px] font-mono text-slate-400">대상 IP: {cs.cams[cs.selected]} · {target ? <span className="text-green-300">응답 있음</span> : <span className="text-red-300">응답 없음</span>}</div>
+      <div className="text-[11px] font-mono text-slate-400">대상 IP: {cs.cams[cs.selected] ?? '—'} · {target ? <span className="text-green-300">응답 있음</span> : <span className="text-red-300">응답 없음</span>}</div>
+      <Row label={`CAM ${cs.selected + 1} IP 끝자리`} hint={`조이스틱 자신은 ${cs.ip} — 카메라 IP와 겹치면 안 됩니다.`}>
+        <Stepper value={selLast} min={1} max={254} onChange={(v) => setCams(cs.cams.map((ip, i) => (i === cs.selected ? `${selNet}.${v}` : ip)))} fmt={(v) => `.${v}`} label="카메라 IP 끝자리" />
+        {cs.cams.length < 8 && <button type="button" onClick={() => setCams([...cs.cams, `${selNet}.${Math.max(20, ...cs.cams.map(lastOf)) + 1}`])} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs">+ CAM</button>}
+        {found.length > cs.cams.length && <button type="button" onClick={() => setCams(found)} className="px-2 py-1 rounded bg-sky-700 hover:bg-sky-600 text-xs">네트워크에서 찾기 (+{found.length - cs.cams.length})</button>}
+      </Row>
       {tally(cs.selected) === 'pgm' && <div className="text-xs font-bold text-red-300 animate-pulse">⚠ 이 카메라는 지금 방송 중입니다! 움직이지 마세요.</div>}
       <div className="flex gap-3 items-center">
         <div ref={padRef} role="slider" aria-label="조이스틱 (PAN·TILT)" tabIndex={0}

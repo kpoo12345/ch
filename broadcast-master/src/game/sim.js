@@ -415,7 +415,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const ptz = {};
   const routerOf = (d, p) => { const c = outgoing[`${d}.${p}`]; return c && devices[c.to.d]?.type === 'router' ? c.to.d : null; };
   const ctrl = Object.values(devices).find((d) => d.placed && d.type === 'ptz_controller');
-  Object.values(devices).filter((d) => d.placed && d.type === 'ptz').forEach((d) => {
+  const ptzCams = Object.values(devices).filter((d) => d.placed && d.type === 'ptz');
+  ptzCams.forEach((d) => {
     const s = dev[d.id];
     const r = { reachable: false, index: null, reason: null };
     if (!ctrl) r.reason = 'noController';
@@ -424,10 +425,13 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
       const rc = routerOf(ctrl.id, 'lan'), rp = routerOf(d.id, 'lan');
       const subnet = (ip) => String(ip).split('.').slice(0, 3).join('.');
       const idx = cs.cams.indexOf(s.ip);
+      // IP 충돌: 같은 공유기에 같은 IP를 쓰는 카메라(또는 조이스틱)가 있으면 둘 다 응답이 엉킨다
+      const dup = [...ptzCams.filter((x) => x.id !== d.id && dev[x.id]?.ip === s.ip && routerOf(x.id, 'lan') === rp), ...(cs.ip === s.ip ? [ctrl] : [])].map((x) => x.id);
       if (!rc) r.reason = 'ctrlNet';
       else if (!rp) r.reason = 'camNet';
       else if (rc !== rp) r.reason = 'otherNet';
       else if (subnet(cs.ip) !== subnet(s.ip)) r.reason = 'subnet';
+      else if (dup.length) { r.reason = 'dupIp'; r.dupWith = dup; }
       else if (idx < 0) r.reason = 'notInList';
       else { r.reachable = true; r.index = idx + 1; }
     }

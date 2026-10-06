@@ -12,10 +12,11 @@
  *  { op:'obs', key:'video'|'audio'|'muted'|'streaming', value }
  *  { op:'lightRecord', device, index, label }    조명 프로그래머 → 플레이백 저장
  *  { op:'patchAdd', device, entry }              조명 패치 추가
+ *  { op:'patchRemove', device, n }               조명 패치 삭제
  *  { op:'ptz', device, act:'select'|'aim'|'store'|'recall', value, pan, tilt, zoom }
  *  { op:'talk', on } · { op:'perform', on } · { op:'wait', ms }   (화면 쪽에서 처리)
  * ===================================================================== */
-import { canConnect, computeSim, connId, DEV_DEFAULTS } from './sim.js';
+import { canConnect, computeSim, connId, DEV_DEFAULTS, FOOTPRINT } from './sim.js';
 import { DEVICE_TYPES } from './engine.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -97,6 +98,7 @@ export function applyOp(stIn, op) {
       cs.patch = cs.patch.filter((e) => e.n !== n).concat([{ ...op.entry, n }]).sort((x, y) => x.n - y.n);
       return st;
     }
+    case 'patchRemove': dropPatch(st.dev[op.device], (e) => e.n === op.n); return st;
     case 'ptz': {
       const cs = st.dev[op.device];
       if (!cs) return st;
@@ -117,11 +119,21 @@ export function applyOp(stIn, op) {
       st.dev[op.device.id] = op.state ?? {};
       if (!st.mixerId && (op.device.type === 'analog_mixer' || op.device.type === 'digital_mixer')) st.mixerId = op.device.id;
       if (!st.switcherId && (op.device.type === 'atem' || op.device.type === 'atem_pro')) st.switcherId = op.device.id;
+      // 조명: 콘솔 패치에 자동 등록 (콘솔을 나중에 놓으면 이미 있는 조명을 한꺼번에)
+      const con = lightConsoleOf(st);
+      if (con && FIXTURES.has(op.device.type)) autoPatch(st, con, op.device.id, false);
+      if (con && con === op.device.id) Object.values(st.devices).filter((d) => d.placed && FIXTURES.has(d.type)).forEach((d) => autoPatch(st, con, d.id, true));
+      // PTZ: 같은 대역 카메라 IP를 조이스틱 목록에 자동 등록
+      if (op.device.type === 'ptz' || op.device.type === 'ptz_controller') {
+        Object.values(st.devices).filter((d) => d.type === 'ptz_controller').forEach((d) => { if (st.dev[d.id]?.cams) st.dev[d.id].cams = discoverCams(st, d.id); });
+      }
       return st;
     }
     case 'removeDevice': {
       const id = op.device;
       st.connections = st.connections.filter((c) => c.from.d !== id && c.to.d !== id);
+      // 조명을 치우면 자동 패치 항목도 지운다
+      if (FIXTURES.has(st.devices[id]?.type)) Object.values(st.devices).filter((d) => d.type === 'lighting_console').forEach((d) => dropPatch(st.dev[d.id], (e) => e.fixture === id));
       delete st.devices[id]; delete st.dev[id];
       if (st.mixerId === id) st.mixerId = Object.values(st.devices).find((d) => d.type === 'analog_mixer' || d.type === 'digital_mixer')?.id ?? null;
       if (st.switcherId === id) st.switcherId = Object.values(st.devices).find((d) => d.type === 'atem' || d.type === 'atem_pro')?.id ?? null;
@@ -166,6 +178,7 @@ export function opToAction(st, op, key) {
     case 'obs': return { key, device: pc, ctl: { kind: 'press', key: op.key } };
     case 'lightRecord': return { key, device: op.device, ctl: { kind: 'light', key: 'record', value: op.index } };
     case 'patchAdd': return { key, device: op.device, ctl: { kind: 'light', key: 'patch' } };
+    case 'patchRemove': return { key, device: op.device, ctl: { kind: 'light', key: 'patch' } };
     case 'ptz': return { key, device: op.device, ctl: { kind: 'joystick', act: op.act, value: op.value } };
     default: return null;
   }
@@ -215,9 +228,63 @@ export function addDeviceOp(st, type, pos, surface) {
   while (st.devices[`${type}_${n}`]) n += 1;
   const id = `${type}_${n}`;
   const same = Object.values(st.devices).filter((d) => d.type === type).length + 1;
+  const state = DEV_DEFAULTS[type]?.() ?? {};
+  if (type === 'ptz') state.ip = nextPtzIp(st);
   return {
     op: 'addDevice',
     device: { id, type, name: `${DEVICE_TYPES[type].name} ${same}`, pos, rot: FACE_STAGE.has(type) ? Math.PI : 0, surface, placed: true },
-    state: DEV_DEFAULTS[type]?.() ?? {},
+    state,
   };
+}
+
+/* ---------------------------- 조명 패치 도우미 ---------------------------- */
+const FIXTURES = new Set(['par_led', 'moving_head']);
+const fpOf = (type) => FOOTPRINT[type] ?? 8;
+// 조명 계산이 쓰는 콘솔 = 처음 놓인 조명 콘솔
+const lightConsoleOf = (st) => Object.values(st.devices).find((d) => d.placed && d.type === 'lighting_console')?.id ?? null;
+// 패치에서 다음 빈 시작 주소 (가장 뒤 항목의 주소 + 채널 수, 비어 있으면 1)
+export const nextDmxAddress = (patch = []) => patch.reduce((m, e) => Math.max(m, e.address + fpOf(e.type)), 1);
+export const patchOverlap = (patch = [], type, address) => patch.find((e) => address < e.address + fpOf(e.type) && e.address < address + fpOf(type)) ?? null;
+// 조명 1대를 콘솔 패치에 등록: 새 조명은 다음 빈 주소로, 이미 있던 조명(keep)은 주소가 비어 있으면 그대로
+function autoPatch(st, conId, fid, keep) {
+  const cs = st.dev[conId], f = st.dev[fid], type = st.devices[fid]?.type;
+  if (!cs || !f || !FIXTURES.has(type)) return;
+  cs.patch = cs.patch ?? [];
+  if (cs.patch.some((e) => e.fixture === fid)) return;
+  const address = keep && f.address >= 1 && f.address + fpOf(type) - 1 <= 512 && !patchOverlap(cs.patch, type, f.address) ? f.address : nextDmxAddress(cs.patch);
+  if (address + fpOf(type) - 1 > 512) return; // 유니버스(512채널)가 꽉 참
+  f.address = address;
+  const n = cs.patch.reduce((m, e) => Math.max(m, e.n), 0) + 1;
+  cs.patch.push({ n, type, address, label: st.devices[fid].name ?? DEVICE_TYPES[type].name, fixture: fid });
+}
+// 패치 항목 지우기: 프로그래머 선택·플레이백 큐에서도 빠진다
+function dropPatch(cs, pick) {
+  if (!cs?.patch) return;
+  const gone = cs.patch.filter(pick).map((e) => e.n);
+  if (!gone.length) return;
+  cs.patch = cs.patch.filter((e) => !gone.includes(e.n));
+  if (cs.programmer?.sel) cs.programmer.sel = cs.programmer.sel.filter((n) => !gone.includes(n));
+  (cs.playbacks ?? []).forEach((pb) => { if (pb.cue?.fixtures) pb.cue.fixtures = pb.cue.fixtures.filter((n) => !gone.includes(n)); });
+}
+
+/* ---------------------------- PTZ IP 도우미 ---------------------------- */
+const netOf = (ip) => String(ip).split('.').slice(0, 3).join('.');
+// 새 PTZ 카메라 IP: 조이스틱 목록에서 아직 안 쓰는 것 → 없으면 192.168.1.21부터 빈 번호
+export function nextPtzIp(st) {
+  const used = new Set(Object.values(st.devices).filter((d) => d.type === 'ptz' || d.type === 'ptz_controller').map((d) => st.dev[d.id]?.ip));
+  const ctrl = Object.values(st.devices).find((d) => d.placed && d.type === 'ptz_controller');
+  const free = (st.dev[ctrl?.id]?.cams ?? []).find((ip) => !used.has(ip));
+  if (free) return free;
+  for (let k = 21; k < 255; k += 1) if (!used.has(`192.168.1.${k}`)) return `192.168.1.${k}`;
+  return '192.168.1.21';
+}
+// 조이스틱 카메라 목록 + 같은 대역인데 목록에 없는 PTZ IP (네트워크에서 찾기)
+export function discoverCams(st, ctrlId) {
+  const cs = st.dev[ctrlId];
+  const cams = [...(cs?.cams ?? [])];
+  Object.values(st.devices).filter((d) => d.placed && d.type === 'ptz').forEach((d) => {
+    const ip = st.dev[d.id]?.ip;
+    if (ip && netOf(ip) === netOf(cs?.ip) && ip !== cs?.ip && !cams.includes(ip)) cams.push(ip);
+  });
+  return cams;
 }
