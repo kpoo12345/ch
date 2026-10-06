@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind } from '../sim.js';
+import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind, mixerStateOf } from '../sim.js';
 import { applyOp, opToAction, noteOnAirMove, notePop, getPath } from '../ops.js';
 import { getAudio } from '../audio.js';
 import { MISMATCH_TIP, DEVICE_TYPES, CABLES } from '../engine.js';
@@ -89,10 +89,11 @@ export function useGame(spec, { onClear } = {}) {
     if (op.op === 'fade') {
       // { op:'fade', ch | (없으면 메인), to, ms } — 페이더를 ms 동안 일정한 속도로 움직인다
       const key = op.ch ? 'fader' : 'mainFader';
-      const from = op.ch ? cur.channels[op.ch - 1]?.fader ?? 0 : cur.master.mainFader;
+      const S = mixerStateOf(cur, op.mixer);
+      const from = op.ch ? S.channels[op.ch - 1]?.fader ?? 0 : S.master.mainFader;
       const ms = op.ms ?? 3000;
       const n = Math.max(10, Math.round(ms / 60));
-      const step = (k) => ({ ...(op.ch ? { op: 'ch', ch: op.ch } : { op: 'master' }), key, value: Math.round(from + ((op.to - from) * k) / n) });
+      const step = (k) => ({ ...(op.ch ? { op: 'ch', ch: op.ch } : { op: 'master' }), ...(op.mixer ? { mixer: op.mixer } : {}), key, value: Math.round(from + ((op.to - from) * k) / n) });
       if (visual) {
         actKey.current += 1;
         const a = opToAction(cur, step(n), actKey.current);
@@ -128,8 +129,9 @@ export function useGame(spec, { onClear } = {}) {
       getAudio().error();
       return false;
     }
-    if (op.op === 'ch' && op.key === 'fader') noteFader(`ch${op.ch}`, cur.channels[op.ch - 1]?.fader ?? 0, op.value);
-    if (op.op === 'master' && op.key === 'mainFader') noteFader('main', cur.master.mainFader, op.value);
+    const primary = !op.mixer || op.mixer === cur.mixerId;
+    if (primary && op.op === 'ch' && op.key === 'fader') noteFader(`ch${op.ch}`, cur.channels[op.ch - 1]?.fader ?? 0, op.value);
+    if (primary && op.op === 'master' && op.key === 'mainFader') noteFader('main', cur.master.mainFader, op.value);
     stRef.current = next;
     setSt(next);
     if (visual) {
@@ -194,7 +196,8 @@ export function useGame(spec, { onClear } = {}) {
       const to = { ...c.to, p: `line${m[1]}` };
       return { ...c, to, id: `${c.from.d}.${c.from.p}>${to.d}.${to.p}` };
     });
-    const next = { ...base, ...saved, devices, dev: saved.dev ?? {}, connections, channels, master: { ...MASTER_DEFAULT, ...(saved.master ?? {}) }, cables: {}, unlimited: true, faults: [],
+    const mixers = Object.fromEntries(Object.entries(saved.mixers ?? {}).map(([id, m]) => [id, { channels: Array.from({ length: CHANNELS }, (_, i) => ({ ...CH_DEFAULT, ...(m.channels?.[i] ?? {}) })), master: { ...MASTER_DEFAULT, ...(m.master ?? {}) } }]));
+    const next = { ...base, ...saved, devices, dev: saved.dev ?? {}, connections, channels, mixers, master: { ...MASTER_DEFAULT, ...(saved.master ?? {}) }, cables: {}, unlimited: true, faults: [],
       mixerId: pick(['analog_mixer', 'digital_mixer']), switcherId: pick(['atem', 'atem_pro']) };
     stRef.current = next; setSt(next);
   }, [spec]);

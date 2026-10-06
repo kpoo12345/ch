@@ -85,8 +85,8 @@ export const DEVICE_TYPES = {
   },
   atem: {
     name: '비디오 스위처', model: 'ATEM Mini', icon: Tv, w: 220,
-    ins: [1, 2, 3, 4].map((n) => ({ id: `in${n}`, label: `HDMI IN ${n}`, kind: 'hdmi' })),
-    outs: [{ id: 'usb', label: 'USB WEBCAM', kind: 'usb' }, { id: 'hdmiout', label: 'HDMI OUT', kind: 'hdmi' }],
+    ins: [1, 2, 3, 4].map((n) => ({ id: `in${n}`, label: `HDMI IN ${n}`, kind: 'hdmi' })).concat([{ id: 'mic1', label: 'MIC 1', kind: 'mini' }, { id: 'mic2', label: 'MIC 2', kind: 'mini' }]),
+    outs: [{ id: 'usb', label: 'USB WEBCAM (영상+소리)', kind: 'usb' }, { id: 'hdmiout', label: 'HDMI OUT', kind: 'hdmi' }],
     info: '여러 카메라 중 지금 송출할 화면을 고르는 장비입니다. PVW(프리뷰)에 다음 화면을 준비하고 CUT(즉시) 또는 AUTO(디졸브)로 PGM(프로그램, 실제 송출)과 맞바꿉니다. USB 출력은 PC에서 웹캠으로 인식됩니다.',
   },
   // ---- 교육 모드에서 다루는 장비 ----

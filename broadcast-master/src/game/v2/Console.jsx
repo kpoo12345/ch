@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { DEVICE_TYPES, faderDb, fmtDb } from '../engine.js';
 import { VFader, VMeter, Meter } from '../ui.jsx';
 import { Knob, Toggle } from './controls.jsx';
 import { CH_COLORS } from '../consoles.jsx';
-import { chCountOf, chLabel, MONO_CHANNELS } from '../sim.js';
+import { chCountOf, chLabel, MONO_CHANNELS, mixerStateOf } from '../sim.js';
 
 /* =====================================================================
  * 믹서 콘솔 (2D) — 실제 믹서와 같은 순서의 채널 스트립 + 마스터
@@ -21,39 +21,56 @@ const JACK_BADGE = { mic: ['MIC', 'bg-sky-500/80 text-white'], line: ['LINE', 'b
 
 export default function Console({ game, compact }) {
   const { st, actual, nominal, apply, show, selCh, setSelCh } = game;
-  const mixer = st.devices[st.mixerId];
+  // 믹서가 여러 대면(자유 모드) 위에서 고른다. 기본은 첫 믹서
+  const [pick, setPick] = useState(null);
+  const mixers = Object.values(st.devices).filter((d) => d.placed && (d.type === 'analog_mixer' || d.type === 'digital_mixer'));
+  const id = mixers.some((d) => d.id === pick) ? pick : st.mixerId;
+  const mixer = st.devices[id];
   if (!mixer || !mixer.placed) return <div className="text-sm text-slate-400 p-3">믹서가 아직 배치되지 않았습니다.</div>;
   const digital = mixer.type === 'digital_mixer';
   const n = chCountOf(mixer.type);
-  const M = st.master;
-  const set = (ch, key, value) => apply({ op: 'ch', ch, key, value }, { visual: false });
-  const commit = (ch, key) => (prev, value) => { if (prev !== value) show({ op: 'ch', ch, key, value }, prev); };
-  const tog = (ch, key) => apply({ op: 'ch', ch, key, value: !st.channels[ch - 1][key] });
-  const mset = (key, value) => apply({ op: 'master', key, value }, { visual: false });
-  const mcommit = (key) => (prev, value) => { if (prev !== value) show({ op: 'master', key, value }, prev); };
-  const mainLv = actual.outLevel(st.mixerId, 'main');
-  const mainRLv = digital ? (mainLv == null ? null : mainLv - 1) : actual.outLevel(st.mixerId, 'mainR');
-  const auxLv = actual.outLevel(st.mixerId, 'aux1');
+  const S = mixerStateOf(st, id);
+  const M = S.master;
+  const mx = id === st.mixerId ? {} : { mixer: id };
+  const set = (ch, key, value) => apply({ op: 'ch', ch, key, value, ...mx }, { visual: false });
+  const commit = (ch, key) => (prev, value) => { if (prev !== value) show({ op: 'ch', ch, key, value, ...mx }, prev); };
+  const tog = (ch, key) => apply({ op: 'ch', ch, key, value: !S.channels[ch - 1][key], ...mx });
+  const mset = (key, value) => apply({ op: 'master', key, value, ...mx }, { visual: false });
+  const mcommit = (key) => (prev, value) => { if (prev !== value) show({ op: 'master', key, value, ...mx }, prev); };
+  const mapply = (key, value) => apply({ op: 'master', key, value, ...mx });
+  const aMix = actual.mixerOf(id), nMix = nominal.mixerOf(id);
+  const mainLv = actual.outLevel(id, 'main');
+  const mainRLv = digital ? (mainLv == null ? null : mainLv - 1) : actual.outLevel(id, 'mainR');
+  const auxLv = actual.outLevel(id, 'aux1');
   const nameOf = (i) => {
-    const src = nominal.mixer.channels[i]?.comps?.[0]?.src;
+    const src = nMix.channels[i]?.comps?.[0]?.src;
     return src ? (st.devices[src]?.name ?? DEVICE_TYPES[st.devices[src]?.type]?.name ?? src) : '';
   };
-  const phantomOn = !!M.phantom || (!digital && st.channels.some((c) => c.phantom));
-  const anyPfl = !digital && st.channels.some((c) => c.pfl);
+  const phantomOn = !!M.phantom || (!digital && S.channels.some((c) => c.phantom));
+  const anyPfl = !digital && S.channels.some((c) => c.pfl);
   const K = (ch, key, label, props) => (
-    <Knob label={label} value={st.channels[ch - 1][key] ?? props.def} size={props.size ?? 28} {...props}
+    <Knob label={label} value={S.channels[ch - 1][key] ?? props.def} size={props.size ?? 28} {...props}
       onChange={(v) => set(ch, key, v)} onCommit={commit(ch, key)} />
   );
   return (
+    <div className="space-y-1">
+    {mixers.length > 1 && (
+      <div className="flex gap-1 flex-wrap" role="tablist" aria-label="믹서 고르기">
+        {mixers.map((d) => (
+          <button key={d.id} type="button" role="tab" aria-selected={d.id === id} onClick={() => setPick(d.id)}
+            className={`rounded px-2 py-0.5 text-[11px] font-bold ${d.id === id ? 'bg-sky-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{d.name ?? DEVICE_TYPES[d.type].name}{d.id === st.mixerId ? ' (1)' : ''}</button>
+        ))}
+      </div>
+    )}
     <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="믹서 콘솔">
-      {st.channels.slice(0, n).map((ch, i) => {
+      {S.channels.slice(0, n).map((ch, i) => {
         const c = i + 1;
-        const info = actual.mixer.channels[i];
+        const info = aMix.channels[i];
         const lv = info?.inLevel ?? null;
         const nm = nameOf(i);
         const sel = selCh === i;
         const mono = digital || i < MONO_CHANNELS;
-        const jacks = [...new Set((nominal.mixer.channels[i]?.comps ?? []).map((x) => x.jack).filter(Boolean))];
+        const jacks = [...new Set((nMix.channels[i]?.comps ?? []).map((x) => x.jack).filter(Boolean))];
         return (
           <div key={i} onPointerDown={() => setSelCh(i)}
             className={`shrink-0 ${mono ? 'w-[74px]' : 'w-[70px]'} rounded-md border ${sel ? 'border-sky-400 bg-slate-800/90' : 'border-slate-700 bg-slate-900/80'} p-1 flex flex-col items-center gap-1`}>
@@ -63,7 +80,7 @@ export default function Console({ game, compact }) {
             </div>
             {digital ? (
               <>
-                <select value={ch.patch ?? `local${c}`} onChange={(e) => apply({ op: 'ch', ch: c, key: 'patch', value: e.target.value })}
+                <select value={ch.patch ?? `local${c}`} onChange={(e) => apply({ op: 'ch', ch: c, key: 'patch', value: e.target.value, ...mx })}
                   className="w-full text-[9px] bg-slate-950 border border-slate-600 rounded text-slate-200" aria-label={`CH${c} 입력 패치`}>
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={`local${k}`}>IN: LOCAL {k}</option>)}
                   <option value="off">IN: OFF</option>
@@ -95,7 +112,7 @@ export default function Console({ game, compact }) {
                 {!digital && mono && (
                   <Knob label="FREQ" value={FREQS.indexOf(ch.eqFreq ?? 1000) < 0 ? 3 : FREQS.indexOf(ch.eqFreq ?? 1000)} min={0} max={FREQS.length - 1} size={24} color="#86efac"
                     display={freqTxt(ch.eqFreq ?? 1000)} def={3} title="MID가 다룰 주파수. 하울링·먹먹함은 보통 500Hz~4kHz"
-                    onChange={(v) => set(c, 'eqFreq', FREQS[v])} onCommit={(p, v) => { if (p !== v) show({ op: 'ch', ch: c, key: 'eqFreq', value: FREQS[v] }, FREQS[p]); }} />
+                    onChange={(v) => set(c, 'eqFreq', FREQS[v])} onCommit={(p, v) => { if (p !== v) show({ op: 'ch', ch: c, key: 'eqFreq', value: FREQS[v], ...mx }, FREQS[p]); }} />
                 )}
                 {K(c, 'eqLow', 'LOW', { min: -15, max: 15, color: '#fbbf24', size: 30, display: eqTxt(ch.eqLow), def: 0 })}
                 <div className="flex gap-0.5">
@@ -129,7 +146,7 @@ export default function Console({ game, compact }) {
       <div className="shrink-0 w-[124px] rounded-md border border-rose-500/60 bg-slate-900/90 p-1.5 flex flex-col items-center gap-1">
         <div className="w-full rounded bg-rose-500 text-center text-[10px] font-black text-white py-0.5">{digital ? 'MASTER' : 'STEREO MASTER'}</div>
         {!digital && (
-          <Toggle small on={phantomOn} color="red" onClick={() => apply({ op: 'master', key: 'phantom', value: !phantomOn })}
+          <Toggle small on={phantomOn} color="red" onClick={() => mapply('phantom', !phantomOn)}
             title="PHANTOM +48V: 이 믹서는 스위치 하나로 모든 MIC(XLR) 단자에 한꺼번에 전원이 들어갑니다. 콘덴서 마이크용">PHANTOM +48V</Toggle>
         )}
         <div className="flex gap-1">
@@ -143,7 +160,7 @@ export default function Console({ game, compact }) {
         {!digital && <div className={`text-[9px] font-bold ${anyPfl ? 'text-orange-400' : 'text-slate-500'}`}>{anyPfl ? '● PFL: 헤드폰 = 선택 채널' : '헤드폰 = STEREO'}</div>}
         {digital && (
           <label className="w-full text-[9px] text-slate-400">USB 출력
-            <select value={M.usbOut} onChange={(e) => apply({ op: 'master', key: 'usbOut', value: e.target.value })}
+            <select value={M.usbOut} onChange={(e) => mapply('usbOut', e.target.value)}
               className="w-full text-[10px] bg-slate-950 border border-slate-600 rounded text-slate-200">
               <option value="main">Main L/R</option><option value="aux1">AUX 1</option><option value="off">OFF</option>
             </select>
@@ -151,8 +168,8 @@ export default function Console({ game, compact }) {
         )}
         <div className="flex gap-1 items-center text-[9px] text-slate-400"><span>AUX</span><div className="w-12"><Meter level={auxLv} thin /></div></div>
         {digital
-          ? <Toggle small on={M.mainMute} color="red" onClick={() => apply({ op: 'master', key: 'mainMute', value: !M.mainMute })}>MAIN MUTE</Toggle>
-          : <Toggle small on={!M.mainMute} color="amber" onClick={() => apply({ op: 'master', key: 'mainMute', value: !M.mainMute })} title="STEREO ON: 꺼지면 메인 스피커로 아무 소리도 나가지 않습니다">ST ON</Toggle>}
+          ? <Toggle small on={M.mainMute} color="red" onClick={() => mapply('mainMute', !M.mainMute)}>MAIN MUTE</Toggle>
+          : <Toggle small on={!M.mainMute} color="amber" onClick={() => mapply('mainMute', !M.mainMute)} title="STEREO ON: 꺼지면 메인 스피커로 아무 소리도 나가지 않습니다">ST ON</Toggle>}
         <div className="flex items-end gap-0.5">
           <VFader label={digital ? 'MAIN' : 'STEREO'} value={M.mainFader} height={compact ? 96 : 150} cap="#fca5a5" display={fmtDb(faderDb(M.mainFader)).replace(' dB', '')}
             onChange={(v) => mset('mainFader', v)} onCommit={mcommit('mainFader')} />
@@ -160,6 +177,7 @@ export default function Console({ game, compact }) {
           <VMeter level={mainRLv} height={compact ? 74 : 128} />
         </div>
       </div>
+    </div>
     </div>
   );
 }

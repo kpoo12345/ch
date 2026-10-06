@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Power, Radio, Cable, Camera, Tv, MonitorPlay, Lightbulb, Clapperboard, Joystick, Router as RouterIcon, Laptop, Info } from 'lucide-react';
 import { DEVICE_TYPES, CABLES } from '../engine.js';
-import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel } from '../sim.js';
+import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel, mixerStateOf } from '../sim.js';
 import { VENUES } from '../venues.js';
 import { nextDmxAddress, patchOverlap, discoverCams } from '../ops.js';
 import { Meter } from '../ui.jsx';
@@ -174,8 +174,8 @@ export function DevicePanel({ game, id }) {
         <Card title="믹서" icon={Radio}>
           <p className="text-[11px] text-slate-400">아래 <b>믹서 콘솔</b> 버튼을 누르면 채널마다 GAIN·EQ·페이더를 직접 조작할 수 있습니다.{d.type === 'digital_mixer' ? ' 디지털 믹서는 채널마다 입력 패치(어느 LOCAL 단자를 들을지)와 USB 출력 라우팅을 정해야 합니다.' : ' 모노 채널은 MIC(XLR)·LINE(TRS) 단자가 따로 있고, 9/10·11/12는 스테레오(L/R) 채널입니다. +48V는 PHANTOM 스위치 하나로 모든 MIC 단자에 들어갑니다.'}</p>
           <ul className="text-[11px] text-slate-300 space-y-0.5">
-            {st.channels.slice(0, chCountOf(d.type)).map((ch, i) => {
-              const c = nominal.mixer.channels[i];
+            {mixerStateOf(st, id).channels.slice(0, chCountOf(d.type)).map((ch, i) => {
+              const c = nominal.mixerOf(id).channels[i];
               const src = c?.comps?.[0]?.src;
               if (!src) return null;
               const jack = c.comps[0].jack === 'line' ? ' LINE' : c.comps[0].jack === 'mic' ? ' MIC' : '';
@@ -276,7 +276,7 @@ function ObsPanel({ game, id }) {
       <Canvas2D w={480} h={270} draw={(ctx, w, h) => { drawSource(ctx, src, 0, 0, w, h); if (o.streaming) { ctx.fillStyle = nominal.stream.obsLive ? '#dc2626' : '#92400e'; ctx.fillRect(w - 110, 10, 100, 28); ctx.fillStyle = '#fff'; ctx.font = '800 16px sans-serif'; ctx.fillText(nominal.stream.obsLive ? '● LIVE' : '● 문제', w - 98, 30); } }}
         deps={[JSON.stringify(src), o.streaming, nominal.stream.obsLive]} />
       <Row label="영상 소스"><Seg small value={o.video} options={[['none', '없음'], ['atem', 'ATEM (USB 웹캠)']]} onChange={(v) => set('video', v)} /></Row>
-      <Row label="오디오 소스"><Seg small value={o.audio} options={[['none', '없음'], ['builtin', 'PC 내장 마이크'], ['mixer', '믹서 USB'], ['interface', '오디오 인터페이스']]} onChange={(v) => set('audio', v)} /></Row>
+      <Row label="오디오 소스"><Seg small value={o.audio} options={[['none', '없음'], ['builtin', 'PC 내장 마이크'], ['mixer', '믹서 USB'], ['interface', '오디오 인터페이스'], ['atem', 'ATEM (USB)']]} onChange={(v) => set('audio', v)} /></Row>
       <Row label="오디오 미터"><div className="w-40"><Meter level={o.muted ? null : lv > -99 ? lv : null} /></div><Toggle small on={o.muted} color="red" onClick={() => set('muted', !o.muted)}>MUTE</Toggle></Row>
       <Row label="방송">
         <button type="button" onClick={() => set('streaming', !o.streaming)} className={`px-3 py-1.5 rounded font-bold text-sm ${o.streaming ? 'bg-slate-200 text-slate-900' : 'bg-red-600 text-white'}`}>{o.streaming ? '방송 중지' : '방송 시작'}</button>

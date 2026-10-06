@@ -78,6 +78,10 @@ export const DEV_DEFAULTS = {
   led_wall: () => ({ power: true, res: '1920x1080' }),
   ptz_controller: () => ({ ip: '192.168.1.10', cams: ['192.168.1.21', '192.168.1.22', '192.168.1.23', '192.168.1.24'], selected: 0 }),
 };
+// 믹서마다 따로 갖는 채널·마스터 상태. 첫 믹서(st.mixerId)는 st.channels/st.master, 나머지는 st.mixers[id]
+export const newMixerState = () => ({ channels: Array.from({ length: CHANNELS }, () => ({ ...CH_DEFAULT })), master: { ...MASTER_DEFAULT } });
+const EMPTY_MIX = newMixerState();
+export const mixerStateOf = (st, id) => (!id || id === st.mixerId ? { channels: st.channels, master: st.master } : st.mixers?.[id] ?? EMPTY_MIX);
 export const ATEM_DEFAULT = { program: 0, preview: 1, transitioning: false, streaming: false, recording: false, pip: false, micGain: 30 };
 export const OBS_DEFAULT = { video: 'none', audio: 'none', muted: false, streaming: false };
 
@@ -208,14 +212,14 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
       }
       case 'analog_mixer':
       case 'digital_mixer': {
-        const m = mixerCalc();
+        const m = mixerCalc(d);
         const digital = t === 'digital_mixer';
         if (p === 'main') r = digital ? m.mainLR : m.main;
         else if (p === 'mainR') r = m.mainR;
         else if (p === 'phones') r = m.phones;
         else if (p === 'aux1') r = m.aux;
         else if (p === 'aux2') r = m.aux2;
-        else if (p === 'usb') r = st.master.usbOut === 'main' ? m.mainLR : st.master.usbOut === 'aux1' ? m.aux : [];
+        else if (p === 'usb') { const uo = mixerStateOf(st, d).master.usbOut; r = uo === 'main' ? m.mainLR : uo === 'aux1' ? m.aux : []; }
         break;
       }
       case 'audio_interface': {
@@ -231,14 +235,15 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   };
 
   // 믹서: 채널 → 메인(L/R)/AUX/PHONES 버스
-  let mixerCache = null;
-  const mixerCalc = () => {
-    if (mixerCache) return mixerCache;
-    mixerCache = { main: [], mainR: [], mainLR: [], aux: [], aux2: [], phones: [], channels: [] };
-    const mid = st.mixerId;
+  const mixerCaches = new Map();
+  const mixerCalc = (mid = st.mixerId) => {
+    if (mixerCaches.has(mid)) return mixerCaches.get(mid);
+    let mixerCache = { main: [], mainR: [], mainLR: [], aux: [], aux2: [], phones: [], channels: [] };
+    mixerCaches.set(mid, mixerCache);
     if (!mid || !placed(mid)) return mixerCache;
     const digital = devices[mid].type === 'digital_mixer';
-    const M = st.master;
+    const S = mixerStateOf(st, mid);
+    const M = S.master;
     const main = [], mainR = [], mainLR = [], aux = [], aux2 = [], pfl = [], chans = [];
     // 채널이 받는 입력 단자들. 디지털: 패치된 로컬 입력 하나 / 아날로그: MIC(XLR)+LINE(TRS) 또는 스테레오 L/R
     const portsOfCh = (ch, i) => {
@@ -247,10 +252,10 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     };
     // +48V: 디지털은 입력 단자(헤드앰프)마다, 아날로그는 PHANTOM 스위치 하나로 모든 MIC(XLR) 단자에 한꺼번에 걸린다
     const powered = digital
-      ? new Set(st.channels.map((ch, i) => (ch.phantom && i < MONO_CHANNELS ? ch.patch ?? `local${i + 1}` : null)).filter(Boolean))
-      : new Set(M.phantom || st.channels.some((ch) => ch.phantom) ? Array.from({ length: MONO_CHANNELS }, (_, k) => `in${k + 1}`) : []);
+      ? new Set(S.channels.map((ch, i) => (ch.phantom && i < MONO_CHANNELS ? ch.patch ?? `local${i + 1}` : null)).filter(Boolean))
+      : new Set(M.phantom || S.channels.some((ch) => ch.phantom) ? Array.from({ length: MONO_CHANNELS }, (_, k) => `in${k + 1}`) : []);
     const panDb = (v) => (v <= -100 ? -Infinity : 20 * Math.log10(Math.max(0.001, 1 + Math.min(0, v) / 100)));
-    st.channels.forEach((ch, i) => {
+    S.channels.forEach((ch, i) => {
       if (i >= chCountOf(devices[mid].type)) { chans.push({ index: i + 1, ports: [], comps: [], inLevel: null, clip: false }); return; }
       const ports = portsOfCh(ch, i);
       const stereo = !digital && i >= MONO_CHANNELS;
@@ -283,20 +288,21 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
           const base = post(x) + mapDb(M.mainFader);
           const l = x.side === 'R' ? -Infinity : base + gL;
           const r = x.side === 'L' ? -Infinity : base + gR;
-          if (Number.isFinite(l)) main.push({ ...x, ch: i + 1, level: l });
-          if (Number.isFinite(r)) mainR.push({ ...x, ch: i + 1, level: r });
-          if (Number.isFinite(Math.max(l, r))) mainLR.push({ ...x, ch: i + 1, level: Math.max(l, r) });
+          if (Number.isFinite(l)) main.push({ ...x, ch: i + 1, mixer: mid, level: l });
+          if (Number.isFinite(r)) mainR.push({ ...x, ch: i + 1, mixer: mid, level: r });
+          if (Number.isFinite(Math.max(l, r))) mainLR.push({ ...x, ch: i + 1, mixer: mid, level: Math.max(l, r) });
         }
         // AUX는 페이더 앞(PRE)에서 갈라진다 — 페이더를 내려도 모니터는 그대로
-        if (!ch.mute && ch.aux > 0 && M.auxMaster > 0) aux.push({ ...x, ch: i + 1, level: x.inLevel + makeup + mapDb(ch.aux) + mapDb(M.auxMaster) });
-        if (!ch.mute && (ch.aux2 ?? 0) > 0 && (M.aux2Master ?? 75) > 0) aux2.push({ ...x, ch: i + 1, level: x.inLevel + makeup + mapDb(ch.aux2) + mapDb(M.aux2Master ?? 75) });
+        if (!ch.mute && ch.aux > 0 && M.auxMaster > 0) aux.push({ ...x, ch: i + 1, mixer: mid, level: x.inLevel + makeup + mapDb(ch.aux) + mapDb(M.auxMaster) });
+        if (!ch.mute && (ch.aux2 ?? 0) > 0 && (M.aux2Master ?? 75) > 0) aux2.push({ ...x, ch: i + 1, mixer: mid, level: x.inLevel + makeup + mapDb(ch.aux2) + mapDb(M.aux2Master ?? 75) });
         // PFL: 누른 채널만 페이더 앞 신호로 헤드폰에 (MUTE와 상관없이 미리 들어 본다)
-        if (ch.pfl) pfl.push({ ...x, ch: i + 1, level: x.inLevel + makeup });
+        if (ch.pfl) pfl.push({ ...x, ch: i + 1, mixer: mid, level: x.inLevel + makeup });
       });
     });
     const ph = mapDb(M.phonesLevel ?? 75);
     const phones = (pfl.length ? pfl : mainLR).map((x) => ({ ...x, level: x.level + ph })).filter((x) => Number.isFinite(x.level));
     mixerCache = { main, mainR, mainLR, aux, aux2, phones, pfl: pfl.length > 0, channels: chans };
+    mixerCaches.set(mid, mixerCache);
     return mixerCache;
   };
 
@@ -346,7 +352,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   if (drumsHere && performing) acoustic.push({ src: drumKit ?? 'drums_acoustic', kind: 'drum', part: 'kit', level: -14, acoustic: true });
   acoustic.forEach((x) => { put('main', x); put('monitor', { ...x, level: x.level + 4 }); });
   const mix = mixerCalc();
-  mix.channels.forEach((c) => c.comps.forEach((x) => { if (x.inLevel != null) put('mixer', { ...x, level: x.inLevel }); }));
+  const mixerIds = Object.values(devices).filter((d) => d.placed && MIXER_TYPES.has(d.type)).map((d) => d.id);
+  mixerIds.forEach((id) => mixerCalc(id).channels.forEach((c) => c.comps.forEach((x) => { if (x.inLevel != null) put('mixer', { ...x, level: x.inLevel }); })));
   Object.values(devices).filter((d) => d.placed && d.type === 'audio_interface').forEach((d) => {
     interfaceCalc(d.id).inputs.forEach((x) => { if (x.inLevel != null) put('interface', { ...x, level: x.inLevel }); });
   });
@@ -372,6 +379,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   let obsAudioComps = [];
   if (pcId) {
     if (st.obs.audio === 'mixer' && st.mixerId && devices[st.mixerId].type === 'digital_mixer' && toPc(st.mixerId, 'usb')) obsAudioComps = outComps(st.mixerId, 'usb');
+    // ATEM USB는 웹캠 영상과 함께 MIC 입력 소리도 PC로 보낸다
+    if (st.obs.audio === 'atem' && atemUsbToPc) obsAudioComps = atemHeard;
     if (st.obs.audio === 'interface') {
       const ai = Object.values(devices).find((d) => d.placed && d.type === 'audio_interface' && toPc(d.id, 'usb'));
       if (ai) obsAudioComps = outComps(ai.id, 'usb');
@@ -382,7 +391,9 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const obsHeard = st.obs.muted ? [] : obsAudioComps;
   // ATEM MIC 입력: 자체 프리앰프(micGain)로 증폭
   const micLevelSrc = (p) => { const c = feeding[`${sw}.${p}`]; return !!c && (VOICE_TYPES.has(devices[c.from.d]?.type)); };
-  const proHeard = isPro ? ['mic1', 'mic2'].flatMap((p) => inputComps(sw, p).map((x) => ({ ...x, level: x.level == null || (x.needsPhantom && micLevelSrc(p)) ? null : x.level + (micLevelSrc(p) ? st.atem.micGain : 0) }))) : [];
+  // ATEM MIC 1·2 (Mini와 Mini Pro 모두): 마이크 레벨 소스는 ATEM 자체 프리앰프로 키운다
+  const atemHeard = sw ? ['mic1', 'mic2'].flatMap((p) => inputComps(sw, p).map((x) => ({ ...x, level: x.level == null || (x.needsPhantom && micLevelSrc(p)) ? null : x.level + (micLevelSrc(p) ? st.atem.micGain : 0) }))) : [];
+  const proHeard = isPro ? atemHeard : [];
   obsHeard.forEach((x) => put('stream', x));
   proHeard.forEach((x) => put('stream', x));
   const audible = (arr) => arr.some((x) => x.level != null && x.level > AUDIBLE);
@@ -455,12 +466,13 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const loops = [];
   speakersHearing.forEach(({ spk, type, x }) => {
     if (x.kind !== 'voice' || x.level == null) return;
-    const ch = st.channels[(x.ch ?? 1) - 1];
+    const S = mixerStateOf(st, x.mixer);
+    const ch = S.channels[(x.ch ?? 1) - 1];
     if (!ch) return;
     // 스피커 위치: 마이크 정면 자리(pa_alt)면 하울링에 매우 취약
     const front = FRONT_SLOTS.has(devices[spk]?.slot) || (!devices[spk]?.slot && dev[spk]?.position === 'front');
     const pos = type === 'monitor' ? -2 : front ? 8 : -6;
-    const fxTerm = (ch.fx / 100) * (st.master.fxReturn / 100) * 4;
+    const fxTerm = (ch.fx / 100) * (S.master.fxReturn / 100) * 4;
     // MID EQ는 하울링이 잘 생기는 대역(약 500Hz~4kHz)에 맞춰야 효과가 크다
     const f = ch.eqFreq ?? 1000;
     const midW = f >= 500 && f <= 4000 ? 1 : 0.4;
@@ -471,7 +483,7 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
 
   /* ----- 잡음·클리핑 ----- */
   const humAt = ['main', 'monitor', 'stream', 'headphones'].some((loc) => Object.entries(heard[loc]).some(([src, h]) => { if (h.hum && h.level > AUDIBLE) { notes.humSources.add(src); return true; } return false; }));
-  const clips = mix.channels.filter((c) => c.clip).map((c) => c.comps.find((x) => x.inLevel != null)?.src).filter(Boolean);
+  const clips = mixerIds.flatMap((id) => mixerCalc(id).channels).filter((c) => c.clip).map((c) => c.comps.find((x) => x.inLevel != null)?.src).filter(Boolean);
   Object.values(devices).filter((d) => d.placed && d.type === 'audio_interface').forEach((d) => interfaceCalc(d.id).inputs.forEach((x) => { if (x.inLevel != null && x.inLevel > 0) clips.push(x.src); }));
 
   return {
@@ -483,6 +495,7 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     light, displays, ptz,
     stream: { obsVideoOk, obsAudioOk, proVideoOk, proAudioOk, obsLive, proLive, live: obsLive || proLive, streamingAny, pcId },
     channelOf: (src) => mix.channels.find((c) => c.comps.some((x) => x.src === src)) ?? null,
+    mixerOf: (id) => mixerCalc(id),
     // 단자별 신호 크기 (3D 케이블의 신호 흐름 표시용)
     outLevel: (d, p) => maxLevel(outComps(d, p)),
     inLevel: (d, p) => maxLevel(inputComps(d, p)),

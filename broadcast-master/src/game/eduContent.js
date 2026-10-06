@@ -3,7 +3,7 @@
  * kind: 'device'(3D 장비 뷰어) · 'cable'(3D 커넥터) · 'concept'(그림 설명)
  * ===================================================================== */
 
-export const EDU_CATEGORIES = ['기초 개념', '마이크', '음향 장비', '소리 다루기', '카메라', 'ATEM · 스위처', '송출', '조명', '영상 연출', '케이블'];
+export const EDU_CATEGORIES = ['기초 개념', '마이크', '음향 장비', '악기 · 밴드', '소리 다루기', '카메라', 'ATEM · 스위처', '송출', '조명', '영상 연출', '케이블'];
 
 const BASE_ITEMS = [
   /* ---------------------------- 마이크 ---------------------------- */
@@ -674,6 +674,73 @@ const MORE_CABLES = [
 // 조명 · 영상 연출 · 네트워크 · 모니터 (심화 장비)
 const SHOW_ITEMS = [
   {
+    id: 'drum_kit', cat: '악기 · 밴드', kind: 'device', type: 'drum_kit',
+    title: '드럼 세트와 드럼 마이킹', subtitle: 'Drum Kit · 킥 · 스네어 · 탐 · 심벌',
+    summary: '드럼은 전기 출력이 없는 어쿠스틱 악기입니다. 작은 공연장에서는 생소리만으로도 크게 들리지만, 방송·녹음·큰 공연장에서는 부분마다 마이크를 세워 믹서로 받아야 합니다.',
+    how: [
+      '킥(베이스 드럼): "쿵" 하는 낮은 소리. 큰 다이나믹 킥 마이크를 앞 구멍 안쪽이나 바로 앞에 둡니다.',
+      '스네어: "딱" 하는 소리. SM57 같은 악기용 다이나믹 마이크를 테두리 위 2~5cm에서 가운데를 향하게 둡니다.',
+      '탐: 스네어와 같은 방법(탐마다 한 대). 채널이 부족하면 생략하고 오버헤드로 잡습니다.',
+      '오버헤드: 심벌과 드럼 전체를 위에서 콘덴서 마이크 두 대(L/R)로 잡습니다. +48V 팬텀이 필요합니다.',
+      '최소 구성은 킥 + 스네어 + 오버헤드 1~2대, 넉넉하면 하이햇·탐 마이크를 더합니다.',
+    ],
+    specs: [['출력', '없음 (마이크로 받음)'], ['최소 마이킹', '킥 · 스네어 · 오버헤드'], ['드럼 마이크 GAIN', '보컬보다 훨씬 낮게 (15~25dB 안팎)'], ['팬텀 전원', '오버헤드(콘덴서)만 필요']],
+    tips: ['드럼은 소리가 커서 GAIN을 낮게 시작합니다. PEAK 램프가 깜빡이면 PAD를 켭니다.', '킥·탐 채널은 LOW CUT을 끄고, 오버헤드는 LOW CUT을 켜서 킥의 저음이 겹치지 않게 합니다.', '공연장에서 들리는 크기와 방송에 나가는 크기는 다릅니다. A/B 비교나 헤드폰으로 방송 쪽을 꼭 확인하세요.'],
+    mistakes: ['객석에서 잘 들린다고 마이크를 안 세워 방송에서 드럼이 빠짐', '오버헤드에 +48V를 안 켜서 심벌이 안 들림', '드럼 마이크 GAIN을 보컬처럼 30 이상으로 둬서 찢어짐'],
+    where: '밴드 공연, 교회 찬양팀, 라이브 방송',
+    quiz: { q: '공연장에선 드럼이 크게 들리는데 방송에선 안 들립니다. 가장 알맞은 해결은?', options: ['메인 스피커 볼륨을 올린다', '드럼에 마이크를 세워 믹서로 받고 방송 믹스에 보낸다', 'PC 내장 마이크를 쓴다'], answer: 1, explain: '방송에는 믹서로 들어온 소리만 나갑니다. 생소리가 큰 악기도 마이크로 잡아 방송 믹스(USB·AUX)에 보내야 합니다.' },
+  },
+  {
+    id: 'kick_mic', cat: '악기 · 밴드', kind: 'device', type: 'kick_mic',
+    title: '킥 드럼 마이크', subtitle: 'Kick Drum Mic · 예: Shure Beta 52A',
+    summary: '베이스 드럼의 아주 큰 저음을 찌그러짐 없이 받는 대형 다이나믹 마이크입니다.',
+    how: ['진동판이 크고 저음이 강조되도록 만들어져 "쿵" 소리의 무게감과 "탁" 하는 어택을 함께 잡습니다.', '킥 드럼 앞 헤드의 구멍(포트) 근처나 안쪽에 두며, 깊이 넣을수록 어택이 강해지고 빼면 울림이 커집니다.'],
+    specs: [['방식', '다이나믹 (전원 불필요)'], ['연결', 'XLR → 믹서 MIC 단자'], ['권장 GAIN', '15~20dB 안팎']],
+    tips: ['LOW CUT은 끕니다. 대신 EQ로 300~500Hz의 "상자 소리"를 조금 깎으면 깔끔해집니다.'],
+    mistakes: ['LOW CUT을 켜서 킥의 저음이 사라짐'],
+    quiz: { q: '킥 드럼 채널에서 꺼 두어야 하는 것은?', options: ['LOW CUT(HPF)', '페이더', 'PFL'], answer: 0, explain: 'LOW CUT은 저음을 깎으므로 킥의 핵심 소리를 없앱니다.' },
+  },
+  {
+    id: 'snare_mic', cat: '악기 · 밴드', kind: 'device', type: 'snare_mic',
+    title: '스네어 · 악기 마이크', subtitle: 'Instrument Dynamic Mic · 예: Shure SM57',
+    summary: '스네어·탐·기타 앰프처럼 가까이에서 아주 큰 소리를 잡는 악기용 다이나믹 마이크. 현장에서 가장 많이 쓰는 마이크 중 하나입니다.',
+    how: ['지향성이 좁아(카디오이드) 옆 악기 소리를 덜 받습니다.', '스네어 테두리 위 2~5cm에서 헤드 가운데를 향하게 비스듬히 둡니다. 스틱에 맞지 않게 조심합니다.'],
+    specs: [['방식', '다이나믹 (전원 불필요)'], ['연결', 'XLR → 믹서 MIC 단자'], ['권장 GAIN', '15~25dB 안팎']],
+    tips: ['하이햇 쪽을 마이크 뒤(둔감한 쪽)로 향하게 두면 하이햇 소리가 덜 섞입니다.'],
+    mistakes: ['마이크를 너무 높이 둬서 드러머 스틱에 맞음'],
+    quiz: { q: '스네어 마이크로 가장 흔히 쓰는 종류는?', options: ['악기용 다이나믹 마이크', '라발리에(핀) 마이크', 'PC 내장 마이크'], answer: 0, explain: '큰 소리에 강하고 튼튼한 다이나믹 마이크(SM57 등)를 씁니다.' },
+  },
+  {
+    id: 'overhead_mic', cat: '악기 · 밴드', kind: 'device', type: 'overhead_mic',
+    title: '오버헤드 마이크', subtitle: 'Small-diaphragm Condenser · 펜슬형',
+    summary: '드럼 위쪽에서 심벌과 드럼 전체 소리를 잡는 소형 콘덴서 마이크입니다. +48V 팬텀 전원이 꼭 필요합니다.',
+    how: ['드럼 위 1m 안팎에서 아래를 향하게 두 대(L/R)를 둡니다.', '고음이 섬세하게 잡혀 심벌의 반짝임과 드럼 전체의 공간감을 담당합니다.'],
+    specs: [['방식', '콘덴서 (+48V 필요)'], ['보통 수량', '2대 (L/R)'], ['연결', 'XLR → 믹서 MIC 단자, PAN L/R로 벌림']],
+    tips: ['LOW CUT을 켜서 킥의 저음이 겹치지 않게 합니다.', '두 대를 쓸 때는 PAN을 왼쪽·오른쪽으로 벌립니다.'],
+    mistakes: ['+48V를 켜지 않아 소리가 전혀 안 남'],
+    quiz: { q: '오버헤드 마이크에서 소리가 안 나는 가장 흔한 원인은?', options: ['+48V 팬텀 전원이 꺼져 있음', 'PAN이 가운데', 'EQ HIGH가 0'], answer: 0, explain: '콘덴서 마이크는 팬텀 전원이 없으면 동작하지 않습니다.' },
+  },
+  {
+    id: 'digital_piano', cat: '악기 · 밴드', kind: 'device', type: 'digital_piano',
+    title: '디지털 피아노 · 스테이지 피아노', subtitle: 'Stage Piano · 스테레오 LINE OUT L/R',
+    summary: '스테레오(L/R) 라인 출력을 가진 전자 피아노입니다. 자체 생소리가 거의 없어 믹서를 거쳐야 들립니다.',
+    how: ['OUT L/MONO와 OUT R 두 단자를 믹서 스테레오 채널의 L/R 단자에 넣는 것이 정석입니다.', '무대에서 FOH까지 멀면 DI 두 대(또는 스테레오 DI)로 XLR로 보내고, 모노 채널 두 개의 PAN을 왼쪽·오른쪽 끝으로 벌립니다.', '채널이 모자라면 L/MONO 하나만 꽂아 모노로 받아도 됩니다.'],
+    specs: [['출력', 'OUT L/MONO · OUT R (6.3mm TS, 라인 레벨)'], ['연결', '짧으면 TS → 믹서 LINE, 길면 DI → XLR'], ['스테레오', 'PAN L/R 또는 스테레오 채널']],
+    tips: ['피아노 본체 볼륨을 70~80%로 두고 믹서 GAIN으로 맞추면 잡음이 적습니다.'],
+    mistakes: ['R만 꽂아서 한쪽 스피커에서만 들림 (모노는 L/MONO 단자)', 'DI 두 대로 받고 PAN을 가운데에 둬서 스테레오가 사라짐'],
+    quiz: { q: '디지털 피아노를 한 채널(모노)로만 받아야 할 때 꽂을 단자는?', options: ['OUT L/MONO', 'OUT R', '헤드폰 단자'], answer: 0, explain: 'L/MONO 단자에만 꽂으면 피아노가 양쪽 소리를 합쳐 모노로 내보냅니다.' },
+  },
+  {
+    id: 'bass_guitar', cat: '악기 · 밴드', kind: 'device', type: 'bass_guitar',
+    title: '베이스 기타', subtitle: 'Electric Bass · 패시브 4현',
+    summary: '밴드의 낮은 음을 맡는 악기입니다. 하이 임피던스 TS 출력이라 DI 박스로 받아 믹서 MIC 단자로 보냅니다.',
+    how: ['베이스 → TS 케이블 → DI 입력, DI의 XLR 출력 → 믹서 MIC 단자.', 'DI의 THRU 단자로 베이스 앰프에도 같은 신호를 보낼 수 있습니다.'],
+    specs: [['출력', '6.3mm TS (하이 임피던스, 악기 레벨)'], ['연결', 'DI 박스 → XLR'], ['채널 설정', 'LOW CUT 끔']],
+    tips: ['LOW CUT을 끄고, 필요하면 EQ LOW로 무게를 조절합니다.', '킥 드럼과 베이스가 같이 쿵쿵거리면 둘 중 하나의 저음을 살짝 깎아 자리를 나눕니다.'],
+    mistakes: ['믹서 LINE 단자에 바로 꽂아 소리가 얇고 잡음이 많음', 'LOW CUT을 켜서 베이스가 사라짐'],
+    quiz: { q: '베이스 기타를 FOH 믹서로 보내는 가장 좋은 방법은?', options: ['DI 박스를 거쳐 XLR로', '긴 TS 케이블로 바로', 'USB로'], answer: 0, explain: 'DI가 하이 임피던스 신호를 밸런스드 마이크 레벨로 바꿔 멀리 보내도 잡음이 없습니다.' },
+  },
+  {
     id: 'monitor', cat: '음향 장비', kind: 'device', type: 'monitor',
     title: '모니터 스피커 (웨지)', subtitle: 'Floor Wedge Monitor',
     summary: '무대 위 연주자·설교자가 자기 소리를 듣기 위한 바닥형 스피커. 관객용 메인 스피커와 다른 "모니터 믹스"를 받습니다.',
@@ -869,7 +936,8 @@ const ORDER = [
   'flow',
   'dynamic_mic', 'condenser_mic', 'wireless_mic',
   'audio_interface', 'di_box', 'analog_mixer', 'digital_mixer', 'mixer_sizes', 'speaker', 'monitor', 'headphones',
-  'levels', 'gain', 'channelstrip', 'effects', 'feedback',
+  'drum_kit', 'kick_mic', 'snare_mic', 'overhead_mic', 'digital_piano', 'bass_guitar',
+  'levels', 'gain', 'channelstrip', 'effects', 'fade', 'feedback',
   'camera', 'mirrorless', 'ptz', 'ptz_controller', 'camsettings',
   'atem', 'pgmpvw', 'atem_pro', 'multiview', 'transitions',
   'pc', 'ipnet',

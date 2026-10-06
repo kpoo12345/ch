@@ -17,7 +17,7 @@
  *  { op:'fade', ch?, to, ms }                   페이더를 ms 동안 천천히 (ch가 없으면 메인)
  *  { op:'talk', on } · { op:'perform', on } · { op:'wait', ms }   (화면 쪽에서 처리)
  * ===================================================================== */
-import { canConnect, computeSim, connId, DEV_DEFAULTS, FOOTPRINT } from './sim.js';
+import { canConnect, computeSim, connId, mixerStateOf, newMixerState, DEV_DEFAULTS, FOOTPRINT } from './sim.js';
 import { DEVICE_TYPES } from './engine.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -70,10 +70,11 @@ export function applyOp(stIn, op) {
       }
       return st;
     }
-    case 'ch': if (st.channels[op.ch - 1]) st.channels[op.ch - 1][op.key] = op.value; return st;
+    // 믹서 조작: op.mixer가 있으면 그 믹서(두 번째 믹서 등), 없으면 첫 믹서
+    case 'ch': { const S = mixerStateOf(st, op.mixer); if (S.channels[op.ch - 1]) S.channels[op.ch - 1][op.key] = op.value; return st; }
     // 페이드: 최종 값만 반영 (천천히 움직이는 과정은 화면 쪽에서 보여 준다)
-    case 'fade': if (op.ch) { if (st.channels[op.ch - 1]) st.channels[op.ch - 1].fader = op.to; } else st.master.mainFader = op.to; return st;
-    case 'master': st.master[op.key] = op.value; return st;
+    case 'fade': { const S = mixerStateOf(st, op.mixer); if (op.ch) { if (S.channels[op.ch - 1]) S.channels[op.ch - 1].fader = op.to; } else S.master.mainFader = op.to; return st; }
+    case 'master': mixerStateOf(st, op.mixer).master[op.key] = op.value; return st;
     case 'dev': if (st.dev[op.device]) setPath(st.dev[op.device], op.key, op.value); return st;
     case 'atem': {
       const a = st.atem;
@@ -120,7 +121,10 @@ export function applyOp(stIn, op) {
       // 자유 모드: 새 장비 추가
       st.devices[op.device.id] = { placed: true, ...op.device };
       st.dev[op.device.id] = op.state ?? {};
-      if (!st.mixerId && (op.device.type === 'analog_mixer' || op.device.type === 'digital_mixer')) st.mixerId = op.device.id;
+      if (op.device.type === 'analog_mixer' || op.device.type === 'digital_mixer') {
+        if (!st.mixerId) st.mixerId = op.device.id;
+        else st.mixers = { ...(st.mixers ?? {}), [op.device.id]: newMixerState() }; // 두 번째 믹서부터는 따로 상태를 갖는다
+      }
       if (!st.switcherId && (op.device.type === 'atem' || op.device.type === 'atem_pro')) st.switcherId = op.device.id;
       // 조명: 콘솔 패치에 자동 등록 (콘솔을 나중에 놓으면 이미 있는 조명을 한꺼번에)
       const con = lightConsoleOf(st);
@@ -138,7 +142,12 @@ export function applyOp(stIn, op) {
       // 조명을 치우면 자동 패치 항목도 지운다
       if (FIXTURES.has(st.devices[id]?.type)) Object.values(st.devices).filter((d) => d.type === 'lighting_console').forEach((d) => dropPatch(st.dev[d.id], (e) => e.fixture === id));
       delete st.devices[id]; delete st.dev[id];
-      if (st.mixerId === id) st.mixerId = Object.values(st.devices).find((d) => d.type === 'analog_mixer' || d.type === 'digital_mixer')?.id ?? null;
+      if (st.mixers?.[id]) delete st.mixers[id];
+      if (st.mixerId === id) {
+        st.mixerId = Object.values(st.devices).find((d) => d.type === 'analog_mixer' || d.type === 'digital_mixer')?.id ?? null;
+        // 남은 믹서가 첫 믹서가 되면 그 믹서의 설정을 그대로 가져온다
+        if (st.mixerId && st.mixers?.[st.mixerId]) { st.channels = st.mixers[st.mixerId].channels; st.master = st.mixers[st.mixerId].master; delete st.mixers[st.mixerId]; }
+      }
       if (st.switcherId === id) st.switcherId = Object.values(st.devices).find((d) => d.type === 'atem' || d.type === 'atem_pro')?.id ?? null;
       return st;
     }
@@ -168,8 +177,8 @@ export function opToAction(st, op, key) {
     case 'moveDevice': return { key, device: op.device, ctl: { kind: 'place' } };
     case 'connect': return { key, device: parseEnd(op.from).d, ctl: { kind: 'cable', from: parseEnd(op.from), to: parseEnd(op.to) } };
     case 'disconnect': return { key, device: parseEnd(op.from).d, ctl: { kind: 'press' } };
-    case 'ch': return { key, device: mixer, ctl: { kind: 'mixer', key: op.key, ch: op.ch, value: op.value, prev: st.channels[op.ch - 1]?.[op.key], needSelect: true } };
-    case 'master': return { key, device: mixer, ctl: { kind: 'master', key: op.key, value: op.value, prev: st.master[op.key] } };
+    case 'ch': return { key, device: op.mixer ?? mixer, ctl: { kind: 'mixer', key: op.key, ch: op.ch, value: op.value, prev: mixerStateOf(st, op.mixer).channels[op.ch - 1]?.[op.key], needSelect: true } };
+    case 'master': return { key, device: op.mixer ?? mixer, ctl: { kind: 'master', key: op.key, value: op.value, prev: mixerStateOf(st, op.mixer).master[op.key] } };
     case 'dev': {
       const t = st.devices[op.device]?.type;
       if (t === 'lighting_console') return { key, device: op.device, ctl: { kind: 'light', key: op.key, value: op.value } };
@@ -219,7 +228,7 @@ export function notePop(st, op, latched) {
   if (!isCable && !((op.op === 'ch' || op.op === 'master') && op.key === 'phantom')) return null;
   const powered = Object.values(st.devices).filter((d) => d.placed && (d.type === 'speaker' || d.type === 'monitor') && st.dev[d.id]?.power);
   if (!powered.length) return null;
-  const ends = isCable ? [String(op.from).split('.')[0], String(op.to).split('.')[0]] : [st.mixerId];
+  const ends = isCable ? [String(op.from).split('.')[0], String(op.to).split('.')[0]] : [op.mixer ?? st.mixerId];
   const hit = powered.filter((spk) => {
     // 스피커에서 거꾸로 따라가며 신호 경로에 있는 장비들
     const chain = new Set([spk.id]);

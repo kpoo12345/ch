@@ -11,6 +11,7 @@ import { AnalogConsole, DigitalConsole, CONSOLE_PORTS, demoChannels } from './co
 import { WedgeModel, PORTS_EXTRA } from './models2.jsx';
 import { ParLedModel, MovingHeadModel, LightingConsoleModel, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel, PtzControllerModel, drawPtzLcd, PORTS_LIGHT } from './models3.jsx';
 import { drawComposition } from './scenes.js';
+import { KickMicModel, SnareMicModel, OverheadMicModel, DigitalPianoModel, BassGuitarModel, DrumKitModel, PORTS_INSTR } from './models4.jsx';
 
 export { hasWebGL, NoWebGL };
 
@@ -36,6 +37,8 @@ export const PORTS3D = {
     in4: { p: [-0.02, 0.05, -0.088], n: [0, 0.6, -0.8] },
     usb: { p: [0.09, 0.05, -0.088], n: [0, 0.6, -0.8] },
     hdmiout: { p: [0.16, 0.05, -0.088], n: [0, 0.6, -0.8] },
+    mic1: { p: [0.02, 0.05, -0.088], n: [0, 0.6, -0.8] },
+    mic2: { p: [0.045, 0.05, -0.088], n: [0, 0.6, -0.8] },
   },
   audio_interface: {
     in1: { p: [-0.072, 0.024, 0.052], n: [0, 0, 1] },
@@ -854,7 +857,7 @@ export const SHORT_LABEL = {
   'analog_mixer:main': 'ST OUT L', 'analog_mixer:mainR': 'ST OUT R', 'analog_mixer:aux1': 'AUX 1', 'analog_mixer:aux2': 'AUX 2', 'analog_mixer:phones': 'PHONES',
   ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`digital_mixer:local${n}`, `${n}`])),
   'digital_mixer:main': 'MAIN', 'digital_mixer:aux1': 'AUX', 'digital_mixer:usb': 'USB',
-  'atem:in1': '1', 'atem:in2': '2', 'atem:in3': '3', 'atem:in4': '4', 'atem:usb': 'USB', 'atem:hdmiout': 'OUT',
+  'atem:in1': '1', 'atem:in2': '2', 'atem:in3': '3', 'atem:in4': '4', 'atem:usb': 'USB', 'atem:hdmiout': 'OUT', 'atem:mic1': 'MIC1', 'atem:mic2': 'MIC2',
   'atem_pro:in1': 'IN 1', 'atem_pro:in2': 'IN 2', 'atem_pro:in3': 'IN 3', 'atem_pro:in4': 'IN 4', 'atem_pro:usb': 'USB-C', 'atem_pro:eth': 'LAN', 'atem_pro:hdmiout': 'HDMI OUT',
   'atem_pro:mic1': 'MIC1', 'atem_pro:mic2': 'MIC2',
   'audio_interface:in1': 'IN 1', 'audio_interface:in2': 'IN 2', 'audio_interface:phones': '헤드폰', 'audio_interface:usb': 'USB-C', 'audio_interface:monL': 'MON L', 'audio_interface:monR': 'MON R',
@@ -972,6 +975,8 @@ const VIEW = {
   monitor: { target: [0, 0.2, 0], dist: 1.2 }, ptz_controller: { target: [0, DESK_TOP + 0.05, 0], dist: 0.6 },
   lighting_console: { target: [0, DESK_TOP + 0.12, 0], dist: 1.4 }, par_led: { target: [0, 1.5, 0], dist: 1.4 }, moving_head: { target: [0, 1.45, 0], dist: 1.5 },
   media_server: { target: [0.1, DESK_TOP + 0.25, 0], dist: 1.4 }, projector: { target: [0, 1.4, 0], dist: 2.6 }, led_wall: { target: [0, 1.5, 0], dist: 3.6 },
+  kick_mic: { target: [0, 0.25, 0], dist: 0.8 }, snare_mic: { target: [0, 0.62, 0.1], dist: 1.1 }, overhead_mic: { target: [0, 1.25, 0.2], dist: 2.2 },
+  digital_piano: { target: [0, 0.9, 0], dist: 2.0 }, bass_guitar: { target: [0, 1.0, 0], dist: 2.0 }, drum_kit: { target: [0, 0.7, 0], dist: 2.8 },
 };
 // 책상(받침대) 위에 올려 보여 줄 장비와 받침대 크기 [가로, 세로]
 const PEDESTAL = {
@@ -1058,6 +1063,12 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   }
   if (type === 'wireless_mic') model = <WirelessMicModel power={demo.txPower} battery={demo.battery} rf={demo.rf} lcdTex={lcdTex} talking={demo.talking} />;
   if (type === 'di_box') model = <DiBoxModel groundLift={demo.groundLift} pad={demo.pad} />;
+  if (type === 'kick_mic') model = <KickMicModel live={demo.talking} />;
+  if (type === 'snare_mic') model = <SnareMicModel live={demo.talking} />;
+  if (type === 'overhead_mic') model = <OverheadMicModel live={demo.talking} phantomOk={!!demo.mixer?.phantom} />;
+  if (type === 'digital_piano') model = <DigitalPianoModel performing />;
+  if (type === 'bass_guitar') model = <BassGuitarModel performing />;
+  if (type === 'drum_kit') model = <DrumKitModel performing />;
   if (type === 'headphones') model = <HeadphonesModel />;
   if (type === 'mirrorless') model = <MirrorlessModel zoom={demo.zoom} rec={demo.rec} lcdTex={camLcdTex} />;
   if (type === 'ptz') model = <PtzModel pan={demo.pan} tilt={demo.tilt} zoom={demo.zoom} tally={demo.tally} />;
@@ -1071,7 +1082,7 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   if (type === 'projector') model = <ProjectorModel power={demo.screenOn} on={demo.screenOn} />;
   if (type === 'led_wall') model = <group scale={0.55}><LedWallModel w={4.2} h={2.25} tex={vjTex} on={demo.screenOn} power={demo.screenOn} /></group>;
   if (type === 'ptz_controller') model = <PtzControllerModel selected={demo.joySel ?? 0} tallies={['pgm', 'pvw', null, null]} lcdTex={joyLcd} />;
-  const portMap = PORTS3D[type] ?? PORTS_EXTRA[type] ?? PORTS_LIGHT[type] ?? {};
+  const portMap = PORTS3D[type] ?? PORTS_EXTRA[type] ?? PORTS_LIGHT[type] ?? PORTS_INSTR[type] ?? {};
   const portScale = type === 'led_wall' ? 0.55 : 1;
   // 탈리·하울링·화면 불빛 (라이트 1개를 늘 달아 두고 위치·세기만 바꾼다)
   const glowKey = type === 'speaker' && demo.feedback ? 'feedback' : type === 'camera' && demo.tally === 'pgm' ? 'tally'

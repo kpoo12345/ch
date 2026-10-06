@@ -537,3 +537,26 @@ test('pop noise: powering the speaker before cabling is latched and fails noPop;
   assert.equal(right.latched.has('pop:pa'), false);
   assert.ok(checkObjective({ type: 'noPop', device: 'pa', power: true }, right.st, computeSim(right.st), { latched: [...right.latched] }));
 });
+
+test('studio: a second mixer has its own channels and master; ops can target it', async () => {
+  const { applyOp, addDeviceOp } = await import('../src/game/ops.js');
+  let st = buildRuntime({ venue: 'sandbox', unlimited: true, devices: [], connections: [] });
+  st = applyOp(st, addDeviceOp(st, 'analog_mixer', [0, 0.75, 1], 'desk'));
+  st = applyOp(st, addDeviceOp(st, 'analog_mixer', [1, 0.75, 1], 'desk'));
+  st = applyOp(st, addDeviceOp(st, 'dynamic_mic', [0, 0, -1], 'floor'));
+  st = applyOp(st, addDeviceOp(st, 'dynamic_mic', [1, 0, -1], 'floor'));
+  st = applyOp(st, addDeviceOp(st, 'speaker', [2, 0, -1], 'floor'));
+  const [m1, m2] = Object.keys(st.devices).filter((k) => k.startsWith('analog_mixer'));
+  assert.equal(st.mixerId, m1);
+  assert.ok(st.mixers[m2], 'second mixer state');
+  st = applyOp(st, { op: 'connect', from: 'dynamic_mic_1.out', to: `${m1}.in1`, cable: 'xlr' });
+  st = applyOp(st, { op: 'connect', from: 'dynamic_mic_2.out', to: `${m2}.in1`, cable: 'xlr' });
+  st = applyOp(st, { op: 'connect', from: `${m2}.main`, to: 'speaker_1.in', cable: 'xlr' });
+  let sim = computeSim(st);
+  assert.ok(sim.reaches('dynamic_mic_2', 'main'));
+  assert.equal(sim.reaches('dynamic_mic_1', 'main'), false, 'mixer 2 outputs its own mix');
+  st = applyOp(st, { op: 'ch', ch: 1, key: 'mute', value: true, mixer: m2 });
+  sim = computeSim(st);
+  assert.equal(sim.reaches('dynamic_mic_2', 'main'), false);
+  assert.equal(st.channels[0].mute, false, 'first mixer untouched');
+});

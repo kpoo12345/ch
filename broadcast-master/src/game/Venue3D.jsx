@@ -12,7 +12,9 @@ import {
   PORTS3D, GHOST, FOCUS, SELECT_RADIUS, SHORT_LABEL, FrontKnob, GlowLights, GLOW,
 } from './Studio3D.jsx';
 import { AnalogConsole, DigitalConsole, CONSOLE_SIZE, consoleControl } from './consoles.jsx';
+import { KickMicModel, SnareMicModel, OverheadMicModel, DigitalPianoModel, BassGuitarModel, DrumKitModel, PORTS_INSTR, GHOST_INSTR, FOCUS_INSTR, SELECT_RADIUS_INSTR, INSTR_TYPES } from './models4.jsx';
 import { VENUES, P_CH, P_LS } from './venues.js';
+import { mixerStateOf } from './sim.js';
 import {
   ParLedModel, MovingHeadModel, LightingConsoleModel, lightConsoleControl, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel,
   PtzControllerModel, drawPtzLcd, PORTS_LIGHT, GHOST_LIGHT, FOCUS_LIGHT, BeamPoolCtx, BeamLightPool,
@@ -35,9 +37,9 @@ import {
 const DT = DESK_TOP;
 
 /* ---------------------------- 장비 장착 방식 ---------------------------- */
-const FLOOR_NATIVE = new Set(['dynamic_mic', 'condenser_mic', 'speaker', 'monitor', 'camera', 'e_guitar', 'keyboard', 'di_box']);
+const FLOOR_NATIVE = new Set(['dynamic_mic', 'condenser_mic', 'speaker', 'monitor', 'camera', 'e_guitar', 'keyboard', 'di_box', ...INSTR_TYPES]);
 const MIC_TYPES = new Set(['dynamic_mic', 'condenser_mic']);
-const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA, ...PORTS_LIGHT };
+const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA, ...PORTS_LIGHT, ...PORTS_INSTR };
 const FIXTURES = new Set(['par_led', 'moving_head']);
 const HANGING = new Set(['par_led', 'moving_head', 'projector']);
 const CAMERA_TYPES = new Set(['camera', 'mirrorless', 'ptz']);
@@ -47,11 +49,11 @@ const SEL_KEYS = new Set(['gain', 'lowCut', 'phantom', 'eqHigh', 'eqMid', 'eqLow
 const OWN_JACKS = new Set(['analog_mixer', 'digital_mixer']);
 const GHOST_ALL = { ...GHOST, ...GHOST_EXTRA, analog_mixer: CONSOLE_SIZE.analog_mixer, digital_mixer: CONSOLE_SIZE.digital_mixer,
   audio_interface: [0.22, 0.06, 0.12], wireless_mic: [0.4, 0.3, 0.2], di_box: [0.12, 0.07, 0.15], headphones: [0.25, 0.25, 0.2],
-  mirrorless: [0.25, 0.3, 0.2], ptz: [0.18, 0.25, 0.18], atem_pro: [0.46, 0.4, 0.45], ...GHOST_LIGHT };
+  mirrorless: [0.25, 0.3, 0.2], ptz: [0.18, 0.25, 0.18], atem_pro: [0.46, 0.4, 0.45], ...GHOST_LIGHT, ...GHOST_INSTR };
 const FOCUS_ALL = { ...FOCUS, ...FOCUS_EXTRA, analog_mixer: { y: 0.07, dist: 0.85 }, digital_mixer: { y: 0.1, dist: 1.05 },
   audio_interface: { y: 0.03, dist: 0.5 }, wireless_mic: { y: 0.08, dist: 0.7 }, di_box: { y: 0.03, dist: 0.5 }, headphones: { y: 0.12, dist: 0.6 },
-  mirrorless: { y: 0.2, dist: 0.6 }, ptz: { y: 0.12, dist: 0.6 }, atem_pro: { y: 0.12, dist: 0.95 }, ...FOCUS_LIGHT };
-const RADIUS_ALL = { ...SELECT_RADIUS, ...SELECT_RADIUS_EXTRA };
+  mirrorless: { y: 0.2, dist: 0.6 }, ptz: { y: 0.12, dist: 0.6 }, atem_pro: { y: 0.12, dist: 0.95 }, ...FOCUS_LIGHT, ...FOCUS_INSTR };
+const RADIUS_ALL = { ...SELECT_RADIUS, ...SELECT_RADIUS_EXTRA, ...SELECT_RADIUS_INSTR };
 
 // 책상 위 마이크(데스크 암·강대상 구즈넥): 마이크 머리 높이 H
 function deskMicPorts(type, H) {
@@ -825,17 +827,28 @@ export default function Venue3D({
   }
 
   /* ----- 상태 → 표시 ----- */
-  const meters = useMemo(() => ({
-    ch: sim.mixer.channels.map((c) => (c.inLevel == null ? null : c.inLevel)),
-    main: st.mixerId ? sim.outLevel(st.mixerId, 'main') : null,
-    mainR: st.mixerId && st.devices[st.mixerId]?.type === 'analog_mixer' ? sim.outLevel(st.mixerId, 'mainR') : null,
-    aux: st.mixerId ? sim.outLevel(st.mixerId, 'aux1') : null,
-  }), [sim]); // eslint-disable-line react-hooks/exhaustive-deps
-  const chNames = useMemo(() => st.channels.map((ch, i) => {
-    const c = sim.mixer.channels[i];
-    const src = c?.comps?.[0]?.src;
-    return src ? (devices[src]?.name ?? DEVICE_TYPES[devices[src]?.type]?.name ?? src).slice(0, 8) : '';
-  }), [sim]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 믹서마다(자유 모드에서는 여러 대) 미터와 채널 이름표
+  const mixerView = useMemo(() => {
+    const out = {};
+    Object.values(devices).filter((d) => d.placed && (d.type === 'analog_mixer' || d.type === 'digital_mixer')).forEach((d) => {
+      const m = sim.mixerOf(d.id);
+      const S = mixerStateOf(st, d.id);
+      out[d.id] = {
+        S,
+        meters: {
+          ch: m.channels.map((c) => (c.inLevel == null ? null : c.inLevel)),
+          main: sim.outLevel(d.id, 'main'),
+          mainR: d.type === 'analog_mixer' ? sim.outLevel(d.id, 'mainR') : null,
+          aux: sim.outLevel(d.id, 'aux1'),
+        },
+        names: S.channels.map((ch, i) => {
+          const src = m.channels[i]?.comps?.[0]?.src;
+          return src ? (devices[src]?.name ?? DEVICE_TYPES[devices[src]?.type]?.name ?? src).slice(0, 8) : '';
+        }),
+      };
+    });
+    return out;
+  }, [sim]); // eslint-disable-line react-hooks/exhaustive-deps
   const camTally = (id) => {
     const n = Object.entries(sim.video.camAt).find(([, c]) => c === id)?.[0];
     if (!n) return null;
@@ -922,10 +935,14 @@ export default function Venue3D({
         const ok = s.txPower && s.txChannel === s.rxChannel && s.battery > 15;
         return <WirelessLcdWrap s={s} ok={ok} talking={talking} />;
       }
-      case 'analog_mixer':
-        return <AnalogConsole channels={st.channels} master={st.master} meters={meters} names={chNames} />;
-      case 'digital_mixer':
-        return <DigitalConsole channels={st.channels} master={st.master} meters={meters} names={chNames} selected={cueSel ?? selectedChannel} />;
+      case 'analog_mixer': {
+        const v = mixerView[d.id];
+        return v ? <AnalogConsole channels={v.S.channels} master={v.S.master} meters={v.meters} names={v.names} /> : null;
+      }
+      case 'digital_mixer': {
+        const v = mixerView[d.id];
+        return v ? <DigitalConsole channels={v.S.channels} master={v.S.master} meters={v.meters} names={v.names} selected={d.id === st.mixerId ? cueSel ?? selectedChannel : 0} /> : null;
+      }
       case 'speaker': {
         const lv = sim.inLevel(d.id, 'in');
         const fb = sim.loops.some((l) => l.spk === d.id && l.loop >= 0) && talking;
@@ -953,6 +970,12 @@ export default function Venue3D({
       case 'headphones': return <HeadphonesModel />;
       case 'e_guitar': return <GuitarModel performing={performing} />;
       case 'keyboard': return <KeyboardModel performing={performing} />;
+      case 'digital_piano': return <DigitalPianoModel performing={performing} />;
+      case 'bass_guitar': return <BassGuitarModel performing={performing} />;
+      case 'drum_kit': return <DrumKitModel performing={performing} />;
+      case 'kick_mic': return <KickMicModel live={live(sim.outLevel(d.id, 'out')) && !!sim.channelOf(d.id)} />;
+      case 'snare_mic': return <SnareMicModel live={live(sim.outLevel(d.id, 'out')) && !!sim.channelOf(d.id)} />;
+      case 'overhead_mic': return <OverheadMicModel live={live(sim.outLevel(d.id, 'out')) && !!sim.channelOf(d.id)} phantomOk={!sim.deadPhantom.includes(d.id) && !!sim.channelOf(d.id)} />;
       case 'laptop': return <LaptopModel playing={!!s.playing} screenTex={laptopTex} />;
       case 'router': return <RouterModel linked={st.connections.some((c) => c.to.d === d.id)} />;
       case 'par_led':
