@@ -24,7 +24,9 @@ function utter(text, { rate = 1.05, volume = 1, pitch = 1 } = {}) {
   return u;
 }
 
-export function narrate(text, { rate = 1, onEnd } = {}) {
+// onBoundary(charIndex): 단어를 읽기 시작할 때마다 (지원하는 목소리만) — 글자 표시를 음성에 맞추는 데 쓴다
+// onError: 목소리가 없거나 합성이 실패했을 때 (이때는 onEnd를 부르지 않는다 — 부르는 쪽이 시간으로 대신 끝낸다)
+export function narrate(text, { rate = 1, onEnd, onBoundary, onError } = {}) {
   if (!speechOk() || !text) { onEnd?.(); return; }
   const synth = window.speechSynthesis;
   synth.cancel();
@@ -33,7 +35,15 @@ export function narrate(text, { rate = 1, onEnd } = {}) {
   state.narrating = true;
   const u = utter(text, { rate, volume: 1, pitch: 1 });
   const done = () => { if (state.current === u) { state.narrating = false; state.current = null; onEnd?.(); scheduleTalk(400); } };
-  u.onend = done; u.onerror = done;
+  u.onend = done;
+  u.onerror = (e) => {
+    if (state.current !== u) return;
+    if (e?.error === 'interrupted' || e?.error === 'canceled') { done(); return; }
+    state.narrating = false; state.current = null;
+    if (onError) onError(); else onEnd?.();
+    scheduleTalk(400);
+  };
+  u.onboundary = (e) => { if (state.current === u && typeof e.charIndex === 'number') onBoundary?.(e.charIndex); };
   state.current = u;
   // 일부 브라우저는 cancel 직후 바로 speak하면 말을 시작하지 않는다 → 아주 잠깐 뒤에
   state.narrTimer = setTimeout(() => { if (state.current === u) synth.speak(u); }, 80);

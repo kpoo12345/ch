@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Hand, ChevronLeft, ChevronRight, Pause, Play, X, Headphones, Wand2, CheckCircle2, FastForward } from 'lucide-react';
 import { Seg, Toggle } from './controls.jsx';
+import { saveProgress } from '../ui.jsx';
 
 /* =====================================================================
  * 대화 장면 상자 — 튜토리얼·정답 보기의 진행 화면
@@ -12,20 +13,27 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
   const { script, narration, waiting, speaking, praised } = player;
   const [shown, setShown] = useState(0);
   const text = narration?.text ?? '';
-  // 글자 나타내기: 음성 길이에 맞춰
+  // 글자 나타내기: 지금 읽는 부분(offset부터)을 음성 길이에 맞춰. 음성이 단어 위치를 알려 주면(pos) 그만큼은 바로 보인다.
+  // 속도를 바꾸면 읽던 곳부터 새 속도로 다시 계산된다
   useEffect(() => {
     if (!text) { setShown(0); return undefined; }
     if (!speaking) { setShown(text.length); return undefined; }
-    setShown(0);
-    const t0 = performance.now();
-    const total = Math.max(600, (narration?.ms ?? 2000) * 0.9);
-    const id = setInterval(() => {
-      const k = Math.min(text.length, Math.ceil(((performance.now() - t0) / total) * text.length));
-      setShown(k);
-      if (k >= text.length) clearInterval(id);
-    }, 40);
+    const from = narration?.offset ?? 0;
+    const t0 = narration?.t0 ?? Date.now();
+    const total = Math.max(400, (narration?.ms ?? 2000) * 0.92);
+    const tick = () => {
+      const k = Math.min(text.length, from + Math.ceil(((Date.now() - t0) / total) * (text.length - from)));
+      setShown((prev) => Math.max(prev, k));
+      return k >= text.length;
+    };
+    // 새 대사면 처음부터, 속도만 바뀌었으면 이미 보인 글자는 그대로
+    if (from === 0) setShown(0);
+    tick();
+    const id = setInterval(() => { if (tick()) clearInterval(id); }, 35);
     return () => clearInterval(id);
-  }, [text, narration?.i]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, narration?.i, narration?.offset, narration?.t0, speaking]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 음성이 알려 준 단어 위치까지는 바로 보이게
+  useEffect(() => { if (narration?.pos) setShown((v) => Math.max(v, Math.min(text.length, narration.pos))); }, [narration?.pos]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!speaking && text) setShown(text.length); }, [speaking, text]);
 
   const ready = !!script?.ready;
@@ -88,7 +96,7 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
             <span className="inline-flex items-center gap-0.5"><FastForward size={11} /> 자동</span>
           </Toggle>
           {tutorial && <Toggle small on={!!script.practice} color="amber" onClick={() => player.setPractice(!script.practice)} title="켜면 조작을 여러분이 직접 합니다">직접 해보기</Toggle>}
-          <div className="hidden sm:block"><Seg small value={script.speed ?? 1} options={[[1, '1x'], [1.5, '1.5x'], [2, '2x']]} onChange={player.setSpeed} /></div>
+          <Seg small value={script.speed ?? 1} options={[[1, '1x'], [1.5, '1.5x'], [2, '2x']]} onChange={(v) => { player.setSpeed(v); saveProgress('bm2-speed', v); }} />
           <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{Math.min(i + 1, n)} / {n}</span>
           {!tutorial && <button type="button" onClick={player.stop} className="p-1 rounded hover:bg-slate-800 text-slate-400" aria-label="자동 진행 끄기"><X size={15} /></button>}
           <button type="button" onClick={() => player.next()}

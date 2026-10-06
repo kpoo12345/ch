@@ -148,14 +148,14 @@ export default function GameScreen({
 
   // 튜토리얼: 대본 자동 시작
   useEffect(() => {
-    if (tutorial?.steps) player.start(tutorial.steps, { practice: tutorial.practice, auto: !!tutorial.auto, onDone: tutorial.onDone, onStep: tutorial.onStep });
+    if (tutorial?.steps) player.start(tutorial.steps, { practice: tutorial.practice, auto: !!tutorial.auto, speed: loadProgress('bm2-speed', 1), onDone: tutorial.onDone, onStep: tutorial.onStep });
   }, [tutorial?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (initialAuto) startAuto(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startAuto = () => {
     if (!spec.solution) return;
     setShowBrief(false); setUsedAuto(true); game.reset(); setResetKey((k) => k + 1);
-    setTimeout(() => player.start(spec.solution, { onDone: () => {} }), 400);
+    setTimeout(() => player.start(spec.solution, { speed: loadProgress('bm2-speed', 1), onDone: () => {} }), 400);
   };
 
   // 선택한 장비 → 장비 탭
@@ -170,7 +170,7 @@ export default function GameScreen({
 
   const inv = Object.entries(st.cables).filter(([k]) => CABLES[k]);
   const cableChoices = st.unlimited ? Object.keys(CABLES) : inv.map(([k]) => k);
-  const highlight = player.waiting ? targetOf(player.waiting) : null;
+  const highlight = player.waiting ? targetOf(player.waiting, st) : null;
   const onePending = game.pending ? `${st.devices[game.pending.d]?.name ?? game.pending.d} · ${portLabel(st, game.pending.d, game.pending.p)}` : null;
   const doneCount = game.objectives.filter((o) => o.ok).length;
 
@@ -250,7 +250,7 @@ export default function GameScreen({
             )}
             {tab === 'device' && (game.selected && st.devices[game.selected]
               ? <DevicePanel key={game.selected} game={game} id={game.selected} />
-              : <DeviceList game={game} />)}
+              : <DeviceList game={game} onFocus={(id) => setFocusRequest({ id, key: Date.now() })} />)}
             {tab === 'device' && game.selected && <button type="button" onClick={() => game.setSelected(null)} className="text-xs text-slate-400 hover:text-slate-200">← 장비 목록</button>}
             {tab === 'ports' && <PortBoard game={game} />}
             {tab === 'log' && <LogPanel log={game.log} />}
@@ -289,7 +289,7 @@ export default function GameScreen({
             <Seg small value={listen} options={LISTEN.filter(([k]) => k !== 'headphones' || Object.values(st.devices).some((d) => d.type === 'headphones'))} onChange={setListen} />
             <Toggle small on={compareOpen} color="sky" onClick={() => setCompareOpen(!compareOpen)} title="현장(객석)에서 들리는 소리와 방송으로 나가는 소리를 나란히 비교합니다">A/B 비교</Toggle>
             {st.mixerId && st.devices[st.mixerId]?.placed && (
-              <button type="button" onClick={() => setConsoleOpen(!consoleOpen)} className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold ${consoleOpen ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-100'}`}>
+              <button type="button" onClick={() => { if (!consoleOpen && !lockView) setFocusRequest({ id: st.mixerId, key: Date.now() }); setConsoleOpen(!consoleOpen); }} className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold ${consoleOpen ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-100'}`}>
                 <SlidersHorizontal size={14} /> 믹서 콘솔
               </button>
             )}
@@ -374,16 +374,16 @@ function Status({ game }) {
   );
 }
 
-function DeviceList({ game }) {
+function DeviceList({ game, onFocus }) {
   const { st } = game;
   return (
     <div className="space-y-1">
-      <p className="text-[11px] text-slate-400">장비를 고르면 실제 버튼·노브를 조작할 수 있습니다. 3D에서 장비를 클릭해도 됩니다 (더블클릭 = 확대).</p>
+      <p className="text-[11px] text-slate-400">장비를 고르면 3D 화면이 그 장비로 확대되고 실제 버튼·노브를 조작할 수 있습니다. 3D에서 장비를 눌러도 됩니다 (한 번 더 누르면 더 가까이).</p>
       {Object.values(st.devices).map((d) => {
         const def = DEVICE_TYPES[d.type];
         const Icon = def.icon;
         return (
-          <button key={d.id} type="button" onClick={() => game.setSelected(d.id)} className="w-full flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/70 hover:bg-slate-800 px-2 py-1.5 text-left">
+          <button key={d.id} type="button" onClick={() => { game.setSelected(d.id); if (d.placed) onFocus?.(d.id); }} className="w-full flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/70 hover:bg-slate-800 px-2 py-1.5 text-left">
             {Icon && <Icon size={15} className="text-sky-300" />}
             <span className="text-sm text-slate-100 flex-1 truncate">{d.name ?? def.name}</span>
             {!d.placed && <span className="text-[10px] text-amber-300">미배치</span>}
@@ -459,8 +459,12 @@ function portLabel(st, d, p) {
 }
 
 // 연습 단계에서 강조할 장비/단자
-function targetOf(op) {
+function targetOf(op, st) {
   if (op.op === 'place' || op.op === 'dev' || op.op === 'move') return { device: op.device };
+  // 믹서 조작: 믹서를 가리키고 확대한다
+  if (op.op === 'ch' || op.op === 'master' || op.op === 'fade') return { device: op.mixer ?? st.mixerId, zoom: true };
+  if (op.op === 'atem') return { device: st.switcherId, zoom: true };
+  if (op.op === 'obs') return { device: Object.values(st.devices).find((d) => d.type === 'pc')?.id, zoom: true };
   if (op.op === 'connect') { const [d, p] = op.from.split('.'); const [d2, p2] = op.to.split('.'); return { device: d, port: p, device2: d2, port2: p2 }; }
   return null;
 }

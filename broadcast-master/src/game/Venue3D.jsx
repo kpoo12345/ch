@@ -637,8 +637,12 @@ function CameraRig({ venue, resetKey, focus, portWorld }) {
       controls.target.lerp(a.target, k);
       camera.position.lerp(a.pos, k);
       controls.update();
-      a.t += dt;
-      if (a.t > 2.5 || camera.position.distanceTo(a.pos) < 0.01) anim.current = null;
+      a.t += Math.min(dt, 0.1);
+      if (a.t > 2.5 || camera.position.distanceTo(a.pos) < 0.01) {
+        // 화면이 느려 덜 갔으면 마지막 위치로 맞춘다
+        controls.target.copy(a.target); camera.position.copy(a.pos); controls.update();
+        anim.current = null;
+      }
     }
   });
   return null;
@@ -713,6 +717,19 @@ export default function Venue3D({
     const opFront = devices[id].type === 'analog_mixer' || devices[id].type === 'digital_mixer';
     setFocus({ target: [w.pos[0], w.pos[1] + f.y * w.scale, w.pos[2]], dist: f.dist * (opts.zoom ?? 1), dir: opFront ? dir : null, key: `${id}-${Date.now()}` });
     if (!opts.silent) onSelectDevice?.(id);
+  };
+  // 연습 단계에서 조작할 장비(믹서·스위처 등)가 정해지면 그쪽으로 확대 (케이블 단계는 양쪽이 다 보여야 해서 제외)
+  useEffect(() => {
+    if (!highlight?.zoom || lockView || !highlight.device || !devices[highlight.device]?.placed) return;
+    focusDevice(highlight.device, { silent: true });
+  }, [highlight?.device, highlight?.zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 장비를 누르면 그 장비로 확대 (시점 고정 중에는 선택만). 이미 그 장비를 보고 있으면 한 번 더 가까이
+  const lastFocus = useRef(null);
+  const clickDevice = (id) => {
+    if (lockView) { onSelectDevice?.(id); return; }
+    const again = lastFocus.current?.id === id && Date.now() - lastFocus.current.t < 8000;
+    focusDevice(id, { zoom: again ? 0.6 : 1 });
+    lastFocus.current = { id, t: Date.now() };
   };
   useEffect(() => {
     if (!focusRequest) return;
@@ -1092,16 +1109,16 @@ export default function Venue3D({
                 <group position={[w.slot.pos[0], w.slot.pos[1], w.slot.pos[2]]} rotation={[0, w.rot, 0]}>{mountBase(w)}</group>
                 <group
                   position={w.pos} rotation={[0, w.rot, 0]} scale={w.scale}
-                  onClick={(e) => { if (!interactive) return; e.stopPropagation(); if (e.delta < 6) onSelectDevice?.(d.id); }}
-                  onDoubleClick={(e) => { if (!interactive) return; e.stopPropagation(); focusDevice(d.id); }}
+                  onClick={(e) => { if (!interactive) return; e.stopPropagation(); if (e.delta < 6) clickDevice(d.id); }}
+                  onDoubleClick={(e) => { if (!interactive) return; e.stopPropagation(); focusDevice(d.id, { zoom: 0.55 }); }}
                 >
                   <BeamPoolCtx.Provider value={beamPool}><DropIn>{renderModel(d)}</DropIn></BeamPoolCtx.Provider>
                   {(selected || hi) && interactive && <SelectRing radius={(RADIUS_ALL[d.type] ?? 0.3) / w.scale} />}
                 </group>
                 {(interactive || hi) && (
                   <Label position={[w.pos[0], w.pos[1] + labelY, w.pos[2]]} center zIndexRange={[30, 0]}>
-                    <button type="button" onClick={() => onSelectDevice?.(d.id)} onDoubleClick={() => focusDevice(d.id)} data-device-label={d.id} style={{ pointerEvents: interactive ? 'auto' : 'none' }}
-                      title="클릭: 제어 패널 · 더블클릭: 확대해서 보기"
+                    <button type="button" onClick={() => clickDevice(d.id)} onDoubleClick={() => focusDevice(d.id, { zoom: 0.55 })} data-device-label={d.id} style={{ pointerEvents: interactive ? 'auto' : 'none' }}
+                      title="클릭: 확대해서 보기 + 제어 패널 · 더블클릭: 더 가까이"
                       className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${hi ? 'bg-amber-400 text-slate-900 animate-pulse' : selected ? 'bg-sky-500 text-white' : 'bg-slate-900/80 text-slate-200 hover:bg-slate-700'}`}>
                       {d.name ?? def.name}
                     </button>
