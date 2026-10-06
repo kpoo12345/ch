@@ -3,6 +3,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, RoundedBox, Html, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { CABLES, PORT_COLOR, DEVICE_TYPES, MIXER_DEFAULT } from './engine.js';
+import {
+  DESK_TOP, faceTo, MAT, UP, noRaycast, rotY, quatFromNormal, PortalCtx, Label, hasWebGL, NoWebGL, CanvasShell,
+  Knob, Fader, Lamp, LED_THR, LedMeter, Waves, useCanvasTexture, FONT, useHoldCamera, AfterFirstFrame,
+} from './kit3d.jsx';
+import { AnalogConsole, DigitalConsole, CONSOLE_PORTS, demoChannels } from './consoles.jsx';
+
+export { hasWebGL, NoWebGL };
 
 /* =====================================================================
  * 3D 스튜디오 — 장비를 입체로 모델링하고 게임 상태(페이더·LED·탈리·
@@ -10,8 +17,6 @@ import { CABLES, PORT_COLOR, DEVICE_TYPES, MIXER_DEFAULT } from './engine.js';
  * 좌표계: x = 오른쪽, y = 위, z = 관객(화면) 쪽. 단위는 대략 미터.
  * ===================================================================== */
 
-const DESK_TOP = 0.75;
-const faceTo = (from, to) => Math.atan2(to[0] - from[0], to[2] - from[2]);
 
 const LAYOUTS = {
   pa: {
@@ -57,21 +62,11 @@ const LAYOUTS = {
 };
 
 // 장비별 단자 위치(장비 기준 로컬 좌표)와 케이블이 빠져나가는 방향
-const PORTS3D = {
+export const PORTS3D = {
   dynamic_mic: { out: { p: [0, 1.42, 0.13], n: [0, -0.35, 1] } },
   condenser_mic: { out: { p: [0, 1.36, 0], n: [0, -1, 0.15] } },
-  analog_mixer: {
-    ch1: { p: [-0.2575, 0.118, -0.19], n: [0, 0.75, -0.65] },
-    ch2: { p: [-0.2025, 0.118, -0.19], n: [0, 0.75, -0.65] },
-    main: { p: [0.205, 0.118, -0.19], n: [0, 0.75, -0.65] },
-    phones: { p: [0.26, 0.118, -0.19], n: [0, 0.75, -0.65] },
-  },
-  digital_mixer: {
-    local1: { p: [-0.33, 0.175, -0.255], n: [0, 0.75, -0.65] },
-    local2: { p: [-0.26, 0.175, -0.255], n: [0, 0.75, -0.65] },
-    main: { p: [0.25, 0.175, -0.255], n: [0, 0.75, -0.65] },
-    usb: { p: [0.33, 0.175, -0.255], n: [0, 0.75, -0.65] },
-  },
+  analog_mixer: CONSOLE_PORTS.analog_mixer,
+  digital_mixer: CONSOLE_PORTS.digital_mixer,
   speaker: { in: { p: [-0.172, 1.33, -0.04], n: [-1, -0.2, 0] } },
   camera: { hdmi: { p: [0.035, 1.31, -0.153], n: [0, -0.25, -1] } }, // 카메라 뒷면 (관찰 시점 쪽)
   atem: {
@@ -120,178 +115,28 @@ const PORTS3D = {
   },
 };
 
-const GHOST = {
+export const GHOST = {
   dynamic_mic: [0.34, 1.5, 0.34], condenser_mic: [0.34, 1.6, 0.34], analog_mixer: [0.63, 0.1, 0.44],
   speaker: [0.5, 1.75, 0.5], digital_mixer: [0.84, 0.18, 0.58], camera: [0.7, 1.5, 0.7],
   atem: [0.44, 0.06, 0.2], pc: [0.9, 0.5, 0.25],
 };
 // "가까이 보기" 시점: 바라볼 높이와 거리
-const FOCUS = {
+export const FOCUS = {
   dynamic_mic: { y: 1.3, dist: 1.3 }, condenser_mic: { y: 1.35, dist: 1.3 }, speaker: { y: 1.3, dist: 1.8 },
   camera: { y: 1.33, dist: 1.25 }, analog_mixer: { y: 0.07, dist: 0.95 }, digital_mixer: { y: 0.1, dist: 1.2 },
   atem: { y: 0.04, dist: 0.75 }, pc: { y: 0.33, dist: 1.5 },
 };
 // 책상 위 장비는 단자를 가리지 않도록 이름표를 앞쪽에 둔다
-const FRONT_LABEL = new Set(['analog_mixer', 'digital_mixer', 'atem']);
+export const FRONT_LABEL = new Set(['analog_mixer', 'digital_mixer', 'atem']);
 // 교육 모드 뷰어에서 단자가 촘촘해 라벨을 위아래로 엇갈리게 둘 장비
-const STAGGER = new Set(['analog_mixer', 'digital_mixer', 'atem', 'atem_pro', 'audio_interface', 'ptz', 'di_box']);
+export const STAGGER = new Set(['analog_mixer', 'digital_mixer', 'atem', 'atem_pro', 'audio_interface', 'ptz', 'di_box']);
 // 작은 장비는 단자 표시도 작게
-const PORT_SCALE = { audio_interface: 0.55, di_box: 0.7, ptz: 0.6, mirrorless: 0.6, headphones: 0.5, atem_pro: 0.8, wireless_mic: 0.8 };
-const SELECT_RADIUS = { dynamic_mic: 0.25, condenser_mic: 0.25, speaker: 0.42, camera: 0.5, analog_mixer: 0.4, digital_mixer: 0.52, atem: 0.27, pc: 0.55 };
-
-const MAT = { body: '#262b33', dark: '#14171c', panel: '#30363f', metal: '#a3acb7', black: '#08090b' };
-const UP = new THREE.Vector3(0, 1, 0);
-const noRaycast = () => null; // 장식용 메시는 클릭 판정에서 제외
-
-function rotY(v, a) {
-  const c = Math.cos(a), s = Math.sin(a);
-  return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c];
-}
-function quatFromNormal(n) {
-  return new THREE.Quaternion().setFromUnitVectors(UP, new THREE.Vector3(...n).normalize());
-}
-
-
-/* ---------------------------- 캔버스 / 라벨 래퍼 ----------------------------
- * drei <Html> 라벨은 캔버스가 사라질 때 붙어 있던 부모를 잃어 removeChild 오류를 낸다.
- * 캔버스 위에 고정 오버레이를 두고, 모든 라벨을 그 오버레이에 붙여 부모가 바뀌지 않게 한다. */
-const PortalCtx = createContext(null);
-function Label(props) {
-  const portal = useContext(PortalCtx);
-  return <Html portal={portal ?? undefined} {...props} />;
-}
-
-// WebGL 지원 여부 (하드웨어 가속이 꺼져 있거나 오래된 브라우저면 false)
-let webglCache;
-export function hasWebGL() {
-  if (webglCache !== undefined) return webglCache;
-  try {
-    const c = document.createElement('canvas');
-    webglCache = !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
-  } catch { webglCache = false; }
-  return webglCache;
-}
-// 3D가 실패해도 앱 전체가 멈추지 않도록 캔버스만 안내 화면으로 바꾼다
-class GLBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { failed: false }; }
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(err) { console.warn('3D 화면을 그리지 못했습니다:', err?.message); }
-  render() { return this.state.failed ? this.props.fallback : this.props.children; }
-}
-export function NoWebGL({ hint }) {
-  return (
-    <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-2 text-center p-6 bg-[#131a27] text-slate-300">
-      <div className="text-base font-bold text-slate-100">이 브라우저에서는 3D 화면을 표시할 수 없습니다</div>
-      <p className="text-sm max-w-md">브라우저 설정에서 하드웨어 가속(그래픽 가속)을 켜거나 최신 Chrome·Edge·Safari에서 열어 주세요.</p>
-      {hint && <p className="text-sm text-sky-300 max-w-md">{hint}</p>}
-    </div>
-  );
-}
-function CanvasShell({ children, fallback, ...canvasProps }) {
-  const portal = useMemo(() => ({ current: null }), []);
-  const fb = fallback === undefined ? <NoWebGL /> : fallback;
-  if (!hasWebGL()) return fb;
-  return (
-    <div className="relative w-full h-full">
-      <PortalCtx.Provider value={portal}>
-        <GLBoundary fallback={fb}><Canvas {...canvasProps}>{children}</Canvas></GLBoundary>
-      </PortalCtx.Provider>
-      <div ref={(el) => { if (el) portal.current = el; }} className="absolute inset-0 pointer-events-none overflow-hidden" />
-    </div>
-  );
-}
-
-/* ---------------------------- 공용 부품 ---------------------------- */
-function Knob({ position, value = 0, min = -1, max = 1, color = '#d1d5db', size = 0.014 }) {
-  const ang = ((value - min) / (max - min) - 0.5) * 1.5 * Math.PI;
-  return (
-    <group position={position} rotation={[0, -ang, 0]}>
-      <mesh castShadow><cylinderGeometry args={[size, size * 1.15, size * 1.3, 20]} /><meshStandardMaterial color="#111317" roughness={0.55} /></mesh>
-      <mesh position={[0, size * 0.66, 0]}><cylinderGeometry args={[size * 0.82, size * 0.82, 0.002, 20]} /><meshStandardMaterial color={color} roughness={0.4} /></mesh>
-      <mesh position={[0, size * 0.7, -size * 0.45]}><boxGeometry args={[size * 0.2, 0.002, size * 0.85]} /><meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} /></mesh>
-    </group>
-  );
-}
-
-// 모터 페이더처럼 부드럽게 움직이는 페이더 캡
-function Fader({ position, value, length = 0.11, color = '#e5e7eb' }) {
-  const cap = useRef();
-  const target = length / 2 - (value / 100) * length;
-  useFrame(() => { if (cap.current) cap.current.position.z += (target - cap.current.position.z) * 0.2; });
-  return (
-    <group position={position}>
-      <mesh><boxGeometry args={[0.004, 0.002, length + 0.012]} /><meshStandardMaterial color="#020203" /></mesh>
-      <mesh ref={cap} position={[0, 0.008, target]} castShadow>
-        <boxGeometry args={[0.02, 0.014, 0.011]} />
-        <meshStandardMaterial color={color} metalness={0.25} roughness={0.35} />
-      </mesh>
-    </group>
-  );
-}
-
-function Lamp({ position, on, color, size = [0.014, 0.006, 0.01], offColor = '#2b2f36', intensity = 2.2 }) {
-  return (
-    <mesh position={position}>
-      <boxGeometry args={size} />
-      <meshStandardMaterial color={on ? color : offColor} emissive={on ? color : '#000000'} emissiveIntensity={on ? intensity : 0} />
-    </mesh>
-  );
-}
-
-const LED_THR = [-48, -40, -32, -26, -20, -15, -10, -6, -3, 0, 3];
-function LedMeter({ position, level, step = 0.0105, dir = [0, 0, -1] }) {
-  return (
-    <group position={position}>
-      {LED_THR.map((thr, i) => {
-        const on = level != null && level >= thr;
-        const color = thr >= 0 ? '#ef4444' : thr >= -6 ? '#facc15' : '#22c55e';
-        return <Lamp key={thr} position={[dir[0] * i * step, 0, dir[2] * i * step]} on={on} color={color} size={[0.009, 0.004, 0.007]} offColor="#15181d" intensity={1.8} />;
-      })}
-    </group>
-  );
-}
-
-// 음파 링 (스피커 출력 / 하울링 / 말소리)
-function Waves({ active, color, position, rotation, speed = 1.1, travel = 0.7, radius = 0.12, count = 3 }) {
-  const refs = useRef([]);
-  useFrame(({ clock }) => {
-    refs.current.forEach((m, i) => {
-      if (!m) return;
-      const t = (clock.elapsedTime * speed + i / count) % 1;
-      m.scale.setScalar(0.4 + t * 2.2);
-      m.position.z = t * travel;
-      m.material.opacity = active ? (1 - t) * 0.55 : 0;
-    });
-  });
-  return (
-    <group position={position} rotation={rotation}>
-      {Array.from({ length: count }).map((_, i) => (
-        <mesh key={i} ref={(el) => { refs.current[i] = el; }} raycast={noRaycast}>
-          <torusGeometry args={[radius, 0.005, 6, 48]} />
-          <meshBasicMaterial color={color} transparent opacity={0} depthWrite={false} toneMapped={false} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function useCanvasTexture(w, h, draw, deps) {
-  const canvas = useMemo(() => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }, [w, h]);
-  const tex = useMemo(() => {
-    const t = new THREE.CanvasTexture(canvas);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
-    return t;
-  }, [canvas]);
-  useEffect(() => { draw(canvas.getContext('2d'), w, h); tex.needsUpdate = true; }, deps); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => tex.dispose(), [tex]);
-  return tex;
-}
+export const PORT_SCALE = { audio_interface: 0.55, di_box: 0.7, ptz: 0.6, mirrorless: 0.6, headphones: 0.5, atem_pro: 0.8, wireless_mic: 0.8 };
+export const SELECT_RADIUS = { dynamic_mic: 0.25, condenser_mic: 0.25, speaker: 0.42, camera: 0.5, analog_mixer: 0.4, digital_mixer: 0.52, atem: 0.27, pc: 0.55 };
 
 /* ---------------------------- 화면 그리기 (Canvas 2D) ---------------------------- */
-const FONT = '"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
 
-function drawScene(ctx, src, x, y, w, h) {
+export function drawScene(ctx, src, x, y, w, h) {
   ctx.save();
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
   if (src === 'cam1' || src === 'cam2') {
@@ -341,7 +186,7 @@ function drawScene(ctx, src, x, y, w, h) {
   ctx.restore();
 }
 
-function drawMeterBar(ctx, x, y, w, h, level) {
+export function drawMeterBar(ctx, x, y, w, h, level) {
   ctx.fillStyle = '#0b0d10'; ctx.fillRect(x, y, w, h);
   if (level == null) return;
   const pct = Math.max(0, Math.min(1, (level + 60) / 66));
@@ -409,7 +254,7 @@ function drawX32Screen(ctx, w, h, { mixer, micAtCh, condenser, chLv, mainLv }) {
 }
 
 /* ---------------------------- 장비 모델 ---------------------------- */
-function MicModel({ type, live, phantomOk }) {
+export function MicModel({ type, live, phantomOk }) {
   const grille = useRef();
   useFrame(({ clock }) => {
     if (grille.current) grille.current.emissiveIntensity = live ? 0.5 + Math.sin(clock.elapsedTime * 14) * 0.3 : 0;
@@ -452,7 +297,7 @@ function MicModel({ type, live, phantomOk }) {
   );
 }
 
-function Presenter({ position, talking, captured }) {
+export function Presenter({ position, talking, captured }) {
   const head = useRef();
   useFrame(({ clock }) => {
     if (!head.current) return;
@@ -490,7 +335,7 @@ function Presenter({ position, talking, captured }) {
 // 아날로그 믹서: 채널 수에 따라 폭이 늘어난다. 1번 채널이 게임 상태와 연결되고 나머지는 장식용.
 const ANALOG_PITCH = 0.055;
 const analogWidth = (ch) => ch * ANALOG_PITCH + 0.17;
-function AnalogMixerModel({ mixer, chLevel, mainLevel, channels = 8 }) {
+export function AnalogMixerModel({ mixer, chLevel, mainLevel, channels = 8 }) {
   const W = analogWidth(channels);
   const x0 = -W / 2 + 0.02 + ANALOG_PITCH / 2;
   const xm = W / 2 - 0.085; // 마스터 섹션 중심
@@ -542,7 +387,7 @@ function AnalogMixerModel({ mixer, chLevel, mainLevel, channels = 8 }) {
 }
 
 // 대형 디지털 콘솔 (교육 모드 "믹서 종류"용): 페이더 뱅크 3개 + 터치스크린 2개 + 미터 브리지
-function LargeConsoleModel({ screenTex }) {
+export function LargeConsoleModel({ screenTex }) {
   const W = 1.5;
   const banks = [-0.5, 0.0, 0.42];
   const strip = ['#38bdf8', '#a78bfa', '#f472b6', '#facc15', '#4ade80', '#fb923c', '#22d3ee', '#94a3b8'];
@@ -580,7 +425,7 @@ function LargeConsoleModel({ screenTex }) {
   );
 }
 
-function DigitalMixerModel({ mixer, chLevel, mainLevel, screenTex }) {
+export function DigitalMixerModel({ mixer, chLevel, mainLevel, screenTex }) {
   // 채널 페이더 16개 (X32 Compact 배치) + 메인
   const xs = Array.from({ length: 16 }, (_, i) => -0.37 + i * 0.043);
   const decor = [0, 62, 55, 70, 0, 48, 66, 0, 58, 72, 0, 40, 64, 0, 50, 68];
@@ -629,7 +474,7 @@ function DigitalMixerModel({ mixer, chLevel, mainLevel, screenTex }) {
   );
 }
 
-function SpeakerModel({ power, level, feedback }) {
+export function SpeakerModel({ power, level, feedback }) {
   const cone = useRef();
   const cab = useRef();
   const light = useRef();
@@ -672,7 +517,7 @@ function SpeakerModel({ power, level, feedback }) {
   );
 }
 
-function CameraModel({ tally }) {
+export function CameraModel({ tally }) {
   const lamp = useRef();
   useFrame(({ clock }) => {
     if (lamp.current) lamp.current.intensity = tally === 'pgm' ? 0.8 + Math.sin(clock.elapsedTime * 3) * 0.15 : 0;
@@ -701,7 +546,7 @@ function CameraModel({ tally }) {
   );
 }
 
-function AtemModel({ atem, camAt, pro = false, streaming = false, recording = false, pip = false }) {
+export function AtemModel({ atem, camAt, pro = false, streaming = false, recording = false, pip = false }) {
   return (
     <group>
       {pro && (
@@ -733,7 +578,7 @@ function AtemModel({ atem, camAt, pro = false, streaming = false, recording = fa
 }
 
 // ATEM Mini Pro + HDMI OUT에 연결된 멀티뷰 모니터
-function AtemProModel({ atem, streaming, recording, pip, mvTex }) {
+export function AtemProModel({ atem, streaming, recording, pip, mvTex }) {
   return (
     <group>
       <AtemModel atem={atem} camAt={{ 1: 'cam1', 2: 'cam2', 3: 'slides' }} pro streaming={streaming} recording={recording} pip={pip} />
@@ -750,9 +595,9 @@ function AtemProModel({ atem, streaming, recording, pip, mvTex }) {
 }
 
 /* ---------------------------- 교육 모드 장비 화면 ---------------------------- */
-const MV_SRC = { 1: 'cam1', 2: 'cam2', 3: 'slides', 4: 'nosignal' };
+export const MV_SRC = { 1: 'cam1', 2: 'cam2', 3: 'slides', 4: 'nosignal' };
 // ATEM 멀티뷰: 위 PVW|PGM, 아래 입력 1~4 (탈리 테두리)
-function drawMultiview(ctx, w, h, { program, preview, pip, streaming, recording }) {
+export function drawMultiview(ctx, w, h, { program, preview, pip, streaming, recording }) {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
   const top = h * 0.6, half = w / 2;
   drawScene(ctx, MV_SRC[preview] ?? 'black', 4, 4, half - 8, top - 8);
@@ -773,7 +618,7 @@ function drawMultiview(ctx, w, h, { program, preview, pip, streaming, recording 
   if (recording) { ctx.fillStyle = '#dc2626'; ctx.fillRect(w - 330, 14, 150, 34); ctx.fillStyle = '#fff'; ctx.font = `800 22px ${FONT}`; ctx.fillText('● REC', w - 300, 39); }
 }
 // 무선 마이크 수신기 LCD
-function drawWirelessLcd(ctx, w, h, { power, rf, battery, channel, talking }) {
+export function drawWirelessLcd(ctx, w, h, { power, rf, battery, channel, talking }) {
   ctx.fillStyle = '#0c2a3a'; ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = '#7dd3fc'; ctx.font = `700 34px ${FONT}`;
   const freq = { 1: '518.200', 2: '524.650', 3: '531.100', 4: '537.850' }[channel];
@@ -791,7 +636,7 @@ function drawWirelessLcd(ctx, w, h, { power, rf, battery, channel, talking }) {
   if (!linked) { ctx.fillStyle = '#fca5a5'; ctx.font = `700 22px ${FONT}`; ctx.fillText(power ? 'RF 약함 — 끊김 위험' : '송신기 신호 없음', w - 300, 42); }
 }
 // 미러리스 카메라 액정: 클린 HDMI가 꺼져 있으면 촬영 정보가 화면에 겹친다
-function drawCamLcd(ctx, w, h, { clean, rec }) {
+export function drawCamLcd(ctx, w, h, { clean, rec }) {
   drawScene(ctx, 'cam1', 0, 0, w, h);
   if (!clean) {
     ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, w, 40); ctx.fillRect(0, h - 40, w, 40);
@@ -804,11 +649,11 @@ function drawCamLcd(ctx, w, h, { clean, rec }) {
 
 /* ---------------------------- 교육 모드 장비 모델 ---------------------------- */
 // 노브를 전면 패널에 세워 붙일 때 (노브 축을 앞쪽으로)
-function FrontKnob({ position, value, min, max, color, size = 0.008 }) {
+export function FrontKnob({ position, value, min, max, color, size = 0.008 }) {
   return <group position={position} rotation={[Math.PI / 2, 0, 0]}><Knob value={value} min={min} max={max} color={color} size={size} /></group>;
 }
 
-function AudioInterfaceModel({ gain, level, phantom, inst, air, monitor, direct }) {
+export function AudioInterfaceModel({ gain, level, phantom, inst, air, monitor, direct }) {
   const halo = level == null ? '#1f2937' : level > 0 ? '#ef4444' : level > -6 ? '#f59e0b' : '#22c55e';
   const ring = (x, on) => (
     <mesh position={[x, 0.024, 0.0515]}>
@@ -836,7 +681,7 @@ function AudioInterfaceModel({ gain, level, phantom, inst, air, monitor, direct 
   );
 }
 
-function WirelessMicModel({ power, battery, rf, lcdTex, talking }) {
+export function WirelessMicModel({ power, battery, rf, lcdTex, talking }) {
   const linked = power && rf > 15;
   return (
     <group>
@@ -865,7 +710,7 @@ function WirelessMicModel({ power, battery, rf, lcdTex, talking }) {
   );
 }
 
-function DiBoxModel({ groundLift, pad }) {
+export function DiBoxModel({ groundLift, pad }) {
   return (
     <group>
       <RoundedBox args={[0.1, 0.056, 0.13]} radius={0.006} position={[0, 0.028, 0]} castShadow receiveShadow>
@@ -883,7 +728,7 @@ function DiBoxModel({ groundLift, pad }) {
   );
 }
 
-function HeadphonesModel() {
+export function HeadphonesModel() {
   const cable = useMemo(() => new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
     new THREE.Vector3(-0.07, 0.18, 0), new THREE.Vector3(-0.06, 0.04, 0.05), new THREE.Vector3(0.05, 0.008, 0.1), new THREE.Vector3(0.15, 0.008, 0.09),
   ]), 60, 0.0025, 6, false), []);
@@ -905,7 +750,7 @@ function HeadphonesModel() {
   );
 }
 
-function MirrorlessModel({ zoom, rec, lcdTex }) {
+export function MirrorlessModel({ zoom, rec, lcdTex }) {
   const len = 0.07 + zoom * 0.05;
   return (
     <group>
@@ -936,7 +781,7 @@ function MirrorlessModel({ zoom, rec, lcdTex }) {
   );
 }
 
-function PtzModel({ pan, tilt, zoom, tally }) {
+export function PtzModel({ pan, tilt, zoom, tally }) {
   const yoke = useRef();
   const head = useRef();
   const lens = useRef();
@@ -968,7 +813,7 @@ function PtzModel({ pan, tilt, zoom, tally }) {
   );
 }
 
-function PcModel({ screenTex, streaming }) {
+export function PcModel({ screenTex, streaming }) {
   return (
     <group>
       <mesh position={[0, 0.01, -0.02]} receiveShadow castShadow><boxGeometry args={[0.24, 0.02, 0.16]} /><meshStandardMaterial color="#1b1d21" metalness={0.5} /></mesh>
@@ -1035,7 +880,7 @@ function Room({ layout, live, studio }) {
 }
 
 /* ---------------------------- 케이블 ---------------------------- */
-function routePoints(A, B, layout) {
+export function routePoints(A, B, layout) {
   const v = (a) => new THREE.Vector3(...a);
   const a = v(A.p), b = v(B.p);
   const an = v(A.n).normalize(), bn = v(B.n).normalize();
@@ -1068,7 +913,7 @@ function routePoints(A, B, layout) {
   return [a, a1, ...mid, b1, b];
 }
 
-function Plug({ p, n, color }) {
+export function Plug({ p, n, color }) {
   const q = useMemo(() => quatFromNormal(n), [n]);
   const pos = useMemo(() => new THREE.Vector3(...p).addScaledVector(new THREE.Vector3(...n).normalize(), 0.022), [p, n]);
   return (
@@ -1123,7 +968,7 @@ function Cable3D({ A, B, layout, cable, live, onDisconnect }) {
   );
 }
 
-function PendingCable({ from, pointerRef, color }) {
+export function PendingCable({ from, pointerRef, color }) {
   const mesh = useRef();
   useFrame(() => {
     const target = pointerRef.current;
@@ -1145,30 +990,23 @@ function PendingCable({ from, pointerRef, color }) {
   );
 }
 
-/* ---------------------------- 단자 ---------------------------- */
-// 단자·케이블을 누르는 동안에는 시점 회전을 멈춰, 클릭할 때 화면이 미끄러지지 않게 한다
-function useHoldCamera() {
-  const controls = useThree((st) => st.controls);
-  return () => {
-    if (!controls) return;
-    controls.enabled = false;
-    const release = () => { controls.enabled = true; window.removeEventListener('pointerup', release); window.removeEventListener('pointercancel', release); };
-    window.addEventListener('pointerup', release);
-    window.addEventListener('pointercancel', release);
-  };
-}
 // 3D에서 단자가 촘촘한 장비는 짧은 이름을 쓴다
-const SHORT_LABEL = {
-  'analog_mixer:ch2': 'CH2 LINE', 'analog_mixer:ch1': 'CH1 MIC', 'analog_mixer:main': 'MAIN', 'analog_mixer:phones': 'PHONES',
-  'digital_mixer:local1': 'IN 1', 'digital_mixer:local2': 'IN 2', 'digital_mixer:main': 'MAIN', 'digital_mixer:usb': 'USB',
+export const SHORT_LABEL = {
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`analog_mixer:in${n}`, `${n}`])),
+  'analog_mixer:main': 'MAIN', 'analog_mixer:aux1': 'AUX', 'analog_mixer:phones': '☊',
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`digital_mixer:local${n}`, `${n}`])),
+  'digital_mixer:main': 'MAIN', 'digital_mixer:aux1': 'AUX', 'digital_mixer:usb': 'USB',
   'atem:in1': '1', 'atem:in2': '2', 'atem:in3': '3', 'atem:in4': '4', 'atem:usb': 'USB', 'atem:hdmiout': 'OUT',
   'atem_pro:in1': 'IN 1', 'atem_pro:in2': 'IN 2', 'atem_pro:in3': 'IN 3', 'atem_pro:in4': 'IN 4', 'atem_pro:usb': 'USB-C', 'atem_pro:eth': 'LAN', 'atem_pro:hdmiout': 'HDMI OUT',
+  'atem_pro:mic1': 'MIC1', 'atem_pro:mic2': 'MIC2',
   'audio_interface:in1': 'IN 1', 'audio_interface:in2': 'IN 2', 'audio_interface:phones': '헤드폰', 'audio_interface:usb': 'USB-C', 'audio_interface:monL': 'MON L', 'audio_interface:monR': 'MON R',
+  'ptz:hdmi': 'HDMI', 'ptz:sdi': 'SDI', 'ptz:lan': 'LAN', 'di_box:input': 'IN', 'di_box:thru': 'THRU', 'di_box:out': 'XLR OUT',
+  'router:lan1': 'LAN1', 'router:lan2': 'LAN2',
 };
 
-const SOCKET_R = { xlr: 0.017, combo: 0.018, trs: 0.011, hdmi: 0.012, sdi: 0.011, usb: 0.009, eth: 0.012, mini: 0.007 };
+export const SOCKET_R = { xlr: 0.017, combo: 0.018, trs: 0.011, hdmi: 0.012, sdi: 0.011, usb: 0.009, eth: 0.012, mini: 0.007 };
 
-function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, onClick }) {
+export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, onClick }) {
   const hold = useHoldCamera();
   const q = useMemo(() => quatFromNormal(n), [n]);
   const ring = useRef();
@@ -1218,7 +1056,7 @@ function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, label
 }
 
 /* ---------------------------- 배치 연출 / 선택 표시 ---------------------------- */
-function DropIn({ children }) {
+export function DropIn({ children }) {
   const g = useRef();
   const started = useRef(false);
   useFrame((_, dt) => {
@@ -1229,7 +1067,7 @@ function DropIn({ children }) {
   return <group ref={g}>{children}</group>;
 }
 
-function SelectRing({ radius }) {
+export function SelectRing({ radius }) {
   const m = useRef();
   useFrame(({ clock }) => { if (m.current) m.current.material.opacity = 0.55 + Math.sin(clock.elapsedTime * 4) * 0.25; });
   return (
@@ -1240,7 +1078,7 @@ function SelectRing({ radius }) {
   );
 }
 
-function FeedbackArc({ from, to }) {
+export function FeedbackArc({ from, to }) {
   const m = useRef();
   const geo = useMemo(() => {
     const a = new THREE.Vector3(...from), b = new THREE.Vector3(...to);
@@ -1299,14 +1137,6 @@ function CameraRig({ layout, resetKey, shake, portWorld, focus }) {
     }
   });
   return null;
-}
-
-// 첫 프레임이 그려진 뒤에 자식을 렌더링한다.
-// (drei <Html>이 캔버스 준비 전에 만들어지면 첫 라벨이 비어 버리는 문제 회피)
-function AfterFirstFrame({ children }) {
-  const [ready, setReady] = useState(false);
-  useFrame(() => { if (!ready) setReady(true); });
-  return ready ? children : null;
 }
 
 /* =====================================================================
@@ -1584,8 +1414,16 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
 
   let model = null;
   if (type === 'dynamic_mic' || type === 'condenser_mic') model = <MicModel type={type} live={demo.talking} phantomOk={demo.mixer.phantom} />;
-  if (type === 'analog_mixer') model = <AnalogMixerModel mixer={demo.mixer} chLevel={demo.chLevel} mainLevel={demo.mainLevel} />;
-  if (type === 'digital_mixer') model = <DigitalMixerModel mixer={demo.mixer} chLevel={demo.chLevel} mainLevel={demo.mainLevel} screenTex={x32Tex} />;
+  if (type === 'analog_mixer' || type === 'digital_mixer') {
+    const m = demo.mixer;
+    const chs = demoChannels({ gain: m.gain, lowCut: !!m.lowCut, eqHigh: m.eqHigh ?? 0, eqMid: m.eqMid ?? 0, eqLow: m.eqLow ?? 0, fx: m.fx ?? 0, aux: 0, mute: !!m.chMute, fader: m.chFader, phantom: !!m.phantom, patch: null });
+    const meters = { ch: chs.map((_, i) => (i === 0 ? demo.chLevel : null)), main: demo.mainLevel, aux: null };
+    const master = { mainFader: m.mainFader, mainMute: !!m.mainMute, auxMaster: 75, fxReturn: 50, usbOut: m.usbOut === 'main' ? 'main' : 'off' };
+    const names = ['MIC 1', '', '', '', '', '', '', ''];
+    model = type === 'analog_mixer'
+      ? <AnalogConsole channels={chs} master={master} meters={meters} names={names} />
+      : <DigitalConsole channels={chs} master={master} meters={meters} names={names} selected={0} />;
+  }
   if (type === 'speaker') model = <SpeakerModel power={demo.power} level={demo.power ? demo.mainLevel : null} feedback={demo.feedback} />;
   if (type === 'camera') model = <CameraModel tally={demo.tally} />;
   if (type === 'atem') model = <AtemModel atem={demo.atem} camAt={{ 1: 'cam1', 2: 'cam2' }} />;
@@ -1632,7 +1470,7 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
 }
 
 /* ---------------------------- 케이블 커넥터 모델 ---------------------------- */
-function ConnectorModel({ kind, color, female = false }) {
+export function ConnectorModel({ kind, color, female = false }) {
   const metal = <meshStandardMaterial color="#cfd5dc" metalness={0.9} roughness={0.2} />;
   const body = <meshStandardMaterial color="#17191d" roughness={0.5} />;
   switch (kind) {

@@ -1,4 +1,4 @@
-import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar } from 'lucide-react';
+import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar, Piano, Laptop, Router, Volume1 } from 'lucide-react';
 
 /* =====================================================================
  * 방송장비 마스터 — 게임 데이터 & 신호 계산 엔진
@@ -18,10 +18,12 @@ export const CABLES = {
   hdmi: { name: 'HDMI 케이블', short: 'HDMI', desc: '디지털 영상+음성 · 단거리용', stroke: '#c084fc', dot: 'bg-purple-400' },
   sdi: { name: 'SDI 케이블', short: 'SDI', desc: 'BNC 커넥터 · 방송용 장거리 영상', stroke: '#fb923c', dot: 'bg-orange-400' },
   usb: { name: 'USB-C 케이블', short: 'USB', desc: '데이터 · 오디오 인터페이스/웹캠 신호', stroke: '#4ade80', dot: 'bg-green-400' },
+  mini: { name: '3.5mm 변환 케이블', short: '3.5mm', desc: '3.5mm ↔ 3.5mm/6.3mm/XLR 변환 · 노트북·ATEM MIC', stroke: '#f472b6', dot: 'bg-pink-400' },
+  eth: { name: '랜선 (이더넷)', short: 'LAN', desc: 'RJ45 · 인터넷 송출·네트워크 제어', stroke: '#2dd4bf', dot: 'bg-teal-400' },
 };
 
 export const PORT_ACCEPTS = {
-  xlr: ['xlr'], trs: ['trs'], combo: ['xlr', 'trs'], hdmi: ['hdmi'], sdi: ['sdi'], usb: ['usb'], eth: ['eth'], mini: ['mini'],
+  xlr: ['xlr', 'mini'], trs: ['trs', 'mini'], combo: ['xlr', 'trs', 'mini'], hdmi: ['hdmi'], sdi: ['sdi'], usb: ['usb'], eth: ['eth'], mini: ['mini'],
 };
 export const PORT_KIND_LABEL = {
   xlr: 'XLR 단자', trs: '6.3mm TRS 단자', combo: 'XLR/TRS 콤보 단자',
@@ -53,8 +55,8 @@ export const DEVICE_TYPES = {
   },
   analog_mixer: {
     name: '아날로그 믹서', model: '8채널 소형', icon: SlidersHorizontal, w: 230,
-    ins: [{ id: 'ch1', label: 'CH1 MIC IN', kind: 'xlr' }, { id: 'ch2', label: 'CH2 LINE IN', kind: 'trs' }],
-    outs: [{ id: 'main', label: 'MAIN OUT', kind: 'xlr' }, { id: 'phones', label: 'PHONES', kind: 'trs' }],
+    ins: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `in${n}`, label: `CH${n} IN`, kind: 'combo' })),
+    outs: [{ id: 'main', label: 'MAIN OUT', kind: 'xlr' }, { id: 'aux1', label: 'AUX 1 (모니터)', kind: 'trs' }, { id: 'phones', label: 'PHONES', kind: 'trs' }],
     info: '여러 입력을 모아 증폭(GAIN) → 음색 보정(EQ) → 음량 조절(페이더)을 거쳐 MAIN OUT으로 내보내는 오디오의 심장입니다. 신호는 위에서 아래로, 채널 스트립 순서대로 흐릅니다.',
   },
   speaker: {
@@ -64,8 +66,8 @@ export const DEVICE_TYPES = {
   },
   digital_mixer: {
     name: '디지털 믹서', model: 'X32 / M32', icon: Settings, w: 220,
-    ins: [{ id: 'local1', label: 'LOCAL IN 1', kind: 'xlr' }, { id: 'local2', label: 'LOCAL IN 2', kind: 'xlr' }],
-    outs: [{ id: 'main', label: 'MAIN L/R', kind: 'xlr' }, { id: 'usb', label: 'USB AUDIO', kind: 'usb' }],
+    ins: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `local${n}`, label: `LOCAL IN ${n}`, kind: 'xlr' })),
+    outs: [{ id: 'main', label: 'MAIN L/R', kind: 'xlr' }, { id: 'aux1', label: 'AUX 1 (모니터)', kind: 'xlr' }, { id: 'usb', label: 'USB AUDIO', kind: 'usb' }],
     info: '디지털 믹서는 "물리적 입력 단자 ≠ 채널"입니다. 어느 입력을 어느 채널로 보낼지(입력 패치), 어떤 믹스를 어느 출력으로 보낼지(출력 라우팅)를 소프트웨어로 지정해야 소리가 납니다. USB 카드로 PC에 멀티채널 오디오를 보낼 수 있습니다.',
   },
   camera: {
@@ -117,6 +119,31 @@ export const DEVICE_TYPES = {
     ins: [1, 2, 3, 4].map((n) => ({ id: `in${n}`, label: `HDMI IN ${n}`, kind: 'hdmi' })).concat([{ id: 'mic1', label: 'MIC 1', kind: 'mini' }, { id: 'mic2', label: 'MIC 2', kind: 'mini' }]),
     outs: [{ id: 'usb', label: 'USB-C (웹캠/녹화)', kind: 'usb' }, { id: 'eth', label: 'ETHERNET (스트리밍)', kind: 'eth' }, { id: 'hdmiout', label: 'HDMI OUT (멀티뷰)', kind: 'hdmi' }],
     info: 'ATEM Mini에 인터넷 직접 송출(ETHERNET), USB 디스크 녹화, 멀티뷰 출력이 더해진 모델입니다. PC 없이도 유튜브로 바로 방송할 수 있고, HDMI OUT에 모니터를 연결하면 모든 입력과 PVW/PGM을 한 화면에서 볼 수 있습니다.',
+  },
+  monitor: {
+    name: '모니터 스피커', model: '바닥형 웨지', icon: Volume1, w: 170,
+    ins: [{ id: 'in', label: 'INPUT', kind: 'combo' }], outs: [],
+    info: '무대 위 연주자·설교자가 자기 소리를 듣는 스피커입니다. 믹서의 AUX(모니터) 출력으로 따로 섞은 소리를 받아, 청중용 메인 스피커와 다른 음량·구성으로 들려줍니다.',
+  },
+  e_guitar: {
+    name: '일렉 기타', model: '패시브 픽업', icon: Guitar, w: 160,
+    ins: [], outs: [{ id: 'out', label: 'OUT (TS)', kind: 'trs' }],
+    info: '픽업이 줄의 진동을 작은 전기 신호(악기 레벨, 높은 임피던스)로 바꿉니다. 언밸런스드 TS 출력이라 멀리 보내면 잡음이 생기므로 DI 박스를 거쳐 믹서로 보냅니다.',
+  },
+  keyboard: {
+    name: '키보드', model: '스테이지 피아노', icon: Piano, w: 160,
+    ins: [], outs: [{ id: 'out', label: 'OUT (TS)', kind: 'trs' }],
+    info: '라인 레벨의 언밸런스드 출력을 냅니다. 무대에서 믹서까지 멀면 DI 박스로 밸런스드 XLR로 바꿔 보냅니다.',
+  },
+  laptop: {
+    name: '노트북', model: '음원·영상 재생', icon: Laptop, w: 160,
+    ins: [], outs: [{ id: 'out', label: '3.5mm OUT', kind: 'mini' }],
+    info: '배경음악(BGM)이나 영상 소리를 3.5mm 헤드폰 단자로 내보냅니다. 가정용 라인 레벨이라 믹서 라인 입력에 넣고 GAIN을 낮게 씁니다.',
+  },
+  router: {
+    name: '인터넷 공유기', model: '유선 LAN', icon: Router, w: 160,
+    ins: [{ id: 'lan1', label: 'LAN 1', kind: 'eth' }, { id: 'lan2', label: 'LAN 2', kind: 'eth' }], outs: [],
+    info: '인터넷에 연결된 공유기입니다. ATEM Mini Pro처럼 PC 없이 직접 송출하는 장비는 랜선으로 여기에 연결합니다. 방송 송출은 와이파이보다 유선이 안정적입니다.',
   },
   pc: {
     name: '스트리밍 PC', model: 'OBS Studio', icon: Monitor, w: 230, statusH: 98,
