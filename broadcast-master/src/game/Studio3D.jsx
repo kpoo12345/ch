@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { CABLES, PORT_COLOR, DEVICE_TYPES, MIXER_DEFAULT } from './engine.js';
 import {
   DESK_TOP, faceTo, MAT, UP, noRaycast, rotY, quatFromNormal, PortalCtx, Label, hasWebGL, NoWebGL, CanvasShell,
-  Knob, Fader, Lamp, LED_THR, LedMeter, Waves, useCanvasTexture, FONT, useHoldCamera, AfterFirstFrame,
+  Knob, Fader, Lamp, LED_THR, LedMeter, Waves, useCanvasTexture, FONT, useHoldCamera, AfterFirstFrame, JackFace, PlugBody,
 } from './kit3d.jsx';
 import { AnalogConsole, DigitalConsole, CONSOLE_PORTS, demoChannels } from './consoles.jsx';
 import { WedgeModel, PORTS_EXTRA } from './models2.jsx';
@@ -795,13 +795,11 @@ export function PcModel({ screenTex, streaming }) {
 
 /* ---------------------------- 방 / 책상 ---------------------------- */
 /* ---------------------------- 케이블 ---------------------------- */
-export function Plug({ p, n, color }) {
+export function Plug({ p, n, color, cable }) {
   const q = useMemo(() => quatFromNormal(n), [n]);
-  const pos = useMemo(() => new THREE.Vector3(...p).addScaledVector(new THREE.Vector3(...n).normalize(), 0.022), [p, n]);
   return (
-    <group position={pos} quaternion={q}>
-      <mesh castShadow><cylinderGeometry args={[0.014, 0.012, 0.045, 14]} /><meshStandardMaterial color="#121418" metalness={0.5} roughness={0.35} /></mesh>
-      <mesh position={[0, 0.006, 0]}><cylinderGeometry args={[0.0145, 0.0145, 0.008, 14]} /><meshStandardMaterial color={color} /></mesh>
+    <group position={p} quaternion={q}>
+      <PlugBody cable={cable} color={color} />
     </group>
   );
 }
@@ -830,8 +828,10 @@ export function PendingCable({ from, pointerRef, color }) {
 
 // 3D에서 단자가 촘촘한 장비는 짧은 이름을 쓴다
 export const SHORT_LABEL = {
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`analog_mixer:in${n}`, `${n}`])),
-  'analog_mixer:main': 'MAIN', 'analog_mixer:aux1': 'AUX', 'analog_mixer:phones': '☊',
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`analog_mixer:in${n}`, `MIC ${n}`])),
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`analog_mixer:line${n}`, `LINE ${n}`])),
+  'analog_mixer:st9L': '9/10 L', 'analog_mixer:st9R': '9/10 R', 'analog_mixer:st11L': '11/12 L', 'analog_mixer:st11R': '11/12 R',
+  'analog_mixer:main': 'ST OUT L', 'analog_mixer:mainR': 'ST OUT R', 'analog_mixer:aux1': 'AUX 1', 'analog_mixer:aux2': 'AUX 2', 'analog_mixer:phones': 'PHONES',
   ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`digital_mixer:local${n}`, `${n}`])),
   'digital_mixer:main': 'MAIN', 'digital_mixer:aux1': 'AUX', 'digital_mixer:usb': 'USB',
   'atem:in1': '1', 'atem:in2': '2', 'atem:in3': '3', 'atem:in4': '4', 'atem:usb': 'USB', 'atem:hdmiout': 'OUT',
@@ -842,9 +842,10 @@ export const SHORT_LABEL = {
   'router:lan1': 'LAN1', 'router:lan2': 'LAN2',
 };
 
-export const SOCKET_R = { xlr: 0.017, combo: 0.018, trs: 0.011, hdmi: 0.012, sdi: 0.011, usb: 0.009, eth: 0.012, mini: 0.007 };
+// 단자 앞면 크기(반지름) — JackFace 모양과 맞춘다
+export const SOCKET_R = { xlr: 0.0108, combo: 0.0108, dmx: 0.0108, trs: 0.0068, hdmi: 0.0098, sdi: 0.0068, usb: 0.0062, eth: 0.0088, mini: 0.0042 };
 
-export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, onClick }) {
+export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, bare, onClick }) {
   const hold = useHoldCamera();
   const q = useMemo(() => quatFromNormal(n), [n]);
   const ring = useRef();
@@ -852,22 +853,26 @@ export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate
   useFrame(({ clock }) => {
     if (!ring.current) return;
     const pulse = candidate ? 1 + Math.sin(clock.elapsedTime * 8) * 0.25 : 1;
-    ring.current.scale.setScalar((hover || isPending ? 1.35 : 1) * pulse);
+    ring.current.scale.setScalar((hover || isPending ? 1.3 : 1) * pulse);
+    ring.current.visible = !used || hover || isPending || candidate;
   });
   const r = SOCKET_R[port.kind] ?? 0.014;
   const color = PORT_COLOR[port.kind];
   const nv = new THREE.Vector3(...n).normalize();
   const labelPos = new THREE.Vector3(...p).addScaledVector(nv, 0.05).add(new THREE.Vector3(0, 0.03 + lift, 0));
+  const glow = isPending || candidate || hover;
   return (
     <group>
       <group position={p} quaternion={q}>
-        <mesh><cylinderGeometry args={[r, r, 0.012, 20]} /><meshStandardMaterial color="#050608" roughness={0.3} /></mesh>
-        <mesh ref={ring} position={[0, 0.006, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[r + 0.003, 0.0035, 8, 24]} />
+        {/* 실제 단자 모양 (믹서처럼 장비 모델이 단자를 직접 그리는 경우는 생략) */}
+        {!bare && <JackFace kind={port.kind} />}
+        {/* 단자 종류 색 테두리 — 고를 수 있는 단자는 깜빡인다 */}
+        <mesh ref={ring} position={[0, 0.0035, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[r + 0.0022, glow ? 0.0024 : 0.0009, 8, 28]} />
           <meshStandardMaterial
             color={isPending ? '#ffffff' : color}
-            emissive={isPending || candidate || hover ? (isPending ? '#ffffff' : color) : '#000000'}
-            emissiveIntensity={isPending ? 2 : candidate || hover ? 1.4 : 0}
+            emissive={glow ? (isPending ? '#ffffff' : color) : color}
+            emissiveIntensity={isPending ? 2 : glow ? 1.4 : 0.12}
           />
         </mesh>
         {/* 클릭 판정용 투명 구 */}
@@ -877,7 +882,7 @@ export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate
           onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'crosshair'; }}
           onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
         >
-          <sphereGeometry args={[0.042, 10, 8]} />
+          <sphereGeometry args={[bare ? 0.019 : 0.042, 10, 8]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       </group>
@@ -1018,8 +1023,8 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
     const m = demo.mixer;
     const chs = demoChannels({ gain: m.gain, lowCut: !!m.lowCut, eqHigh: m.eqHigh ?? 0, eqMid: m.eqMid ?? 0, eqLow: m.eqLow ?? 0, fx: m.fx ?? 0, aux: 0, mute: !!m.chMute, fader: m.chFader, phantom: !!m.phantom, patch: null });
     const meters = { ch: chs.map((_, i) => (i === 0 ? demo.chLevel : null)), main: demo.mainLevel, aux: null };
-    const master = { mainFader: m.mainFader, mainMute: !!m.mainMute, auxMaster: 75, fxReturn: 50, usbOut: m.usbOut === 'main' ? 'main' : 'off' };
-    const names = ['MIC 1', '', '', '', '', '', '', ''];
+    const master = { mainFader: m.mainFader, mainMute: !!m.mainMute, auxMaster: 75, aux2Master: 75, fxReturn: 50, phonesLevel: 75, phantom: !!m.phantom, usbOut: m.usbOut === 'main' ? 'main' : 'off' };
+    const names = ['MIC 1', '', '', '', '', '', '', '', '', ''];
     model = type === 'analog_mixer'
       ? <AnalogConsole channels={chs} master={master} meters={meters} names={names} />
       : <DigitalConsole channels={chs} master={master} meters={meters} names={names} selected={0} />;

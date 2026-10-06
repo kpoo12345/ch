@@ -403,3 +403,68 @@ test('media server can feed an ATEM input as a video source', () => {
   });
   assert.equal(computeSim(st).video.programCam, 'vj');
 });
+
+/* ---------------- 실제 믹서 배치: MIC/LINE 단자, 스테레오 채널, L/R 출력, PAN, PFL, 팬텀 ---------------- */
+const rig = (devs, conns, state) => buildRuntime({
+  venue: 'seminar',
+  devices: [{ id: 'mixer', type: 'analog_mixer', slot: 'desk1' }, { id: 'pa', type: 'speaker', slot: 'pa_main' }, ...devs],
+  connections: [{ from: 'mixer.main', to: 'pa.in', cable: 'xlr' }, ...conns],
+  state,
+});
+
+test('analog mixer: MIC jack is XLR only, LINE jack takes TRS and 3.5mm', () => {
+  const st = rig([{ id: 'gtr', type: 'e_guitar', slot: 'desk2' }, { id: 'lap', type: 'laptop', slot: 'desk3' }], []);
+  assert.equal(canConnect(st, { d: 'gtr', p: 'out' }, { d: 'mixer', p: 'in2' }, 'trs').ok, false);
+  assert.equal(canConnect(st, { d: 'gtr', p: 'out' }, { d: 'mixer', p: 'line2' }, 'trs').ok, true);
+  assert.equal(canConnect(st, { d: 'lap', p: 'out' }, { d: 'mixer', p: 'line3' }, 'mini').ok, true);
+  // 3.5mm → XLR 변환 케이블로 MIC 단자에 꽂는 것도 물리적으로는 된다
+  assert.equal(canConnect(st, { d: 'lap', p: 'out' }, { d: 'mixer', p: 'in3' }, 'mini').ok, true);
+});
+
+test('analog mixer: LINE jack is 26dB less sensitive than the MIC jack', () => {
+  const viaLine = rig([{ id: 'lap', type: 'laptop', slot: 'desk2' }], [{ from: 'lap.out', to: 'mixer.line2', cable: 'mini' }], { channels: { 2: { gain: 20 } } });
+  const viaMic = rig([{ id: 'lap', type: 'laptop', slot: 'desk2' }], [{ from: 'lap.out', to: 'mixer.in2', cable: 'mini' }], { channels: { 2: { gain: 20 } } });
+  const a = computeSim(viaLine).channelOf('lap');
+  const b = computeSim(viaMic).channelOf('lap');
+  assert.equal(a.index, 2);
+  assert.equal(a.inLevel, -8 - 26 + 20);
+  assert.equal(b.inLevel, -8 + 20);
+  assert.ok(computeSim(viaMic).clips.includes('lap'));
+  assert.equal(channelIndexOf(viaLine, 'lap'), 2);
+});
+
+test('analog mixer: stereo channel 9/10 — L/MONO alone feeds both sides, L+R split by side', () => {
+  const st = rig([{ id: 'lap', type: 'laptop', slot: 'desk2' }], [
+    { from: 'lap.out', to: 'mixer.st9L', cable: 'mini' },
+    { from: 'mixer.mainR', to: 'pa2.in', cable: 'xlr' },
+  ], { channels: { 9: { gain: 20 } } });
+  st.devices.pa2 = { id: 'pa2', type: 'speaker', slot: 'pa_alt', placed: true };
+  st.dev.pa2 = { power: true };
+  const sim = computeSim(st);
+  assert.equal(channelIndexOf(st, 'lap'), 9);
+  assert.ok(sim.reaches('lap', 'main'));
+  assert.equal(sim.outLevel('mixer', 'main'), sim.outLevel('mixer', 'mainR'));
+});
+
+test('analog mixer: PAN hard right removes the channel from STEREO OUT L', () => {
+  const st = rig([{ id: 'mic', type: 'dynamic_mic', slot: 'presenter_mic' }], [{ from: 'mic.out', to: 'mixer.in1', cable: 'xlr' }], { channels: { 1: { pan: 100 } } });
+  const sim = computeSim(st);
+  assert.equal(sim.outLevel('mixer', 'main'), null);
+  assert.equal(sim.outLevel('mixer', 'mainR'), -15);
+  assert.equal(sim.reaches('mic', 'main'), false);
+});
+
+test('analog mixer: one PHANTOM switch powers every MIC jack; PFL sends only that channel to PHONES', () => {
+  const st = rig([{ id: 'cm', type: 'condenser_mic', slot: 'presenter_mic' }, { id: 'mic', type: 'dynamic_mic', slot: 'desk2' }],
+    [{ from: 'cm.out', to: 'mixer.in3', cable: 'xlr' }, { from: 'mic.out', to: 'mixer.in1', cable: 'xlr' }]);
+  assert.equal(computeSim(st).reaches('cm', 'main'), false);
+  assert.ok(computeSim(st).deadPhantom.includes('cm'));
+  st.master.phantom = true;
+  let sim = computeSim(st);
+  assert.ok(sim.reaches('cm', 'main'));
+  // PFL: 헤드폰에는 PFL을 누른 채널만, 페이더를 내려도 들린다
+  st.channels[2].pfl = true; st.channels[2].fader = 0;
+  sim = computeSim(st);
+  const ph = sim.mixer.phones.map((x) => x.src);
+  assert.deepEqual([...new Set(ph)], ['cm']);
+});

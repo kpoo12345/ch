@@ -105,15 +105,15 @@ export const SOLUTIONS = {
   ],
   'live-1': [
     say('기타와 키보드가 무대에서 음향 부스까지 긴 TS 케이블로 와서 험이 납니다. 무대의 DI 박스를 거치게 바꿉니다.'),
-    { say: '기타의 긴 TS 케이블을 뽑습니다.', op: 'disconnect', from: 'gtr.out', to: 'mixer.in2' },
-    { say: '키보드의 긴 TS 케이블도 뽑습니다.', op: 'disconnect', from: 'keys.out', to: 'mixer.in3' },
+    { say: '기타의 긴 TS 케이블을 뽑습니다.', op: 'disconnect', from: 'gtr.out', to: 'mixer.line2' },
+    { say: '키보드의 긴 TS 케이블도 뽑습니다.', op: 'disconnect', from: 'keys.out', to: 'mixer.line3' },
     { say: '기타 → DI 1 입력을 짧은 TS로 연결합니다.', op: 'connect', from: 'gtr.out', to: 'di1.input', cable: 'trs' },
     { say: 'DI 1 XLR 출력 → 믹서 CH2로 보냅니다.', op: 'connect', from: 'di1.out', to: 'mixer.in2', cable: 'xlr' },
     { say: '키보드 → DI 2 입력.', op: 'connect', from: 'keys.out', to: 'di2.input', cable: 'trs' },
     { say: 'DI 2 XLR 출력 → 믹서 CH3.', op: 'connect', from: 'di2.out', to: 'mixer.in3', cable: 'xlr' },
     { say: 'DI를 거친 기타는 신호가 작습니다. CH2 GAIN을 30dB로 올립니다.', op: 'ch', ch: 2, key: 'gain', value: 30 },
     { say: '키보드는 CH3 GAIN 20dB.', op: 'ch', ch: 3, key: 'gain', value: 20 },
-    { say: '노트북은 라인 레벨이라 GAIN 30dB면 찢어집니다. 0dB로 내립니다.', op: 'ch', ch: 4, key: 'gain', value: 0 },
+    { say: '노트북 채널은 GAIN 45라 찢어집니다. 라인 단자는 26dB 둔감하니 20 정도면 충분합니다.', op: 'ch', ch: 4, key: 'gain', value: 20 },
     { say: '모든 채널이 적정 레벨, 험도 없습니다.', op: 'wait', ms: 1200 },
   ],
   'live-2': [

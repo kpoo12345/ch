@@ -1,9 +1,9 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources } from '../sim.js';
+import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT } from '../sim.js';
 import { applyOp, opToAction, noteOnAirMove, getPath } from '../ops.js';
 import { getAudio } from '../audio.js';
 import { MISMATCH_TIP, DEVICE_TYPES, CABLES } from '../engine.js';
-import { narrate, stopNarration } from '../speech.js';
+import { narrate, stopNarration, speechOk } from '../speech.js';
 
 /* =====================================================================
  * 게임 상태 훅 — 스토리·튜토리얼·자유 모드가 함께 쓴다
@@ -143,7 +143,15 @@ export function useGame(spec, { onClear } = {}) {
     const base = buildRuntime(spec);
     const devices = saved.devices ?? {};
     const pick = (types) => Object.values(devices).find((d) => types.includes(d.type))?.id ?? null;
-    const next = { ...base, ...saved, devices, dev: saved.dev ?? {}, connections: saved.connections ?? [], cables: {}, unlimited: true, faults: [],
+    // 예전 저장본: 8채널 → 10채널, 아날로그 믹서 IN(콤보)에 꽂았던 TRS는 이제 LINE 단자로
+    const channels = Array.from({ length: CHANNELS }, (_, i) => ({ ...CH_DEFAULT, ...(saved.channels?.[i] ?? {}) }));
+    const connections = (saved.connections ?? []).map((c) => {
+      const m = /^in(\d)$/.exec(c.to.p);
+      if (!m || devices[c.to.d]?.type !== 'analog_mixer' || c.cable !== 'trs') return c;
+      const to = { ...c.to, p: `line${m[1]}` };
+      return { ...c, to, id: `${c.from.d}.${c.from.p}>${to.d}.${to.p}` };
+    });
+    const next = { ...base, ...saved, devices, dev: saved.dev ?? {}, connections, channels, master: { ...MASTER_DEFAULT, ...(saved.master ?? {}) }, cables: {}, unlimited: true, faults: [],
       mixerId: pick(['analog_mixer', 'digital_mixer']), switcherId: pick(['atem', 'atem_pro']) };
     stRef.current = next; setSt(next);
   }, [spec]);
@@ -173,27 +181,40 @@ const label = (st, end) => {
  *  steps: [{ say, op..., practice?, focus? }]
  *  practice가 켜져 있고 단계에 practice 문구가 있으면 플레이어가 직접 할 때까지 기다린다
  * ===================================================================== */
+// 한국어 TTS로 읽는 데 걸리는 대략적인 시간 (글자당 약 0.16초 + 문장 사이 쉼)
+export const speechMs = (text, speed = 1) => {
+  if (!text) return 0;
+  const chars = text.replace(/\s/g, '').length;
+  const pauses = (text.match(/[.,?!…]/g) ?? []).length;
+  return (chars * 160 + pauses * 260 + 600) / speed;
+};
+// 손 동작이 끝나기까지 걸리는 시간
+const ACTION_MS = { connect: 2500, place: 1600, move: 1700, addDevice: 1600, ptz: 1700, talk: 300, perform: 300 };
+
 export function useScriptPlayer(game, { voiceOn = true } = {}) {
-  const [script, setScript] = useState(null); // { steps, i, playing, speed, practice, done }
+  const [script, setScript] = useState(null); // { steps, i, playing, speed, practice, auto, done, awaitNext }
   const [narration, setNarration] = useState(null);
   const [waiting, setWaiting] = useState(null); // 연습 대기 중인 단계
   const timers = useRef([]);
+  const run = useRef(0); // 단계마다 바뀌는 번호: 이전 단계의 늦게 도착한 콜백 무시
   const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   const later = (fn, ms) => { timers.current.push(setTimeout(fn, ms)); };
+  const next = () => setScript((s) => (s ? { ...s, i: s.i + 1, awaitNext: false } : s));
 
   const start = useCallback((steps, opts = {}) => {
     clear();
     setWaiting(null);
-    setScript({ steps, i: 0, playing: true, speed: opts.speed ?? 1, practice: !!opts.practice, done: false, onDone: opts.onDone, onStep: opts.onStep });
+    setScript({ steps, i: 0, playing: true, speed: opts.speed ?? 1, practice: !!opts.practice, auto: opts.auto ?? true, done: false, awaitNext: false, onDone: opts.onDone, onStep: opts.onStep });
   }, []);
-  const stop = useCallback(() => { clear(); setScript(null); setNarration(null); setWaiting(null); game.setScriptTalk(null); stopNarration(); }, [game]);
-  const pause = useCallback(() => { clear(); setScript((s) => (s ? { ...s, playing: false } : s)); stopNarration(); }, []);
-  const resume = useCallback(() => setScript((s) => (s ? { ...s, playing: true } : s)), []);
+  const stop = useCallback(() => { clear(); run.current += 1; setScript(null); setNarration(null); setWaiting(null); game.setScriptTalk(null); stopNarration(); }, [game]);
+  const pause = useCallback(() => { clear(); run.current += 1; setScript((s) => (s ? { ...s, playing: false } : s)); stopNarration(); }, []);
+  const resume = useCallback(() => setScript((s) => (s ? { ...s, playing: true, awaitNext: false } : s)), []);
   const setSpeed = useCallback((speed) => setScript((s) => (s ? { ...s, speed } : s)), []);
   const setPractice = useCallback((practice) => setScript((s) => (s ? { ...s, practice } : s)), []);
-  const jump = useCallback((delta) => { clear(); setWaiting(null); setScript((s) => (s ? { ...s, i: Math.max(0, Math.min(s.steps.length, s.i + delta)), playing: true } : s)); }, []);
+  const setAuto = useCallback((auto) => setScript((s) => (s ? { ...s, auto, awaitNext: auto ? false : s.awaitNext } : s)), []);
+  const jump = useCallback((delta) => { clear(); run.current += 1; stopNarration(); setWaiting(null); setScript((s) => (s ? { ...s, i: Math.max(0, Math.min(s.steps.length, s.i + delta)), playing: true, awaitNext: false } : s)); }, []);
 
-  // 단계 실행
+  // 단계 실행: 내레이션이 끝나고 + 손 동작이 끝난 뒤에야 다음 단계로 넘어간다
   useEffect(() => {
     if (!script || !script.playing) return undefined;
     const { steps, i, speed } = script;
@@ -202,26 +223,45 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
       if (!script.done) { setScript((s) => ({ ...s, done: true, playing: false })); script.onDone?.(); }
       return undefined;
     }
+    const token = ++run.current;
+    const alive = () => run.current === token;
     const step = steps[i];
     script.onStep?.(step, i);
     const text = step.say ?? null;
     setNarration(text ? { text, i, n: steps.length } : null);
-    if (text && voiceOn) narrate(text, { rate: Math.min(2, 1.08 * speed) });
-    const readMs = text ? Math.min(5200, Math.max(1300, text.length * 62)) / speed : 250;
+    const est = speechMs(text, speed);
     const hasOp = !!step.op && step.op !== 'say';
-    if (hasOp && script.practice && step.practice) {
-      // 연습: 플레이어가 직접 할 때까지 대기
-      setWaiting(step);
-      return undefined;
+    let speechDone = !text, actionDone = !hasOp;
+    const finish = () => {
+      if (!alive() || !speechDone || !actionDone) return;
+      if (script.auto === false) { setScript((s) => (s ? { ...s, awaitNext: true } : s)); return; }
+      later(() => { if (alive()) next(); }, 700 / speed);
+    };
+    const speechEnd = () => { if (!alive() || speechDone) return; speechDone = true; finish(); };
+    if (text) {
+      if (voiceOn && speechOk()) {
+        narrate(text, { rate: Math.max(0.6, Math.min(2, speed)), onEnd: speechEnd });
+        later(speechEnd, est * 1.8 + 2500); // 음성 합성이 끝 신호를 안 줄 때 대비
+      } else later(speechEnd, est);
     }
-    later(() => {
-      if (hasOp) {
-        if (step.op === 'wait') { later(() => setScript((s) => (s ? { ...s, i: s.i + 1 } : s)), (step.ms ?? 1000) / speed); return; }
-        game.apply(step, { speed, quiet: true });
+    if (hasOp && script.practice && step.practice) {
+      // 연습: 플레이어가 직접 할 때까지 대기 (설명은 계속 들림)
+      setWaiting(step);
+      return clear;
+    }
+    if (hasOp) {
+      if (step.op === 'wait') later(() => { if (alive()) { actionDone = true; finish(); } }, (step.ms ?? 1000) / speed);
+      else {
+        // 설명을 어느 정도 들은 뒤(약 40%) 손이 움직이기 시작
+        const startAt = text ? Math.max(900 / speed, est * 0.4) : 250 / speed;
+        later(() => {
+          if (!alive()) return;
+          game.apply(step, { speed, quiet: true });
+          later(() => { if (alive()) { actionDone = true; finish(); } }, (ACTION_MS[step.op] ?? 1400) / speed);
+        }, startAt);
       }
-      const afterMs = (step.op === 'connect' ? 1900 : step.op === 'place' ? 1100 : hasOp ? 1250 : 300) / speed;
-      later(() => setScript((s) => (s ? { ...s, i: s.i + 1 } : s)), afterMs);
-    }, readMs * (hasOp ? 0.55 : 1));
+    }
+    finish();
     return clear;
   }, [script?.i, script?.playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -231,12 +271,13 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     if (opSatisfied(game.stRef.current, waiting, game)) {
       setWaiting(null);
       getAudio().ok();
-      later(() => setScript((s) => (s ? { ...s, i: s.i + 1 } : s)), 700);
+      const token = run.current;
+      later(() => { if (run.current === token) next(); }, 900);
     }
   }, [game.st, game.talking, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { clear(); stopNarration(); }, []);
-  return { script, narration, waiting, start, stop, pause, resume, setSpeed, setPractice, jump };
+  return { script, narration, waiting, start, stop, pause, resume, setSpeed, setPractice, setAuto, jump };
 }
 
 // 연습 단계: 플레이어가 그 조작을 했는지 (수치는 근처면 인정)

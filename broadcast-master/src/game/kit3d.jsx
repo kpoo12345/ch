@@ -183,3 +183,174 @@ export function AfterFirstFrame({ children }) {
   return ready ? children : null;
 }
 
+
+/* ---------------------------- 단자 앞면 / 플러그 ----------------------------
+ * 장비에 붙은 단자(암)와 케이블 끝 플러그(수)를 종류별 실제 모양으로 그린다.
+ * 로컬 +Y가 단자가 바라보는 방향(케이블이 나오는 쪽), 원점은 패널 면. */
+const JM = {
+  plate: <meshStandardMaterial color="#1b1e23" metalness={0.6} roughness={0.35} />,
+  black: <meshStandardMaterial color="#060708" roughness={0.6} />,
+  hole: <meshBasicMaterial color="#000000" />,
+  metal: <meshStandardMaterial color="#c9d0d8" metalness={0.9} roughness={0.25} />,
+  gold: <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.3} />,
+};
+const XLR_PINS = [[-0.0042, -0.0026], [0.0042, -0.0026], [0, 0.0042]];
+const DMX_PINS = [[-0.0046, -0.0022], [0.0046, -0.0022], [0, 0.0048], [-0.0028, 0.0034], [0.0028, 0.0034]];
+export function JackFace({ kind, color }) {
+  switch (kind) {
+    case 'xlr':
+    case 'dmx':
+    case 'combo': {
+      const pins = kind === 'dmx' ? DMX_PINS : XLR_PINS;
+      return (
+        <group>
+          <mesh position={[0, 0.0008, 0]}><boxGeometry args={[0.026, 0.0016, 0.03]} />{JM.plate}</mesh>
+          {[[-0.0095, -0.012], [0.0095, 0.012]].map(([x, z]) => <mesh key={x} position={[x, 0.0017, z]}><cylinderGeometry args={[0.0013, 0.0013, 0.0006, 8]} />{JM.metal}</mesh>)}
+          <mesh position={[0, 0.0016, 0]}><cylinderGeometry args={[0.0108, 0.0108, 0.0012, 28]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.002, 0]}><cylinderGeometry args={[0.0094, 0.0094, 0.0012, 28]} />{JM.black}</mesh>
+          {pins.map(([x, z]) => <mesh key={`${x}${z}`} position={[x, 0.0027, z]}><cylinderGeometry args={[0.0012, 0.0012, 0.0004, 10]} />{JM.hole}</mesh>)}
+          {kind === 'combo' && <mesh position={[0, 0.0027, 0.0005]}><cylinderGeometry args={[0.0034, 0.0034, 0.0004, 16]} />{JM.hole}</mesh>}
+          {/* 잠금 걸쇠 (PUSH) */}
+          <mesh position={[0, 0.0022, 0.0125]}><boxGeometry args={[0.005, 0.0014, 0.003]} />{JM.metal}</mesh>
+          {color && <mesh position={[0, 0.0021, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.0101, 0.0007, 6, 28]} /><meshBasicMaterial color={color} toneMapped={false} /></mesh>}
+        </group>
+      );
+    }
+    case 'trs':
+    case 'mini': {
+      const r = kind === 'mini' ? 0.0042 : 0.0068;
+      return (
+        <group>
+          <mesh position={[0, 0.0012, 0]}><cylinderGeometry args={[r, r, 0.0024, 6]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.0022, 0]}><cylinderGeometry args={[r * 0.78, r * 0.78, 0.0012, 20]} />{JM.black}</mesh>
+          <mesh position={[0, 0.0029, 0]}><cylinderGeometry args={[r * 0.5, r * 0.5, 0.0004, 16]} />{JM.hole}</mesh>
+          {color && <mesh position={[0, 0.0026, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[r * 0.66, 0.0005, 6, 20]} /><meshBasicMaterial color={color} toneMapped={false} /></mesh>}
+        </group>
+      );
+    }
+    case 'rca':
+      return (
+        <group>
+          <mesh position={[0, 0.003, 0]}><cylinderGeometry args={[0.0046, 0.0046, 0.006, 18, 1, true]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.003, 0]}><cylinderGeometry args={[0.0036, 0.0036, 0.006, 18]} /><meshStandardMaterial color={color ?? '#e5e7eb'} roughness={0.5} /></mesh>
+          <mesh position={[0, 0.0062, 0]}><cylinderGeometry args={[0.0012, 0.0012, 0.0004, 10]} />{JM.hole}</mesh>
+        </group>
+      );
+    case 'hdmi':
+      return (
+        <group>
+          <mesh position={[0, 0.001, 0]}><boxGeometry args={[0.019, 0.002, 0.0085]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.0021, 0.0004]}><boxGeometry args={[0.0158, 0.0006, 0.0052]} />{JM.hole}</mesh>
+          <mesh position={[0, 0.0024, -0.0006]}><boxGeometry args={[0.012, 0.0004, 0.0016]} />{JM.black}</mesh>
+        </group>
+      );
+    case 'usb':
+      return (
+        <group>
+          <mesh position={[0, 0.001, 0]}><boxGeometry args={[0.0104, 0.002, 0.0042]} />{JM.metal}</mesh>
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0052, 0.001, 0]}><cylinderGeometry args={[0.0021, 0.0021, 0.002, 12]} />{JM.metal}</mesh>)}
+          <mesh position={[0, 0.0021, 0]}><boxGeometry args={[0.0092, 0.0005, 0.0028]} />{JM.hole}</mesh>
+          <mesh position={[0, 0.0024, 0]}><boxGeometry args={[0.0062, 0.0004, 0.0008]} />{JM.black}</mesh>
+        </group>
+      );
+    case 'eth':
+      return (
+        <group>
+          <mesh position={[0, 0.001, 0]}><boxGeometry args={[0.0165, 0.002, 0.0145]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.0021, 0.0006]}><boxGeometry args={[0.0122, 0.0005, 0.0098]} />{JM.hole}</mesh>
+          <mesh position={[0, 0.0022, -0.0052]}><boxGeometry args={[0.0042, 0.0005, 0.0022]} />{JM.hole}</mesh>
+          {Array.from({ length: 8 }, (_, i) => <mesh key={i} position={[-0.0044 + i * 0.00126, 0.0025, 0.004]}><boxGeometry args={[0.0006, 0.0003, 0.002]} />{JM.gold}</mesh>)}
+          <mesh position={[-0.0062, 0.0022, 0.0062]}><boxGeometry args={[0.002, 0.0004, 0.0016]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh>
+        </group>
+      );
+    case 'sdi':
+      return (
+        <group>
+          <mesh position={[0, 0.0045, 0]}><cylinderGeometry args={[0.0062, 0.0062, 0.009, 20]} />{JM.metal}</mesh>
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0068, 0.0065, 0]}><cylinderGeometry args={[0.0009, 0.0009, 0.0016, 8]} />{JM.metal}</mesh>)}
+          <mesh position={[0, 0.0091, 0]}><cylinderGeometry args={[0.0042, 0.0042, 0.0004, 18]} /><meshStandardMaterial color="#f1f5f9" /></mesh>
+          <mesh position={[0, 0.0094, 0]}><cylinderGeometry args={[0.0008, 0.0008, 0.0006, 8]} />{JM.gold}</mesh>
+        </group>
+      );
+    default:
+      return <mesh position={[0, 0.001, 0]}><cylinderGeometry args={[0.008, 0.008, 0.002, 16]} />{JM.black}</mesh>;
+  }
+}
+
+// 단자에 꽂힌 플러그: 원점 = 단자 면, +Y 방향으로 몸통이 뻗는다. 반환 길이만큼 뒤에서 케이블이 이어진다
+export const PLUG_LEN = { xlr: 0.058, dmx: 0.058, trs: 0.05, mini: 0.03, hdmi: 0.036, usb: 0.03, eth: 0.034, sdi: 0.04 };
+export const CABLE_R = { xlr: 0.0052, dmx: 0.0052, trs: 0.0046, mini: 0.0028, hdmi: 0.0042, usb: 0.0033, eth: 0.0031, sdi: 0.0036 };
+export function PlugBody({ cable, color }) {
+  const body = <meshStandardMaterial color="#121418" roughness={0.45} metalness={0.2} />;
+  const boot = <meshStandardMaterial color="#0d0e11" roughness={0.8} />;
+  const band = <meshStandardMaterial color={color} roughness={0.5} emissive={color} emissiveIntensity={0.15} />;
+  switch (cable) {
+    case 'xlr':
+    case 'dmx':
+      return (
+        <group>
+          {/* 금속 셸 + 몸통 + 색 링 + 꼬리(부트) */}
+          <mesh position={[0, 0.006, 0]}><cylinderGeometry args={[0.0098, 0.0098, 0.012, 24]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.026, 0]} castShadow><cylinderGeometry args={[0.0092, 0.0098, 0.028, 24]} />{body}</mesh>
+          <mesh position={[0, 0.0405, 0]}><cylinderGeometry args={[0.0093, 0.0093, 0.003, 24]} />{band}</mesh>
+          <mesh position={[0, 0.05, 0]}><cylinderGeometry args={[0.0058, 0.0088, 0.016, 16]} />{boot}</mesh>
+          <mesh position={[0.0099, 0.009, 0]}><boxGeometry args={[0.0014, 0.006, 0.003]} />{JM.metal}</mesh>
+        </group>
+      );
+    case 'trs':
+      return (
+        <group>
+          <mesh position={[0, 0.003, 0]}><cylinderGeometry args={[0.0062, 0.0062, 0.006, 20]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.021, 0]} castShadow><cylinderGeometry args={[0.0066, 0.0062, 0.03, 20]} />{body}</mesh>
+          <mesh position={[0, 0.0345, 0]}><cylinderGeometry args={[0.0067, 0.0067, 0.003, 20]} />{band}</mesh>
+          <mesh position={[0, 0.043, 0]}><cylinderGeometry args={[0.005, 0.0064, 0.014, 14]} />{boot}</mesh>
+        </group>
+      );
+    case 'mini':
+      return (
+        <group>
+          <mesh position={[0, 0.011, 0]} castShadow><cylinderGeometry args={[0.0036, 0.0034, 0.022, 14]} />{body}</mesh>
+          <mesh position={[0, 0.019, 0]}><cylinderGeometry args={[0.0037, 0.0037, 0.002, 14]} />{band}</mesh>
+          <mesh position={[0, 0.026, 0]}><cylinderGeometry args={[0.0029, 0.0034, 0.008, 10]} />{boot}</mesh>
+        </group>
+      );
+    case 'hdmi':
+      return (
+        <group>
+          <mesh position={[0, 0.003, 0]}><boxGeometry args={[0.0152, 0.006, 0.0048]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.0175, 0]} castShadow><boxGeometry args={[0.021, 0.023, 0.0105]} />{body}</mesh>
+          <mesh position={[0, 0.0105, 0]}><boxGeometry args={[0.0212, 0.002, 0.0107]} />{band}</mesh>
+          <mesh position={[0, 0.032, 0]}><cylinderGeometry args={[0.0045, 0.0075, 0.008, 12]} />{boot}</mesh>
+        </group>
+      );
+    case 'usb':
+      return (
+        <group>
+          <mesh position={[0, 0.0035, 0]}><boxGeometry args={[0.0082, 0.007, 0.0024]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.016, 0]} castShadow><boxGeometry args={[0.012, 0.018, 0.0062]} />{body}</mesh>
+          <mesh position={[0, 0.0085, 0]}><boxGeometry args={[0.0122, 0.0016, 0.0064]} />{band}</mesh>
+          <mesh position={[0, 0.0275, 0]}><cylinderGeometry args={[0.0034, 0.0048, 0.005, 10]} />{boot}</mesh>
+        </group>
+      );
+    case 'eth':
+      return (
+        <group>
+          <mesh position={[0, 0.008, 0]}><boxGeometry args={[0.0118, 0.016, 0.0094]} /><meshStandardMaterial color="#dbeafe" transparent opacity={0.6} roughness={0.1} /></mesh>
+          <mesh position={[0, 0.023, 0]} castShadow><boxGeometry args={[0.0132, 0.016, 0.0112]} /><meshStandardMaterial color={color} roughness={0.55} /></mesh>
+          <mesh position={[0, 0.031, 0]}><cylinderGeometry args={[0.0033, 0.005, 0.006, 10]} />{boot}</mesh>
+        </group>
+      );
+    case 'sdi':
+      return (
+        <group>
+          {/* BNC: 돌려 잠그는 금속 링 */}
+          <mesh position={[0, 0.007, 0]}><cylinderGeometry args={[0.0078, 0.0078, 0.012, 20]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.022, 0]} castShadow><cylinderGeometry args={[0.0052, 0.0062, 0.018, 16]} />{body}</mesh>
+          <mesh position={[0, 0.0145, 0]}><cylinderGeometry args={[0.0063, 0.0063, 0.002, 16]} />{band}</mesh>
+          <mesh position={[0, 0.035, 0]}><cylinderGeometry args={[0.0038, 0.0052, 0.01, 10]} />{boot}</mesh>
+        </group>
+      );
+    default:
+      return <mesh position={[0, 0.02, 0]}><cylinderGeometry args={[0.008, 0.008, 0.04, 14]} />{body}</mesh>;
+  }
+}

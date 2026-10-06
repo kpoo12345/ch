@@ -12,7 +12,7 @@ export const CABLES = {
   hdmi: { name: 'HDMI 케이블', short: 'HDMI', desc: '디지털 영상+음성 · 단거리용', stroke: '#c084fc', dot: 'bg-purple-400' },
   sdi: { name: 'SDI 케이블', short: 'SDI', desc: 'BNC 커넥터 · 방송용 장거리 영상', stroke: '#fb923c', dot: 'bg-orange-400' },
   usb: { name: 'USB-C 케이블', short: 'USB', desc: '데이터 · 오디오 인터페이스/웹캠 신호', stroke: '#4ade80', dot: 'bg-green-400' },
-  mini: { name: '3.5mm 변환 케이블', short: '3.5mm', desc: '3.5mm ↔ 3.5mm/6.3mm/XLR 변환 · 노트북·ATEM MIC', stroke: '#f472b6', dot: 'bg-pink-400' },
+  mini: { name: '3.5mm 변환 케이블', short: '3.5mm', desc: '3.5mm ↔ 3.5mm/6.3mm(TRS)/XLR 변환 · 노트북·ATEM MIC', stroke: '#f472b6', dot: 'bg-pink-400' },
   eth: { name: '랜선 (이더넷)', short: 'LAN', desc: 'RJ45 · 인터넷 송출·네트워크 제어', stroke: '#2dd4bf', dot: 'bg-teal-400' },
   dmx: { name: 'DMX 케이블 (5핀)', short: 'DMX', desc: '110Ω 조명 제어 신호 · 조명끼리 줄줄이(데이지 체인) 연결', stroke: '#a3e635', dot: 'bg-lime-400' },
 };
@@ -53,10 +53,19 @@ export const DEVICE_TYPES = {
     info: '얇은 진동판과 축전기(콘덴서) 원리로 섬세한 소리를 잡습니다. 내부 회로가 동작하려면 믹서에서 XLR 케이블을 통해 +48V 팬텀 전원을 공급해야 합니다. 팬텀이 꺼져 있으면 소리가 전혀 나지 않습니다.',
   },
   analog_mixer: {
-    name: '아날로그 믹서', model: '8채널 소형', icon: SlidersHorizontal, w: 230,
-    ins: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `in${n}`, label: `CH${n} IN`, kind: 'combo' })),
-    outs: [{ id: 'main', label: 'MAIN OUT', kind: 'xlr' }, { id: 'aux1', label: 'AUX 1 (모니터)', kind: 'trs' }, { id: 'phones', label: 'PHONES', kind: 'trs' }],
-    info: '여러 입력을 모아 증폭(GAIN) → 음색 보정(EQ) → 음량 조절(페이더)을 거쳐 MAIN OUT으로 내보내는 오디오의 심장입니다. 신호는 위에서 아래로, 채널 스트립 순서대로 흐릅니다.',
+    name: '아날로그 믹서', model: '12채널 (모노 8 + 스테레오 2)', icon: SlidersHorizontal, w: 230,
+    ins: [
+      ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `in${n}`, label: `CH${n} MIC (XLR)`, kind: 'xlr' })),
+      ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `line${n}`, label: `CH${n} LINE (TRS)`, kind: 'trs' })),
+      { id: 'st9L', label: 'CH9/10 LINE L/MONO', kind: 'trs' }, { id: 'st9R', label: 'CH9/10 LINE R', kind: 'trs' },
+      { id: 'st11L', label: 'CH11/12 LINE L/MONO', kind: 'trs' }, { id: 'st11R', label: 'CH11/12 LINE R', kind: 'trs' },
+    ],
+    outs: [
+      { id: 'main', label: 'STEREO OUT L', kind: 'xlr' }, { id: 'mainR', label: 'STEREO OUT R', kind: 'xlr' },
+      { id: 'aux1', label: 'AUX SEND 1 (모니터)', kind: 'trs' }, { id: 'aux2', label: 'AUX SEND 2', kind: 'trs' },
+      { id: 'phones', label: 'PHONES', kind: 'trs' },
+    ],
+    info: '여러 입력을 모아 증폭(GAIN) → 음색 보정(EQ) → 음량 조절(페이더)을 거쳐 STEREO OUT으로 내보내는 오디오의 심장입니다. 모노 채널마다 마이크용 XLR 단자와 라인용 TRS 단자가 따로 있고(라인 단자는 26dB 둔감), 스테레오 채널은 L/R 두 단자로 노트북·키보드를 받습니다. 신호는 위에서 아래로, 채널 스트립 순서대로 흐릅니다.',
   },
   speaker: {
     name: '액티브 스피커', model: '앰프 내장형', icon: Speaker, w: 170,

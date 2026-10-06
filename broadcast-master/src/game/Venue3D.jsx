@@ -4,7 +4,7 @@ import { OrbitControls, RoundedBox, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { CABLES, DEVICE_TYPES } from './engine.js';
 import {
-  DESK_TOP, faceTo, noRaycast, rotY, CanvasShell, Label, Lamp, useCanvasTexture, FONT, AfterFirstFrame, useHoldCamera,
+  DESK_TOP, faceTo, noRaycast, rotY, CanvasShell, Label, Lamp, useCanvasTexture, FONT, AfterFirstFrame, useHoldCamera, PLUG_LEN, CABLE_R,
 } from './kit3d.jsx';
 import {
   MicModel, SpeakerModel, CameraModel, AtemModel, WirelessMicModel, DiBoxModel, HeadphonesModel, MirrorlessModel, PtzModel, PcModel,
@@ -40,6 +40,8 @@ const MIC_TYPES = new Set(['dynamic_mic', 'condenser_mic']);
 const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA, ...PORTS_LIGHT };
 const FIXTURES = new Set(['par_led', 'moving_head']);
 const HANGING = new Set(['par_led', 'moving_head', 'projector']);
+// 장비 모델이 단자 모양을 직접 그리는 장비 (실제 패널 배치를 그대로 보여 준다)
+const OWN_JACKS = new Set(['analog_mixer', 'digital_mixer']);
 const GHOST_ALL = { ...GHOST, ...GHOST_EXTRA, analog_mixer: CONSOLE_SIZE.analog_mixer, digital_mixer: CONSOLE_SIZE.digital_mixer,
   audio_interface: [0.22, 0.06, 0.12], wireless_mic: [0.4, 0.3, 0.2], di_box: [0.12, 0.07, 0.15], headphones: [0.25, 0.25, 0.2],
   mirrorless: [0.25, 0.3, 0.2], ptz: [0.18, 0.25, 0.18], atem_pro: [0.46, 0.4, 0.45], ...GHOST_LIGHT };
@@ -410,14 +412,27 @@ function cableRoute(A, B, venue, lane) {
   return [a, a1, ...da, ...mid, ...db, b1, b];
 }
 
+// 케이블 피복: 실제 케이블처럼 어두운 색에 종류 색이 살짝 섞인다 (플러그의 색 링으로 종류를 구분)
+const jacketColor = (hex) => `#${new THREE.Color(hex).lerp(new THREE.Color('#0b0c0f'), 0.55).getHexString()}`;
+// 플러그 꼬리에서 케이블이 시작되도록 끝점을 단자 방향으로 밀어 준다
+const atPlugTail = (E, cable) => {
+  const n = new THREE.Vector3(...E.n).normalize();
+  const p = new THREE.Vector3(...E.p).addScaledVector(n, (PLUG_LEN[cable] ?? 0.04) - 0.004);
+  return { ...E, p: [p.x, p.y, p.z] };
+};
+
 function Cable3D({ A, B, venue, lane, cable, live, fresh, onDisconnect, interactive, tipRef }) {
   const hold = useHoldCamera();
   const color = CABLES[cable]?.stroke ?? '#94a3b8';
+  const jacket = useMemo(() => jacketColor(color), [color]);
   const key = `${A.p.join()}|${B.p.join()}|${lane}`;
-  const curve = useMemo(() => new THREE.CatmullRomCurve3(cableRoute(A, B, venue, lane), false, 'centripetal'), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const curve = useMemo(() => new THREE.CatmullRomCurve3(cableRoute(atPlugTail(A, cable), atPlugTail(B, cable), venue, lane), false, 'centripetal'), [key, cable]); // eslint-disable-line react-hooks/exhaustive-deps
   const segs = Math.min(400, Math.max(80, Math.round(curve.getLength() * 60)));
-  const geo = useMemo(() => new THREE.TubeGeometry(curve, segs, 0.0095, 8, false), [curve, segs]);
+  const geo = useMemo(() => new THREE.TubeGeometry(curve, segs, CABLE_R[cable] ?? 0.005, 8, false), [curve, segs, cable]);
+  // 가는 케이블도 누르기 쉽도록 굵은 투명 판정용 관
+  const hitGeo = useMemo(() => (interactive ? new THREE.TubeGeometry(curve, Math.round(segs / 3), 0.016, 5, false) : null), [curve, segs, interactive]);
   useEffect(() => () => geo.dispose(), [geo]);
+  useEffect(() => () => hitGeo?.dispose(), [hitGeo]);
   const [hover, setHover] = useState(false);
   const pulses = useRef([]);
   const grow = useRef(fresh ? -0.5 : 1); // 새 케이블: 손이 첫 단자에 닿은 뒤 자라기 시작
@@ -445,23 +460,27 @@ function Cable3D({ A, B, venue, lane, cable, live, fresh, onDisconnect, interact
   });
   return (
     <group>
-      <mesh
-        geometry={geo} castShadow
-        raycast={interactive ? undefined : noRaycast}
-        onPointerDown={(e) => { if (!interactive) return; e.stopPropagation(); hold(); }}
-        onClick={(e) => { if (!interactive) return; e.stopPropagation(); if (e.delta < 10) onDisconnect?.(); }}
-        onPointerOver={(e) => { if (!interactive) return; e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
-        onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
-      >
-        <meshStandardMaterial color={color} roughness={0.5} emissive={color} emissiveIntensity={hover ? 0.6 : live ? 0.22 : 0} />
+      <mesh geometry={geo} castShadow raycast={noRaycast}>
+        <meshStandardMaterial color={hover ? color : jacket} roughness={0.55} emissive={color} emissiveIntensity={hover ? 0.7 : live ? 0.18 : 0} />
       </mesh>
+      {hitGeo && (
+        <mesh
+          geometry={hitGeo}
+          onPointerDown={(e) => { e.stopPropagation(); hold(); }}
+          onClick={(e) => { e.stopPropagation(); if (e.delta < 10) onDisconnect?.(); }}
+          onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
+          onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
+        >
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
       {live && [0, 1, 2, 3, 4].map((i) => (
         <mesh key={i} ref={(el) => { pulses.current[i] = el; }} raycast={noRaycast}>
-          <sphereGeometry args={[0.016, 10, 8]} /><meshBasicMaterial color="#ffffff" toneMapped={false} />
+          <sphereGeometry args={[(CABLE_R[cable] ?? 0.005) * 1.9, 10, 8]} /><meshBasicMaterial color={color} toneMapped={false} />
         </mesh>
       ))}
-      <Plug p={A.p} n={A.n} color={color} />
-      <group ref={plugB}><Plug p={B.p} n={B.n} color={color} /></group>
+      <Plug p={A.p} n={A.n} color={color} cable={cable} />
+      <group ref={plugB}><Plug p={B.p} n={B.n} color={color} cable={cable} /></group>
       {hover && (
         <Label position={curve.getPointAt(0.5)} center wrapperClass="bm-noevents">
           <div className="whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[11px] text-white">{CABLES[cable]?.name} · 클릭하면 분리</div>
@@ -748,7 +767,7 @@ export default function Venue3D({
     if (ctl.kind === 'mixer' || ctl.kind === 'master') {
       const key = ctl.kind === 'master' ? ctl.key : ctl.key;
       const at = toWorld(a.device, consoleControl(type, key, ctl.ch, ctl.value));
-      const kind = key === 'fader' || key === 'mainFader' ? 'slide' : ['mute', 'mainMute', 'lowCut', 'phantom', 'select', 'patch', 'usbOut'].includes(key) ? 'press' : 'turn';
+      const kind = key === 'fader' || key === 'mainFader' ? 'slide' : ['mute', 'mainMute', 'lowCut', 'phantom', 'select', 'patch', 'usbOut', 'pad', 'pfl'].includes(key) ? 'press' : 'turn';
       const from = kind === 'slide' ? toWorld(a.device, consoleControl(type, key, ctl.ch, ctl.prev ?? ctl.value)) : null;
       // 디지털 믹서의 채널 설정은 "선택 채널" 섹션에서 한다 → 먼저 SEL 버튼
       const selKeys = ['gain', 'lowCut', 'phantom', 'eqHigh', 'eqMid', 'eqLow', 'fx', 'aux'];
@@ -767,6 +786,7 @@ export default function Venue3D({
   const meters = useMemo(() => ({
     ch: sim.mixer.channels.map((c) => (c.inLevel == null ? null : c.inLevel)),
     main: st.mixerId ? sim.outLevel(st.mixerId, 'main') : null,
+    mainR: st.mixerId && st.devices[st.mixerId]?.type === 'analog_mixer' ? sim.outLevel(st.mixerId, 'mainR') : null,
     aux: st.mixerId ? sim.outLevel(st.mixerId, 'aux1') : null,
   }), [sim]); // eslint-disable-line react-hooks/exhaustive-deps
   const chNames = useMemo(() => st.channels.map((ch, i) => {
@@ -1016,8 +1036,8 @@ export default function Venue3D({
                   const hiPort = (highlight?.port && highlight.device === d.id && highlight.port === pid) || (highlight?.port2 && highlight.device2 === d.id && highlight.port2 === pid);
                   return (
                     <Port3D key={pid} p={pw.p} n={pw.n} port={port} label={SHORT_LABEL[`${d.type}:${pid}`] ?? port.label}
-                      lift={(d.type === 'analog_mixer' || d.type === 'digital_mixer') && idx % 2 ? 0.035 : 0} used={used} isPending={isPending} candidate={candidate || hiPort}
-                      labels={labels} onClick={() => onPortClick?.(d.id, pid)} />
+                      lift={d.type === 'digital_mixer' && idx % 2 ? 0.035 : 0} used={used} isPending={isPending} candidate={candidate || hiPort}
+                      bare={OWN_JACKS.has(d.type)} labels={labels && d.type !== 'analog_mixer'} onClick={() => onPortClick?.(d.id, pid)} />
                   );
                 })}
               </group>

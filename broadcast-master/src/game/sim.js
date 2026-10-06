@@ -12,7 +12,21 @@
 import { DEVICE_TYPES, PORT_ACCEPTS, faderDb } from './engine.js';
 
 export const AUDIBLE = -40;
-export const CHANNELS = 8;
+export const CHANNELS = 10; // 상태에 들어 있는 채널 수 (아날로그: 모노 8 + 스테레오 2, 디지털: 앞의 8개만 사용)
+export const MONO_CHANNELS = 8;
+export const LINE_PAD = 26; // 라인 단자(TRS)는 마이크 단자(XLR)보다 26dB 둔감하다 — 큰 라인 신호용
+export const chCountOf = (type) => (type === 'analog_mixer' ? CHANNELS : MONO_CHANNELS);
+// 아날로그 믹서: 채널 → 입력 단자들 / 단자 → 채널
+export const analogPortsOfCh = (i) => (i < MONO_CHANNELS ? [`in${i + 1}`, `line${i + 1}`] : i === 8 ? ['st9L', 'st9R'] : i === 9 ? ['st11L', 'st11R'] : []);
+export function analogChOfPort(p) {
+  if (/^in\d$/.test(p)) return Number(p.slice(2));
+  if (/^line\d$/.test(p)) return Number(p.slice(4));
+  if (p === 'st9L' || p === 'st9R') return 9;
+  if (p === 'st11L' || p === 'st11R') return 10;
+  return null;
+}
+// 채널 이름표 (스테레오 채널은 9/10, 11/12)
+export const chLabel = (type, i) => (type === 'analog_mixer' && i === 8 ? '9/10' : type === 'analog_mixer' && i === 9 ? '11/12' : `${i + 1}`);
 const VOICE_TYPES = new Set(['dynamic_mic', 'condenser_mic', 'wireless_mic']);
 const CAMERA_TYPES = new Set(['camera', 'mirrorless', 'ptz']);
 const VIDEO_SOURCES = new Set(['camera', 'mirrorless', 'ptz', 'media_server']);
@@ -45,8 +59,8 @@ export const zoneOf = (venue, slot) => {
 const FRONT_SLOTS = new Set(['pa_alt']);
 
 /* ---------------------------- 기본값 ---------------------------- */
-export const CH_DEFAULT = { gain: 30, lowCut: false, eqHigh: 0, eqMid: 0, eqLow: 0, fx: 0, aux: 0, mute: false, fader: 75, phantom: false, patch: null };
-export const MASTER_DEFAULT = { mainFader: 75, mainMute: false, auxMaster: 75, fxReturn: 50, usbOut: 'main' };
+export const CH_DEFAULT = { gain: 30, pad: false, lowCut: false, comp: 0, eqHigh: 0, eqMid: 0, eqFreq: 1000, eqLow: 0, aux: 0, aux2: 0, fx: 0, pan: 0, mute: false, pfl: false, fader: 75, phantom: false, patch: null };
+export const MASTER_DEFAULT = { mainFader: 75, mainMute: false, auxMaster: 75, aux2Master: 75, fxReturn: 50, phonesLevel: 75, phantom: false, usbOut: 'main' };
 export const DEV_DEFAULTS = {
   speaker: () => ({ power: true, position: 'behind' }),
   monitor: () => ({ power: true }),
@@ -187,9 +201,13 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
       case 'analog_mixer':
       case 'digital_mixer': {
         const m = mixerCalc();
-        if (p === 'main' || p === 'phones') r = m.main;
+        const digital = t === 'digital_mixer';
+        if (p === 'main') r = digital ? m.mainLR : m.main;
+        else if (p === 'mainR') r = m.mainR;
+        else if (p === 'phones') r = m.phones;
         else if (p === 'aux1') r = m.aux;
-        else if (p === 'usb') r = st.master.usbOut === 'main' ? m.main : st.master.usbOut === 'aux1' ? m.aux : [];
+        else if (p === 'aux2') r = m.aux2;
+        else if (p === 'usb') r = st.master.usbOut === 'main' ? m.mainLR : st.master.usbOut === 'aux1' ? m.aux : [];
         break;
       }
       case 'audio_interface': {
@@ -204,41 +222,73 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     return r;
   };
 
-  // 믹서: 채널 → 메인/AUX 버스
+  // 믹서: 채널 → 메인(L/R)/AUX/PHONES 버스
   let mixerCache = null;
   const mixerCalc = () => {
     if (mixerCache) return mixerCache;
-    mixerCache = { main: [], aux: [], channels: [] };
+    mixerCache = { main: [], mainR: [], mainLR: [], aux: [], aux2: [], phones: [], channels: [] };
     const mid = st.mixerId;
     if (!mid || !placed(mid)) return mixerCache;
     const digital = devices[mid].type === 'digital_mixer';
     const M = st.master;
-    const main = [], aux = [], chans = [];
-    // 디지털 믹서의 +48V는 "입력 단자(헤드앰프)"에 걸린다: 그 단자를 쓰는 채널 중 하나라도 켜면 전원이 들어간다
-    const portOfCh = (ch, i) => (digital ? (ch.patch ?? `local${i + 1}`) : `in${i + 1}`);
-    const powered = new Set(st.channels.map((ch, i) => (ch.phantom ? portOfCh(ch, i) : null)).filter(Boolean));
+    const main = [], mainR = [], mainLR = [], aux = [], aux2 = [], pfl = [], chans = [];
+    // 채널이 받는 입력 단자들. 디지털: 패치된 로컬 입력 하나 / 아날로그: MIC(XLR)+LINE(TRS) 또는 스테레오 L/R
+    const portsOfCh = (ch, i) => {
+      if (digital) return i < MONO_CHANNELS ? [ch.patch ?? `local${i + 1}`].filter((p) => p !== 'off') : [];
+      return analogPortsOfCh(i);
+    };
+    // +48V: 디지털은 입력 단자(헤드앰프)마다, 아날로그는 PHANTOM 스위치 하나로 모든 MIC(XLR) 단자에 한꺼번에 걸린다
+    const powered = digital
+      ? new Set(st.channels.map((ch, i) => (ch.phantom && i < MONO_CHANNELS ? ch.patch ?? `local${i + 1}` : null)).filter(Boolean))
+      : new Set(M.phantom || st.channels.some((ch) => ch.phantom) ? Array.from({ length: MONO_CHANNELS }, (_, k) => `in${k + 1}`) : []);
+    const panDb = (v) => (v <= -100 ? -Infinity : 20 * Math.log10(Math.max(0.001, 1 + Math.min(0, v) / 100)));
     st.channels.forEach((ch, i) => {
-      const port = portOfCh(ch, i);
-      const comps = port === 'off' ? [] : inputComps(mid, port);
+      if (i >= chCountOf(devices[mid].type)) { chans.push({ index: i + 1, ports: [], comps: [], inLevel: null, clip: false }); return; }
+      const ports = portsOfCh(ch, i);
+      const stereo = !digital && i >= MONO_CHANNELS;
+      const rConnected = stereo && !!feeding[`${mid}.${ports[1]}`];
+      const comps = ports.flatMap((port, k) => inputComps(mid, port).map((x) => {
+        const line = !digital && (/^line/.test(port) || stereo);
+        // 스테레오 채널: L/MONO에만 꽂으면 양쪽으로 나간다
+        const side = stereo ? (k === 1 ? 'R' : rConnected ? 'L' : 'M') : 'M';
+        return { ...x, port, jack: line ? 'line' : 'mic', side };
+      }));
       const processed = comps.map((x) => {
         let level = x.level;
-        if (x.needsPhantom && !powered.has(port)) { if (level != null) notes.deadPhantom.add(x.src); level = null; }
+        if (x.needsPhantom && !(x.jack === 'mic' && powered.has(x.port))) { if (level != null) notes.deadPhantom.add(x.src); level = null; }
         if (x.hiZ) { notes.thin.add(x.src); if (level != null) level -= 6; }
+        if (level != null && x.jack === 'line') level -= LINE_PAD;
+        if (level != null && ch.pad && x.jack === 'mic') level -= 26;
         const inLevel = level == null ? null : level + ch.gain;
         return { ...x, inLevel };
       });
       const live = processed.filter((x) => x.inLevel != null);
       const inLevel = live.length ? Math.max(...live.map((x) => x.inLevel)) : null;
       const chOpen = !ch.mute && ch.fader > 0;
-      const post = (x) => x.inLevel + mapDb(ch.fader);
-      const info = { index: i + 1, port, comps: processed, inLevel, clip: inLevel != null && inLevel > 0 };
-      chans.push(info);
+      const makeup = ((ch.comp ?? 0) / 100) * 6; // 원 노브 컴프: 많이 돌릴수록 작은 소리를 끌어올린다
+      const post = (x) => x.inLevel + makeup + mapDb(ch.fader);
+      const pan = ch.pan ?? 0;
+      const gL = panDb(pan > 0 ? -pan : 0), gR = panDb(pan < 0 ? pan : 0);
+      chans.push({ index: i + 1, port: ports[0] ?? 'off', ports, comps: processed, inLevel, clip: inLevel != null && inLevel > 0 });
       live.forEach((x) => {
-        if (chOpen && !M.mainMute && M.mainFader > 0) main.push({ ...x, ch: i + 1, level: post(x) + mapDb(M.mainFader) });
-        if (!ch.mute && ch.aux > 0 && M.auxMaster > 0) aux.push({ ...x, ch: i + 1, level: x.inLevel + mapDb(ch.aux) + mapDb(M.auxMaster) });
+        if (chOpen && !M.mainMute && M.mainFader > 0) {
+          const base = post(x) + mapDb(M.mainFader);
+          const l = x.side === 'R' ? -Infinity : base + gL;
+          const r = x.side === 'L' ? -Infinity : base + gR;
+          if (Number.isFinite(l)) main.push({ ...x, ch: i + 1, level: l });
+          if (Number.isFinite(r)) mainR.push({ ...x, ch: i + 1, level: r });
+          if (Number.isFinite(Math.max(l, r))) mainLR.push({ ...x, ch: i + 1, level: Math.max(l, r) });
+        }
+        // AUX는 페이더 앞(PRE)에서 갈라진다 — 페이더를 내려도 모니터는 그대로
+        if (!ch.mute && ch.aux > 0 && M.auxMaster > 0) aux.push({ ...x, ch: i + 1, level: x.inLevel + makeup + mapDb(ch.aux) + mapDb(M.auxMaster) });
+        if (!ch.mute && (ch.aux2 ?? 0) > 0 && (M.aux2Master ?? 75) > 0) aux2.push({ ...x, ch: i + 1, level: x.inLevel + makeup + mapDb(ch.aux2) + mapDb(M.aux2Master ?? 75) });
+        // PFL: 누른 채널만 페이더 앞 신호로 헤드폰에 (MUTE와 상관없이 미리 들어 본다)
+        if (ch.pfl) pfl.push({ ...x, ch: i + 1, level: x.inLevel + makeup });
       });
     });
-    mixerCache = { main, aux, channels: chans };
+    const ph = mapDb(M.phonesLevel ?? 75);
+    const phones = (pfl.length ? pfl : mainLR).map((x) => ({ ...x, level: x.level + ph })).filter((x) => Number.isFinite(x.level));
+    mixerCache = { main, mainR, mainLR, aux, aux2, phones, pfl: pfl.length > 0, channels: chans };
     return mixerCache;
   };
 
@@ -395,7 +445,10 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     const front = FRONT_SLOTS.has(devices[spk]?.slot) || (!devices[spk]?.slot && dev[spk]?.position === 'front');
     const pos = type === 'monitor' ? -2 : front ? 8 : -6;
     const fxTerm = (ch.fx / 100) * (st.master.fxReturn / 100) * 4;
-    const loop = x.level + 5 + ch.eqMid + 0.4 * ch.eqHigh + pos + (x.condenser ? 6 : 0) + fxTerm + (ch.lowCut ? -0.5 : 0);
+    // MID EQ는 하울링이 잘 생기는 대역(약 500Hz~4kHz)에 맞춰야 효과가 크다
+    const f = ch.eqFreq ?? 1000;
+    const midW = f >= 500 && f <= 4000 ? 1 : 0.4;
+    const loop = x.level + 5 + midW * ch.eqMid + 0.4 * ch.eqHigh + pos + (x.condenser ? 6 : 0) + fxTerm + (ch.lowCut ? -0.5 : 0) + ((ch.comp ?? 0) / 100) * 3;
     loops.push({ src: x.src, spk, loop });
   });
   const worst = loops.length ? Math.max(...loops.map((l) => l.loop)) : -99;
@@ -441,7 +494,7 @@ export function channelIndexOf(st, src) {
     visited.add(out.id);
     if (out.to.d === st.mixerId) {
       const digital = st.devices[st.mixerId].type === 'digital_mixer';
-      if (!digital) return Number(out.to.p.replace('in', ''));
+      if (!digital) return analogChOfPort(out.to.p);
       const idx = st.channels.findIndex((ch, i) => (ch.patch ?? `local${i + 1}`) === out.to.p);
       return idx >= 0 ? idx + 1 : null;
     }
@@ -536,7 +589,7 @@ export function applyFault(st, f) {
       const ai = aiInputOf(st, f.source); if (ai) st.dev[ai.id].in[ai.i].phantom = false;
       break;
     }
-    case 'patchWrong': if (c) { const i = st.channels.indexOf(c); c.patch = `local${((i + 4) % CHANNELS) + 1}`; } break;
+    case 'patchWrong': if (c) { const i = st.channels.indexOf(c); c.patch = `local${((i + 4) % MONO_CHANNELS) + 1}`; } break;
     case 'usbRoute': st.master.usbOut = 'off'; break;
     case 'obsMute': st.obs.muted = true; break;
     case 'obsAudioNone': st.obs.audio = 'none'; break;

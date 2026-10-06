@@ -6,13 +6,16 @@
 export const speechOk = () => typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 
 let voice = null;
+// 한국어 목소리 중 가장 자연스러운 것을 고른다 (Edge의 Natural/Online, Chrome의 Google, Safari의 Yuna 등)
+const voiceScore = (v) => (/natural|neural|online/i.test(v.name) ? 4 : 0) + (/google/i.test(v.name) ? 3 : 0) + (/yuna|sora|heami|sunhi|injoon|hyunsu/i.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
 const pickVoice = () => {
   if (!speechOk()) return;
-  voice = window.speechSynthesis.getVoices().find((v) => v.lang && v.lang.toLowerCase().startsWith('ko')) ?? null;
+  const ko = window.speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().replace('_', '-').startsWith('ko'));
+  voice = ko.sort((a, b) => voiceScore(b) - voiceScore(a))[0] ?? null;
 };
 if (speechOk()) { pickVoice(); window.speechSynthesis.addEventListener?.('voiceschanged', pickVoice); }
 
-const state = { narrating: false, talk: null, talkTimer: null, idx: 0, current: null };
+const state = { narrating: false, talk: null, talkTimer: null, narrTimer: null, idx: 0, current: null };
 
 function utter(text, { rate = 1.05, volume = 1, pitch = 1 } = {}) {
   const u = new window.SpeechSynthesisUtterance(text);
@@ -21,17 +24,19 @@ function utter(text, { rate = 1.05, volume = 1, pitch = 1 } = {}) {
   return u;
 }
 
-export function narrate(text, { rate = 1.08, onEnd } = {}) {
+export function narrate(text, { rate = 1, onEnd } = {}) {
   if (!speechOk() || !text) { onEnd?.(); return; }
   const synth = window.speechSynthesis;
   synth.cancel();
   clearTimeout(state.talkTimer);
+  clearTimeout(state.narrTimer);
   state.narrating = true;
-  const u = utter(text, { rate, volume: 1, pitch: 1.02 });
+  const u = utter(text, { rate, volume: 1, pitch: 1 });
   const done = () => { if (state.current === u) { state.narrating = false; state.current = null; onEnd?.(); scheduleTalk(400); } };
   u.onend = done; u.onerror = done;
   state.current = u;
-  synth.speak(u);
+  // 일부 브라우저는 cancel 직후 바로 speak하면 말을 시작하지 않는다 → 아주 잠깐 뒤에
+  state.narrTimer = setTimeout(() => { if (state.current === u) synth.speak(u); }, 80);
 }
 export function stopNarration() {
   if (!speechOk()) return;

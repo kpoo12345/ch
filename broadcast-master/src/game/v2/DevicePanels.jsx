@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Power, Radio, Cable, Camera, Tv, MonitorPlay, Lightbulb, Clapperboard, Joystick, Router as RouterIcon, Laptop, Info } from 'lucide-react';
 import { DEVICE_TYPES, CABLES } from '../engine.js';
-import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily } from '../sim.js';
+import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel } from '../sim.js';
 import { VENUES } from '../venues.js';
 import { Meter } from '../ui.jsx';
 import { Knob, Toggle, Seg, Stepper, Row, Card, HSlider } from './controls.jsx';
@@ -158,7 +158,7 @@ export function DevicePanel({ game, id }) {
       body = (
         <Card title="노트북 (음원 재생)" icon={Laptop}>
           <Row label="BGM 재생"><Toggle on={s.playing} color="green" onClick={() => set('playing', !s.playing)}>{s.playing ? '▶ 재생 중' : '❚❚ 정지'}</Toggle></Row>
-          <p className="text-[11px] text-slate-400">3.5mm 출력은 가정용 라인 레벨입니다. 믹서 GAIN을 아주 낮게(0 근처) 씁니다.</p>
+          <p className="text-[11px] text-slate-400">3.5mm 출력은 가정용 라인 레벨입니다. 믹서의 LINE(TRS) 단자나 스테레오 채널에 꽂고 GAIN을 낮게 씁니다. MIC(XLR) 단자에 꽂으면 GAIN을 0 근처까지 내려야 합니다.</p>
         </Card>
       );
       break;
@@ -166,13 +166,14 @@ export function DevicePanel({ game, id }) {
     case 'digital_mixer':
       body = (
         <Card title="믹서" icon={Radio}>
-          <p className="text-[11px] text-slate-400">아래 <b>믹서 콘솔</b> 버튼을 누르면 8개 채널의 GAIN·EQ·페이더를 직접 조작할 수 있습니다.{d.type === 'digital_mixer' ? ' 디지털 믹서는 채널마다 입력 패치(어느 LOCAL 단자를 들을지)와 USB 출력 라우팅을 정해야 합니다.' : ''}</p>
+          <p className="text-[11px] text-slate-400">아래 <b>믹서 콘솔</b> 버튼을 누르면 채널마다 GAIN·EQ·페이더를 직접 조작할 수 있습니다.{d.type === 'digital_mixer' ? ' 디지털 믹서는 채널마다 입력 패치(어느 LOCAL 단자를 들을지)와 USB 출력 라우팅을 정해야 합니다.' : ' 모노 채널은 MIC(XLR)·LINE(TRS) 단자가 따로 있고, 9/10·11/12는 스테레오(L/R) 채널입니다. +48V는 PHANTOM 스위치 하나로 모든 MIC 단자에 들어갑니다.'}</p>
           <ul className="text-[11px] text-slate-300 space-y-0.5">
-            {st.channels.map((ch, i) => {
+            {st.channels.slice(0, chCountOf(d.type)).map((ch, i) => {
               const c = nominal.mixer.channels[i];
               const src = c?.comps?.[0]?.src;
               if (!src) return null;
-              return <li key={i}>CH{i + 1} · {st.devices[src]?.name ?? src} · GAIN +{ch.gain} · 입력 {c.inLevel == null ? '신호 없음' : `${c.inLevel.toFixed(0)}dB`}{ch.mute ? ' · MUTE' : ''}</li>;
+              const jack = c.comps[0].jack === 'line' ? ' LINE' : c.comps[0].jack === 'mic' ? ' MIC' : '';
+              return <li key={i}>CH{chLabel(d.type, i)}{jack} · {st.devices[src]?.name ?? src} · GAIN +{ch.gain} · 입력 {c.inLevel == null ? '신호 없음' : `${c.inLevel.toFixed(0)}dB`}{ch.mute ? (d.type === 'analog_mixer' ? ' · ON 꺼짐' : ' · MUTE') : ''}</li>;
             })}
           </ul>
         </Card>
