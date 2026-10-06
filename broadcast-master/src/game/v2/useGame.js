@@ -73,7 +73,7 @@ export function useGame(spec, { onClear } = {}) {
   const noteFader = (key, before, value) => {
     const now = Date.now();
     let g = faderMoves.current[key];
-    if (!g || now - g.tLast > 700) g = { t0: now, v0: before };
+    if (!g || now - g.tLast > 1500) g = { t0: now, v0: before }; // 손을 1.5초 넘게 떼면 새 동작
     g.tLast = now; g.v = value;
     faderMoves.current[key] = g;
     const dt = now - g.t0;
@@ -81,7 +81,8 @@ export function useGame(spec, { onClear } = {}) {
     if (g.v0 >= 35 && value <= 3) add.push(dt >= 1500 ? `fadeOut:${key}` : dt < 600 ? `cutOut:${key}` : null);
     if (g.v0 <= 3 && value >= 50) add.push(dt >= 1500 ? `fadeIn:${key}` : null);
     const fresh = add.filter(Boolean).filter((k) => !latchedRef.current.has(k));
-    if (fresh.length) setLatched((s0) => new Set([...s0, ...fresh]));
+    // 다시 천천히 내리면 앞서 뚝 끊었던 기록은 지운다 (다시 해 볼 수 있게)
+    if (fresh.length) setLatched((s0) => { const n0 = new Set([...s0, ...fresh]); if (fresh.includes(`fadeOut:${key}`)) n0.delete(`cutOut:${key}`); return n0; });
   };
   const applyRef = useRef(null);
   const apply = useCallback((op, { visual = true, prev, speed, quiet } = {}) => {
@@ -100,6 +101,14 @@ export function useGame(spec, { onClear } = {}) {
         if (a) { if (a.ctl) a.ctl.prev = from; a.speed = speed; a.durMs = ms; setAction(a); }
       }
       for (let k = 1; k <= n; k += 1) setTimeout(() => applyRef.current?.(step(k), { visual: false, quiet: true }), (ms * k) / n);
+      // 대본의 페이드는 화면이 느려 단계 사이가 벌어져도 페이드로 인정 (끝난 뒤 기록)
+      const fk = (!op.mixer || op.mixer === cur.mixerId) ? (op.ch ? `ch${op.ch}` : 'main') : null;
+      if (fk && ms >= 1500) {
+        setTimeout(() => {
+          const tag = from >= 35 && op.to <= 3 ? `fadeOut:${fk}` : from <= 3 && op.to >= 50 ? `fadeIn:${fk}` : null;
+          if (tag) setLatched((s0) => { const n0 = new Set(s0); n0.add(tag); n0.delete(`cutOut:${fk}`); return n0; });
+        }, ms + 80);
+      }
       return true;
     }
     if (op.op === 'talk') { setScriptTalk(op.on ? true : null); return true; }

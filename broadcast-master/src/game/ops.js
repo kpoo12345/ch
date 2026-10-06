@@ -210,7 +210,7 @@ export function runOps(st0, ops, { onStep } = {}) {
       if (op.op === 'fade' && (op.ms ?? 3000) >= 1500) {
         const k = op.ch ? `ch${op.ch}` : 'main';
         const from = op.ch ? st.channels[op.ch - 1]?.fader : st.master.mainFader;
-        if (from >= 35 && op.to <= 3) latched.add(`fadeOut:${k}`);
+        if (from >= 35 && op.to <= 3) { latched.add(`fadeOut:${k}`); latched.delete(`cutOut:${k}`); }
         if (from <= 3 && op.to >= 50) latched.add(`fadeIn:${k}`);
       }
       st = applyOp(st, op);
