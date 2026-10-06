@@ -32,6 +32,7 @@ const PHRASES = {
   lecture_hall: ['안녕하세요, 오늘 강의를 시작하겠습니다.', '화면을 보시면서 따라와 주세요.', '질문은 채팅으로 남겨 주세요.'],
   sandbox: ['아, 아, 마이크 테스트.', '하나, 둘, 셋.', '잘 들리시나요?'],
 };
+const noWatch = () => null;
 const INSTRUMENTS = new Set(['e_guitar', 'keyboard', 'digital_piano', 'bass_guitar', 'drum_kit', 'kick_mic', 'snare_mic', 'overhead_mic']);
 const lvToVol = (lv) => (lv == null ? 0 : Math.max(0, Math.min(1, (lv + 42) / 32)));
 
@@ -51,6 +52,9 @@ export default function GameScreen({
   }, [spec]); // eslint-disable-line react-hooks/exhaustive-deps
   const [listen, setListen] = useState(defaultListen);
   const [compareOpen, setCompareOpen] = useState(false);
+  // 자유 모드: 탭과 상관없이 자동 저장·도전 과제 (훅은 화면이 살아 있는 동안 늘 같은 것이 불린다)
+  const useWatch = sandbox?.useWatch ?? noWatch;
+  useWatch(game);
   const [showBrief, setShowBrief] = useState(mode === 'story');
   const [hints, setHints] = useState(0);
   const [usedAuto, setUsedAuto] = useState(false);

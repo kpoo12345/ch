@@ -434,10 +434,38 @@ export function DigitalMixerModel({ mixer, chLevel, mainLevel, screenTex }) {
   );
 }
 
+/* ---------------------------- 장비 불빛 (고정 라이트 풀) ----------------------------
+ * three.js는 장면의 라이트 개수가 바뀌면 모든 재질 셰이더를 다시 컴파일한다(장비를 놓을 때마다 멈칫).
+ * 그래서 장비마다 pointLight를 두지 않고, 개수가 고정된 라이트를 빛이 필요한 장비 쪽으로 옮겨 쓴다.
+ * at: 장비 기준 로컬 위치 · pulse/amp: 깜빡임 속도와 폭 */
+export const GLOW = {
+  tally: { at: [0.035, 1.51, 0.13], color: '#ef4444', distance: 1, intensity: 0.8, pulse: 3, amp: 0.15 }, // 카메라 PGM 탈리
+  feedback: { at: [0, 1.45, 0.4], color: '#ef4444', distance: 2.5, intensity: 1.5, pulse: 20, amp: 1.2 }, // 스피커 하울링
+  wedge: { at: [0, 0.435, 0.283], color: '#ef4444', distance: 2, intensity: 1.4, pulse: 20, amp: 1.0 }, // 모니터 스피커 하울링
+  streaming: { at: [0, 0.5, 0.3], color: '#ef4444', distance: 0.8, intensity: 0.6 }, // PC 방송 중
+  ledWall: { at: [0, 1.525, 0.8], color: '#c084fc', distance: 4, intensity: 2 }, // LED 화면 빛 번짐 (at[1] = 0.4 + 높이/2)
+};
+// glows: [{ ...GLOW.x, pos: 월드 좌표 }] — count개를 늘 달아 두고, 남는 라이트는 세기 0
+export function GlowLights({ glows = [], count = 4 }) {
+  const lights = useRef([]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    lights.current.forEach((l, i) => {
+      if (!l) return;
+      const g = glows[i];
+      if (!g) { l.intensity = 0; return; }
+      l.position.set(g.pos[0], g.pos[1], g.pos[2]);
+      l.color.set(g.color);
+      l.distance = g.distance;
+      l.intensity = g.intensity + (g.pulse ? Math.sin(t * g.pulse) * g.amp : 0);
+    });
+  });
+  return <group>{Array.from({ length: count }, (_, i) => <pointLight key={i} ref={(el) => { lights.current[i] = el; }} intensity={0} />)}</group>;
+}
+
 export function SpeakerModel({ power, level, feedback }) {
   const cone = useRef();
   const cab = useRef();
-  const light = useRef();
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     const amp = feedback ? 0.012 : level != null ? Math.max(0, (level + 45) / 45) * 0.008 : 0;
@@ -446,7 +474,6 @@ export function SpeakerModel({ power, level, feedback }) {
       cab.current.position.x = feedback ? Math.sin(t * 70) * 0.006 : 0;
       cab.current.rotation.z = feedback ? Math.sin(t * 43) * 0.012 : 0;
     }
-    if (light.current) light.current.intensity = feedback ? 1.5 + Math.sin(t * 20) * 1.2 : 0;
   });
   return (
     <group>
@@ -470,7 +497,6 @@ export function SpeakerModel({ power, level, feedback }) {
         <Lamp position={[0.12, -0.25, 0.152]} on={power} color="#22c55e" size={[0.012, 0.012, 0.004]} />
         <mesh position={[-0.11, -0.25, 0.152]}><planeGeometry args={[0.08, 0.016]} /><meshBasicMaterial color="#64748b" /></mesh>
         <mesh position={[-0.171, -0.12, -0.04]}><boxGeometry args={[0.004, 0.1, 0.12]} /><meshStandardMaterial color="#2a2e35" /></mesh>
-        <pointLight ref={light} color="#ef4444" distance={2.5} intensity={0} position={[0, 0, 0.4]} />
       </group>
       <Waves active={(level != null && level > -40) || feedback} color={feedback ? '#ef4444' : '#38bdf8'} position={[0, 1.38, 0.17]} radius={0.12} travel={0.9} speed={feedback ? 2.2 : 1} />
     </group>
@@ -478,10 +504,6 @@ export function SpeakerModel({ power, level, feedback }) {
 }
 
 export function CameraModel({ tally }) {
-  const lamp = useRef();
-  useFrame(({ clock }) => {
-    if (lamp.current) lamp.current.intensity = tally === 'pgm' ? 0.8 + Math.sin(clock.elapsedTime * 3) * 0.15 : 0;
-  });
   return (
     <group>
       {[0, 2.094, 4.188].map((a) => (
@@ -500,7 +522,6 @@ export function CameraModel({ tally }) {
         <mesh position={[0, 0.09, 0.02]}><boxGeometry args={[0.02, 0.025, 0.16]} /><meshStandardMaterial color="#16181c" /></mesh>
         <Lamp position={[0.035, 0.083, 0.13]} on={!!tally} color={tally === 'pgm' ? '#ef4444' : '#22c55e'} size={[0.025, 0.012, 0.02]} intensity={3} />
         <Lamp position={[0, 0.03, -0.152]} on={!!tally} color={tally === 'pgm' ? '#ef4444' : '#22c55e'} size={[0.04, 0.015, 0.004]} intensity={3} />
-        <pointLight ref={lamp} color="#ef4444" distance={1} intensity={0} position={[0.035, 0.15, 0.13]} />
       </group>
     </group>
   );
@@ -773,7 +794,7 @@ export function PtzModel({ pan, tilt, zoom, tally }) {
   );
 }
 
-export function PcModel({ screenTex, streaming }) {
+export function PcModel({ screenTex }) {
   return (
     <group>
       <mesh position={[0, 0.01, -0.02]} receiveShadow castShadow><boxGeometry args={[0.24, 0.02, 0.16]} /><meshStandardMaterial color="#1b1d21" metalness={0.5} /></mesh>
@@ -788,7 +809,6 @@ export function PcModel({ screenTex, streaming }) {
       </group>
       <mesh position={[0.02, 0.008, 0.22]} castShadow><boxGeometry args={[0.42, 0.016, 0.13]} /><meshStandardMaterial color="#202328" /></mesh>
       <mesh position={[0.3, 0.012, 0.22]}><boxGeometry args={[0.06, 0.02, 0.09]} /><meshStandardMaterial color="#202328" /></mesh>
-      {streaming && <pointLight color="#ef4444" distance={0.8} intensity={0.6} position={[0, 0.5, 0.3]} />}
     </group>
   );
 }
@@ -1032,7 +1052,7 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   if (type === 'speaker') model = <SpeakerModel power={demo.power} level={demo.power ? demo.mainLevel : null} feedback={demo.feedback} />;
   if (type === 'camera') model = <CameraModel tally={demo.tally} />;
   if (type === 'atem') model = <AtemModel atem={demo.atem} camAt={{ 1: 'cam1', 2: 'cam2' }} />;
-  if (type === 'pc') model = <PcModel screenTex={obsTex} streaming={demo.streaming} />;
+  if (type === 'pc') model = <PcModel screenTex={obsTex} />;
   if (type === 'audio_interface') {
     model = <AudioInterfaceModel gain={demo.mixer.gain} level={demo.chLevel} phantom={demo.mixer.phantom} inst={demo.inst} air={demo.air} monitor={demo.monitor} direct={demo.direct} />;
   }
@@ -1053,6 +1073,10 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   if (type === 'ptz_controller') model = <PtzControllerModel selected={demo.joySel ?? 0} tallies={['pgm', 'pvw', null, null]} lcdTex={joyLcd} />;
   const portMap = PORTS3D[type] ?? PORTS_EXTRA[type] ?? PORTS_LIGHT[type] ?? {};
   const portScale = type === 'led_wall' ? 0.55 : 1;
+  // 탈리·하울링·화면 불빛 (라이트 1개를 늘 달아 두고 위치·세기만 바꾼다)
+  const glowKey = type === 'speaker' && demo.feedback ? 'feedback' : type === 'camera' && demo.tally === 'pgm' ? 'tally'
+    : type === 'monitor' && demo.power && demo.wedgeFeedback ? 'wedge' : type === 'pc' && demo.streaming ? 'streaming' : type === 'led_wall' && demo.screenOn ? 'ledWall' : null;
+  const glows = glowKey ? [{ ...GLOW[glowKey], pos: [GLOW[glowKey].at[0] * portScale, base + GLOW[glowKey].at[1] * portScale, GLOW[glowKey].at[2] * portScale] }] : [];
 
   return (
     <CanvasShell shadows dpr={[1, 1.75]} camera={{ fov: 38, near: 0.02, far: 40, position: [1, 1.5, 2] }} style={{ touchAction: 'none' }}>
@@ -1061,6 +1085,7 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
       <hemisphereLight args={['#d6e2f5', '#2a2622', 1.0]} />
       <directionalLight position={[2, 4, 3]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
       <spotLight position={[-1.5, 3, 2]} angle={0.6} penumbra={0.8} intensity={14} decay={1.4} color="#ffe9d0" />
+      <GlowLights glows={glows} count={1} />
       <ViewerRig target={v.target} dist={v.dist} />
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} autoRotate={autoRotate} autoRotateSpeed={1.2}
         minDistance={v.dist * 0.4} maxDistance={v.dist * 2.2} maxPolarAngle={Math.PI / 2.05} />

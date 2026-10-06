@@ -278,8 +278,9 @@ export function LightTruss({ width = 7, height = 3.2, live = false, lights = tru
           </group>
         );
       })}
-      {live && <spotLight position={[-width / 4, height, 0.5]} target-position={[0, 0.5, -1]} angle={0.5} penumbra={0.8} intensity={22} color={colors[0]} decay={1.4} />}
-      {live && <spotLight position={[width / 4, height, 0.5]} angle={0.5} penumbra={0.8} intensity={22} color={colors[1]} decay={1.4} />}
+      {/* 스포트라이트는 늘 달아 두고 세기만 바꾼다 (라이트 개수가 바뀌면 모든 재질 셰이더가 다시 컴파일됨) */}
+      <spotLight position={[-width / 4, height, 0.5]} target-position={[0, 0.5, -1]} angle={0.5} penumbra={0.8} intensity={live ? 22 : 0} color={colors[0]} decay={1.4} />
+      <spotLight position={[width / 4, height, 0.5]} angle={0.5} penumbra={0.8} intensity={live ? 22 : 0} color={colors[1]} decay={1.4} />
     </group>
   );
 }
@@ -515,7 +516,6 @@ const WEDGE_FACE = { z: 0.085, y: 0.21, tilt: -0.85 }; // 기울어진 앞면 �
 export function WedgeModel({ power, level, feedback }) {
   const cone = useRef();
   const cab = useRef();
-  const light = useRef();
   const geo = useMemo(() => {
     const s = new THREE.Shape();
     s.moveTo(-0.21, 0); s.lineTo(0.21, 0); s.lineTo(0.21, 0.1); s.lineTo(-0.04, 0.32); s.lineTo(-0.21, 0.32); s.lineTo(-0.21, 0);
@@ -530,7 +530,6 @@ export function WedgeModel({ power, level, feedback }) {
     const amp = feedback ? 0.01 : level != null ? Math.max(0, (level + 45) / 45) * 0.007 : 0;
     if (cone.current) cone.current.position.z = 0.004 + Math.sin(t * 55) * amp;
     if (cab.current) cab.current.position.x = feedback ? Math.sin(t * 70) * 0.005 : 0;
-    if (light.current) light.current.intensity = feedback ? 1.4 + Math.sin(t * 20) * 1.0 : 0;
   });
   return (
     <group ref={cab}>
@@ -541,7 +540,6 @@ export function WedgeModel({ power, level, feedback }) {
           <mesh rotation={[-Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.1, 0.03, 0.03, 32, 1, true]} /><meshStandardMaterial color="#202226" side={THREE.DoubleSide} /></mesh>
         </group>
         <mesh position={[0.15, 0, 0.012]}><boxGeometry args={[0.1, 0.07, 0.01]} /><meshStandardMaterial color="#0c0d0f" /></mesh>
-        <pointLight ref={light} color="#ef4444" distance={2} intensity={0} position={[0, 0, 0.3]} />
       </group>
       <Lamp position={[-0.12, 0.25, -0.217]} on={power} color="#22c55e" size={[0.012, 0.012, 0.004]} />
     </group>
@@ -549,6 +547,7 @@ export function WedgeModel({ power, level, feedback }) {
 }
 
 /* ---------------------------- 장비: 공유기 ---------------------------- */
+const ROUTER_LAN_X = [-0.072, -0.024, 0.024, 0.072]; // 뒷면 LAN 1~4 (엔진의 공유기 입력 4개와 같은 수)
 export function RouterModel({ linked }) {
   const leds = useRef([]);
   useFrame(({ clock }) => {
@@ -571,7 +570,7 @@ export function RouterModel({ linked }) {
           <meshStandardMaterial ref={(el) => { leds.current[i] = el; }} color={i === 0 ? '#22c55e' : '#38bdf8'} emissive={i === 0 ? '#22c55e' : '#38bdf8'} emissiveIntensity={0.2} />
         </mesh>
       ))}
-      {[-0.03, 0.03].map((x) => <mesh key={x} position={[x, 0.016, -0.0755]}><boxGeometry args={[0.018, 0.014, 0.002]} /><meshStandardMaterial color="#111" /></mesh>)}
+      {ROUTER_LAN_X.map((x) => <mesh key={x} position={[x, 0.016, -0.0755]}><boxGeometry args={[0.018, 0.014, 0.002]} /><meshStandardMaterial color="#111" /></mesh>)}
     </group>
   );
 }
@@ -582,7 +581,7 @@ export const PORTS_EXTRA = {
   keyboard: { out: { p: [0.55, 0.93, -0.162], n: [0, -0.2, -1] } },
   laptop: { out: { p: [-0.162, 0.009, 0.03], n: [-1, 0, 0] } },
   monitor: { in: { p: [0.12, 0.16, -0.218], n: [0, 0, -1] } },
-  router: { lan1: { p: [-0.03, 0.016, -0.077], n: [0, 0, -1] }, lan2: { p: [0.03, 0.016, -0.077], n: [0, 0, -1] } },
+  router: Object.fromEntries(ROUTER_LAN_X.map((x, i) => [`lan${i + 1}`, { p: [x, 0.016, -0.077], n: [0, 0, -1] }])),
 };
 export const GHOST_EXTRA = {
   e_guitar: [0.6, 1.8, 0.5], keyboard: [1.35, 1.0, 0.45], laptop: [0.34, 0.24, 0.26], monitor: [0.58, 0.34, 0.45], router: [0.24, 0.2, 0.16],

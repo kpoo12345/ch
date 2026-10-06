@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Move, RotateCw, Trash2, Trophy, CheckCircle2, Circle, Save } from 'lucide-react';
 import { DEVICE_TYPES } from '../engine.js';
 import { VENUES } from '../venues.js';
@@ -13,7 +13,8 @@ import GameScreen from './GameScreen.jsx';
  * ===================================================================== */
 
 const CATALOG = [
-  ['음향 소스', ['dynamic_mic', 'condenser_mic', 'wireless_mic', 'e_guitar', 'keyboard', 'laptop']],
+  ['음향 소스', ['dynamic_mic', 'condenser_mic', 'wireless_mic', 'e_guitar', 'bass_guitar', 'keyboard', 'digital_piano', 'laptop']],
+  ['드럼', ['drum_kit', 'kick_mic', 'snare_mic', 'overhead_mic']],
   ['음향 처리', ['analog_mixer', 'digital_mixer', 'audio_interface', 'di_box']],
   ['음향 출력', ['speaker', 'monitor', 'headphones']],
   ['영상', ['camera', 'mirrorless', 'ptz', 'ptz_controller', 'atem', 'atem_pro']],
@@ -26,7 +27,7 @@ export const CHALLENGES = [
   { id: 'pa', label: '첫 소리: 마이크 목소리를 객석 스피커로', test: (st, sim) => voices(st).some((v) => sim.reaches(v, 'main')) },
   { id: 'monitor', label: '모니터 믹스: 무대 웨지로 목소리 보내기', test: (st, sim) => voices(st).some((v) => sim.reaches(v, 'monitor')) },
   { id: 'wireless2', label: '무선 마이크 2대를 하울링 없이 스피커로', test: (st, sim) => voices(st).filter((v) => st.devices[v].type === 'wireless_mic' && sim.reaches(v, 'main')).length >= 2 && !sim.feedback },
-  { id: 'band', label: '밴드 라인업: 악기 2개 이상을 험 없이 스피커로', test: (st, sim) => Object.values(st.devices).filter((d) => ['e_guitar', 'keyboard'].includes(d.type) && sim.reaches(d.id, 'main')).length >= 2 && !sim.hum },
+  { id: 'band', label: '밴드 라인업: 악기 2개 이상을 험 없이 스피커로', test: (st, sim) => Object.values(st.devices).filter((d) => ['e_guitar', 'bass_guitar', 'keyboard', 'digital_piano', 'kick_mic', 'snare_mic', 'overhead_mic'].includes(d.type) && sim.reaches(d.id, 'main')).length >= 2 && !sim.hum },
   { id: 'multicam', label: '멀티캠 생중계: 카메라 2대 이상 + 송출', test: (st, sim) => Object.keys(sim.video.camAt).length >= 2 && sim.stream.live },
   { id: 'light', label: '조명 쇼: 조명 3대 이상을 DMX로 정상 점등', test: (st, sim) => Object.values(sim.light.fixtures).filter((r) => r.intensity > 0.3 && !r.flicker && !r.wrong).length >= 3 },
   { id: 'screen', label: '미디어 서버 화면을 LED·프로젝터에 출력', test: (st, sim) => Object.values(sim.displays).some((r) => r.ok && r.layers.length) },
@@ -76,7 +77,7 @@ export default function Sandbox({ onExit }) {
   if (setup) {
     return (
       <GameScreen key={setup.key} spec={setup.spec} mode="sandbox" heading="스튜디오 모드 · 자유 설치" onExit={() => setSetup(null)}
-        sandbox={{ Panel: SandboxPanel }} restore={setup.restore} />
+        sandbox={{ Panel: SandboxPanel, useWatch: useSandboxWatch }} restore={setup.restore} />
     );
   }
   // 저장본은 메뉴를 그릴 때마다 새로 읽는다 (게임 중 자동 저장된 최신 상태)
@@ -122,20 +123,30 @@ export default function Sandbox({ onExit }) {
   );
 }
 
-// 게임 화면의 "장비 추가" 탭
-export function SandboxPanel({ game, placing, setPlacing }) {
-  const { st, nominal, apply, selected, setSelected } = game;
+// 자유 모드 감시: 어느 탭을 보고 있든 자동 저장 + 도전 과제 판정 (GameScreen이 항상 호출)
+const snapshotOf = (st) => ({ venue: st.venue, devices: st.devices, dev: st.dev, connections: st.connections, channels: st.channels, master: st.master, atem: st.atem, obs: st.obs });
+export function useSandboxWatch(game) {
+  const { st, nominal } = game;
   const [done, setDone] = useState(() => new Set(loadProgress('bm2-sandbox-ach', [])));
-  // 자동 저장
+  const latest = useRef(st);
+  latest.current = st;
   useEffect(() => {
-    const t = setTimeout(() => saveProgress('bm2-sandbox', { venue: st.venue, devices: st.devices, dev: st.dev, connections: st.connections, channels: st.channels, master: st.master, atem: st.atem, obs: st.obs }), 600);
+    const t = setTimeout(() => saveProgress('bm2-sandbox', snapshotOf(st)), 600);
     return () => clearTimeout(t);
   }, [st]);
-  // 도전 과제
+  // 화면을 나갈 때 마지막 상태를 바로 저장
+  useEffect(() => () => saveProgress('bm2-sandbox', snapshotOf(latest.current)), []);
   useEffect(() => {
     const now = CHALLENGES.filter((c) => c.test(st, nominal)).map((c) => c.id).filter((id) => !done.has(id));
     if (now.length) { const n = new Set([...done, ...now]); setDone(n); saveProgress('bm2-sandbox-ach', [...n]); game.notify('ok', `도전 과제 달성: ${CHALLENGES.find((c) => c.id === now[0]).label}`); }
   }, [nominal]); // eslint-disable-line react-hooks/exhaustive-deps
+  return done;
+}
+
+// 게임 화면의 "장비 추가" 탭
+export function SandboxPanel({ game, placing, setPlacing }) {
+  const { st, apply, selected, setSelected } = game;
+  const done = new Set(loadProgress('bm2-sandbox-ach', []));
   const sel = selected ? st.devices[selected] : null;
   return (
     <div className="space-y-3">

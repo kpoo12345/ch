@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useContext, createContext } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
@@ -10,34 +10,75 @@ import { FONT, CLIPS } from './scenes.js';
  * 조명 · 영상 장비 3D 모델
  *  - 조명기는 트러스에 매달린다: 원점 = 클램프(위), 몸체는 아래로
  *  - 빔(빛줄기)은 투명 원뿔 + (밝을 때) 실제 스포트라이트
+ *  - 실제 스포트라이트는 개수가 고정된 풀(BeamLightPool)에서 빌려 쓴다:
+ *    three.js는 장면의 라이트 개수가 바뀌면 모든 재질 셰이더를 다시 컴파일하므로(화면이 멈칫)
+ *    조명기마다 라이트를 달았다 뗐다 하지 않는다
  * ===================================================================== */
 
 const NR = { raycast: noRaycast };
 const DEG = Math.PI / 180;
 
 /* ---------------------------- 빔 ---------------------------- */
+// 스포트라이트 풀: Venue3D가 Set을 내려 주면 빔은 거기에 등록만 하고, 풀이 켜진 빔 위치로 라이트를 옮긴다
+export const BeamPoolCtx = createContext(null);
+export function BeamLightPool({ pool, size = 6 }) {
+  const spots = useRef([]);
+  const tgts = useMemo(() => Array.from({ length: size }, () => new THREE.Object3D()), [size]);
+  useFrame(() => {
+    let i = 0;
+    pool.forEach((e) => {
+      const s = spots.current[i];
+      if (i >= size || !s || !(e.level > 0.001) || !e.anchor.current) return;
+      e.anchor.current.getWorldPosition(s.position);
+      e.tgt.getWorldPosition(tgts[i].position);
+      s.color.set(e.color); s.angle = e.angle; s.distance = e.distance; s.intensity = 26 * e.level;
+      i += 1;
+    });
+    for (; i < size; i += 1) if (spots.current[i]) spots.current[i].intensity = 0;
+  });
+  return (
+    <group>
+      {tgts.map((t, i) => (
+        <group key={i}>
+          <primitive object={t} />
+          <spotLight ref={(el) => { spots.current[i] = el; }} target={t} intensity={0} penumbra={0.5} decay={1.3} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
 export function Beam({ color = '#ffffff', intensity = 0, flicker = false, length = 3.2, radius = 0.6, light = true }) {
   const mat = useRef();
   const spot = useRef();
+  const anchor = useRef();
   const tgt = useMemo(() => new THREE.Object3D(), []);
+  const pool = useContext(BeamPoolCtx);
+  const entry = useRef({ anchor, tgt, level: 0 }).current;
+  entry.color = color; entry.angle = Math.atan2(radius, length) * 1.25; entry.distance = length * 2.2;
+  useEffect(() => {
+    if (!pool || !light) return undefined;
+    pool.add(entry);
+    return () => { pool.delete(entry); };
+  }, [pool, light, entry]);
+  const on = intensity > 0.01;
   useFrame(({ clock }) => {
     const f = flicker ? (Math.sin(clock.elapsedTime * 37) > 0.2 ? 1 : 0.15) * (0.6 + Math.random() * 0.4) : 1;
-    if (mat.current) mat.current.opacity = Math.min(0.32, 0.2 * intensity * f);
-    if (spot.current) spot.current.intensity = 26 * intensity * f;
+    entry.level = on ? intensity * f : 0;
+    if (mat.current) mat.current.opacity = Math.min(0.32, 0.2 * entry.level);
+    if (spot.current) spot.current.intensity = light ? 26 * entry.level : 0;
   });
-  if (intensity <= 0.01) return null;
   return (
-    <group>
-      <mesh {...NR} position={[0, -length / 2, 0]}>
-        <cylinderGeometry args={[0.04, radius, length, 24, 1, true]} />
-        <meshBasicMaterial ref={mat} color={color} transparent opacity={0.1} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} toneMapped={false} />
-      </mesh>
-      {light && (
-        <>
-          <primitive object={tgt} position={[0, -length, 0]} />
-          <spotLight ref={spot} color={color} angle={Math.atan2(radius, length) * 1.25} penumbra={0.5} distance={length * 2.2} decay={1.3} target={tgt} />
-        </>
+    <group ref={anchor}>
+      {on && (
+        <mesh {...NR} position={[0, -length / 2, 0]}>
+          <cylinderGeometry args={[0.04, radius, length, 24, 1, true]} />
+          <meshBasicMaterial ref={mat} color={color} transparent opacity={0.1} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} toneMapped={false} />
+        </mesh>
       )}
+      <primitive object={tgt} position={[0, -length, 0]} />
+      {/* 풀이 없는 화면(교육 뷰어)에서는 자기 라이트를 늘 달아 두고 세기만 바꾼다 */}
+      {!pool && <spotLight ref={spot} color={color} angle={entry.angle} penumbra={0.5} distance={entry.distance} decay={1.3} target={tgt} intensity={0} />}
     </group>
   );
 }
@@ -262,7 +303,6 @@ export function LedWallModel({ w = 4, h = 2.25, tex, on, power }) {
       <RoundedBox args={[0.44, 0.09, 0.3]} radius={0.01} position={[w / 2 - 0.35, 0.05, 0.25]} castShadow><meshStandardMaterial color="#1f2937" metalness={0.4} /></RoundedBox>
       <Lamp position={[w / 2 - 0.45, 0.06, 0.401]} on={power} color="#22c55e" size={[0.012, 0.012, 0.004]} />
       <mesh position={[w / 2 - 0.3, 0.06, 0.401]}><planeGeometry args={[0.12, 0.04]} /><meshBasicMaterial color={on ? '#22c55e' : '#334155'} toneMapped={false} /></mesh>
-      {on && <pointLight color="#c084fc" intensity={2} distance={4} position={[0, 0.4 + h / 2, 0.8]} />}
     </group>
   );
 }

@@ -9,13 +9,13 @@ import {
 import {
   MicModel, SpeakerModel, CameraModel, AtemModel, WirelessMicModel, DiBoxModel, HeadphonesModel, MirrorlessModel, PtzModel, PcModel,
   Plug, PendingCable, Port3D, DropIn, SelectRing, FeedbackArc, drawWirelessLcd, drawCamLcd,
-  PORTS3D, GHOST, FOCUS, SELECT_RADIUS, SHORT_LABEL, FrontKnob,
+  PORTS3D, GHOST, FOCUS, SELECT_RADIUS, SHORT_LABEL, FrontKnob, GlowLights, GLOW,
 } from './Studio3D.jsx';
 import { AnalogConsole, DigitalConsole, CONSOLE_SIZE, consoleControl } from './consoles.jsx';
 import { VENUES, P_CH, P_LS } from './venues.js';
 import {
   ParLedModel, MovingHeadModel, LightingConsoleModel, lightConsoleControl, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel,
-  PtzControllerModel, drawPtzLcd, PORTS_LIGHT, GHOST_LIGHT, FOCUS_LIGHT,
+  PtzControllerModel, drawPtzLcd, PORTS_LIGHT, GHOST_LIGHT, FOCUS_LIGHT, BeamPoolCtx, BeamLightPool,
 } from './models3.jsx';
 import { drawSource, drawComposition, drawMeterBar, sourceOf, FONT as SFONT } from './scenes.js';
 export { VENUES };
@@ -40,6 +40,9 @@ const MIC_TYPES = new Set(['dynamic_mic', 'condenser_mic']);
 const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA, ...PORTS_LIGHT };
 const FIXTURES = new Set(['par_led', 'moving_head']);
 const HANGING = new Set(['par_led', 'moving_head', 'projector']);
+const CAMERA_TYPES = new Set(['camera', 'mirrorless', 'ptz']);
+// 디지털 믹서에서 "선택 채널" 섹션으로 조작하는 키 (먼저 그 채널의 SEL을 누른다)
+const SEL_KEYS = new Set(['gain', 'lowCut', 'phantom', 'eqHigh', 'eqMid', 'eqLow', 'fx', 'aux']);
 // 장비 모델이 단자 모양을 직접 그리는 장비 (실제 패널 배치를 그대로 보여 준다)
 const OWN_JACKS = new Set(['analog_mixer', 'digital_mixer']);
 const GHOST_ALL = { ...GHOST, ...GHOST_EXTRA, analog_mixer: CONSOLE_SIZE.analog_mixer, digital_mixer: CONSOLE_SIZE.digital_mixer,
@@ -220,7 +223,8 @@ function OnAirSign({ live, position }) {
         <planeGeometry args={[1.0, 0.31]} />
         <meshStandardMaterial map={sign} emissive={live ? '#ff3b3b' : '#000000'} emissiveMap={sign} emissiveIntensity={live ? 1.4 : 0} toneMapped={false} />
       </mesh>
-      {live && <pointLight color="#ff2a2a" intensity={2.2} distance={3} position={[0, 0, 0.4]} />}
+      {/* 라이트는 늘 달아 두고 세기만 바꾼다 (라이트 개수가 바뀌면 모든 재질 셰이더가 다시 컴파일됨) */}
+      <pointLight color="#ff2a2a" intensity={live ? 2.2 : 0} distance={3} position={[0, 0, 0.4]} />
     </group>
   );
 }
@@ -659,7 +663,10 @@ export default function Venue3D({
     const d = devices[id];
     if (!d) return null;
     if (d.slot && venue.slots[d.slot]) return venue.slots[d.slot];
-    if (d.pos) return { pos: d.pos, rot: d.rot ?? 0, kind: d.surface === 'desk' ? 'desk' : 'floor', label: '자유 배치', free: true };
+    if (d.pos) {
+      const free = { pos: d.pos, rot: d.rot ?? 0, kind: d.surface === 'desk' ? 'desk' : 'floor', label: '자유 배치', free: true };
+      return d.type === 'projector' ? { ...free, screen: freeProjectorScreen(d, venueId) } : free;
+    }
     return null;
   };
 
@@ -713,19 +720,36 @@ export default function Venue3D({
 
   /* ----- 조작 → 유령 손 ----- */
   const [cue, setCue] = useState(null);
+  // 바로 전 화면의 케이블 목록 (케이블 분리 조작이 어느 단자였는지 찾는다)
+  const lastConns = useRef(st.connections);
+  const unplugOf = (a) => {
+    const ctl = a.ctl ?? {};
+    if (ctl.kind === 'unplug' && ctl.from) return ctl.from;
+    if (ctl.kind !== 'press' || ctl.key != null || !a.device) return null;
+    const now = new Set(st.connections.map((c) => c.id));
+    const gone = lastConns.current.find((c) => !now.has(c.id) && (c.from.d === a.device || c.to.d === a.device));
+    return gone ? (gone.from.d === a.device ? gone.from : gone.to) : null;
+  };
   useEffect(() => {
     if (!action) return;
-    const c = resolveCue(action);
+    const unplug = unplugOf(action);
+    const act = unplug ? { ...action, ctl: { ...action.ctl, kind: 'unplug', from: unplug } } : action;
+    const c = resolveCue(act);
     if (c) setCue({ ...c, key: action.key, speed: action.speed });
     if (follow && action.device && devices[action.device]?.placed) {
       // 조작 따라가기: 장소 기본 시점 방향을 유지한 채 조작 지점으로 다가간다 (화면이 휙 돌지 않게)
-      const kind = action.ctl?.kind;
+      const kind = act.ctl?.kind;
       let tgt = action.device;
       let at = null;
+      let A = null, B = null;
       if (kind === 'cable') {
-        const A = portWorld(action.ctl.from.d, action.ctl.from.p), B = portWorld(action.ctl.to.d, action.ctl.to.p);
+        A = portWorld(act.ctl.from.d, act.ctl.from.p); B = portWorld(act.ctl.to.d, act.ctl.to.p);
         if (A && B) at = A.p.map((v, i) => (v + B.p[i]) / 2);
-        tgt = action.ctl.to.d;
+        tgt = act.ctl.to.d;
+      } else if (kind === 'unplug') {
+        const P = portWorld(unplug.d, unplug.p);
+        if (P) at = P.p;
+        tgt = unplug.d;
       }
       const w = worldOf(tgt);
       if (w) {
@@ -733,10 +757,9 @@ export default function Venue3D({
         const f = FOCUS_ALL[type] ?? { y: 0.5, dist: 1.5 };
         const target = at ?? [w.pos[0], w.pos[1] + f.y * w.scale, w.pos[2]];
         let dist;
-        if (kind === 'cable') {
-          const A = portWorld(action.ctl.from.d, action.ctl.from.p), B = portWorld(action.ctl.to.d, action.ctl.to.p);
-          dist = Math.max(1.8, Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1], A.p[2] - B.p[2]) * 1.15);
-        } else if (kind === 'place') dist = Math.max(2.6, f.dist * 2.2);
+        // 3D 단자 위치가 없는 단자라도 멈추지 않게 (A·B가 없으면 장비 기준 거리)
+        if (kind === 'cable' && A && B) dist = Math.max(1.8, Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1], A.p[2] - B.p[2]) * 1.15);
+        else if (kind === 'place') dist = Math.max(2.6, f.dist * 2.2);
         else if (kind === 'mixer' || kind === 'master' || kind === 'light') dist = type === 'digital_mixer' ? 1.15 : type === 'lighting_console' ? 1.2 : 0.95;
         else dist = Math.max(1.3, f.dist * 1.6);
         const cam = venue.camera;
@@ -744,6 +767,19 @@ export default function Venue3D({
         setFocus({ target, dist, dir, key: `${action.key}-f` });
       }
     }
+  }, [action?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { lastConns.current = st.connections; }); // (위 effect보다 뒤에 있어야 한다)
+
+  // 디지털 믹서: 유령 손이 채널 SEL을 누르는 순간 3D 콘솔의 선택 채널(SEL LED·화면·노브)도 그 채널로 바뀌고,
+  // 동작이 끝나면 화면(2D 콘솔)에서 고른 채널로 돌아간다
+  const [cueSel, setCueSel] = useState(null);
+  useEffect(() => {
+    const ctl = action?.ctl;
+    if (!ctl || ctl.kind !== 'mixer' || !ctl.needSelect || !SEL_KEYS.has(ctl.key) || devices[action.device]?.type !== 'digital_mixer') { setCueSel(null); return undefined; }
+    const sp = action.speed || 1;
+    const t1 = setTimeout(() => setCueSel(ctl.ch - 1), 550 / sp); // GhostHand: SEL 누르기 0.45~0.75
+    const t2 = setTimeout(() => setCueSel(null), 3300 / sp); // SEL 0.75 + 조작 2.0 + 사라짐 0.5
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [action?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toWorld(id, local0) {
@@ -762,6 +798,11 @@ export default function Venue3D({
       tipRef.current = null;
       return { kind: 'plug', from: A.p, at: B.p };
     }
+    if (ctl.kind === 'unplug') {
+      // 케이블 분리: 뽑는 단자를 가리킨다
+      const P = portWorld(ctl.from.d, ctl.from.p);
+      if (P) return { kind: 'press', at: P.p };
+    }
     if (!d || !d.placed) return null;
     const type = d.type;
     if (ctl.kind === 'mixer' || ctl.kind === 'master') {
@@ -770,14 +811,15 @@ export default function Venue3D({
       const kind = key === 'fader' || key === 'mainFader' ? 'slide' : ['mute', 'mainMute', 'lowCut', 'phantom', 'select', 'patch', 'usbOut', 'pad', 'pfl'].includes(key) ? 'press' : 'turn';
       const from = kind === 'slide' ? toWorld(a.device, consoleControl(type, key, ctl.ch, ctl.prev ?? ctl.value)) : null;
       // 디지털 믹서의 채널 설정은 "선택 채널" 섹션에서 한다 → 먼저 SEL 버튼
-      const selKeys = ['gain', 'lowCut', 'phantom', 'eqHigh', 'eqMid', 'eqLow', 'fx', 'aux'];
-      const via = type === 'digital_mixer' && ctl.kind === 'mixer' && selKeys.includes(key) && ctl.needSelect ? toWorld(a.device, consoleControl(type, 'select', ctl.ch)) : null;
+      const via = type === 'digital_mixer' && ctl.kind === 'mixer' && SEL_KEYS.has(key) && ctl.needSelect ? toWorld(a.device, consoleControl(type, 'select', ctl.ch)) : null;
       return { kind, at, from, via, dir: (ctl.value ?? 0) >= (ctl.prev ?? 0) ? 1 : -1 };
     }
     if (ctl.kind === 'light') return { kind: /level$|^gm$/.test(ctl.key ?? '') ? 'slide' : 'press', at: toWorld(a.device, lightConsoleControl(ctl.key, ctl.value)), from: /level$|^gm$/.test(ctl.key ?? '') ? toWorld(a.device, lightConsoleControl(ctl.key, 0)) : null };
     if (ctl.kind === 'joystick') return { kind: ctl.act === 'aim' ? 'turn' : 'press', at: toWorld(a.device, ctl.act === 'aim' ? [0.1, 0.17, 0.02] : [-0.1, 0.06, 0.06]) };
-    const local = DEVICE_POINT[type]?.(ctl) ?? [0, (GHOST_ALL[type]?.[1] ?? 0.3) * 0.8, 0];
     const w = worldOf(a.device);
+    // 조작 지점이 없으면: 바닥에 놓는 장비는 위쪽, 매달린 장비(원점 = 클램프)는 몸체 쪽(아래)
+    const h = GHOST_ALL[type]?.[1] ?? 0.3;
+    const local = DEVICE_POINT[type]?.(ctl, w.slot) ?? (HANGING.has(type) ? [0, -h * 0.4, 0.05] : [0, h * 0.8, 0]);
     const at = w.mount.base === 'deskMic' ? toWorld(a.device, [0, w.mount.H, 0]) : toWorld(a.device, local);
     return { kind: ctl.kind === 'turn' ? 'turn' : ctl.kind === 'place' ? 'point' : 'press', at };
   }
@@ -816,10 +858,10 @@ export default function Venue3D({
   const laptopTex = useCanvasTexture(512, 320, (ctx, w, h) => drawLaptop(ctx, w, h, { playing: Object.values(devices).some((d) => d.type === 'laptop' && st.dev[d.id]?.playing) }),
     [Object.values(devices).some((d) => d.type === 'laptop' && st.dev[d.id]?.playing)]);
 
-  // 화면 장비(프로젝터·LED)에 나가는 그림
-  const displayKey = JSON.stringify(Object.entries(sim.displays).map(([id, r]) => [id, r.ok, r.scaled, r.layers, r.program]));
-  const displayTex = useDisplayTextures(st, sim, displayKey);
-  // 실제 스포트라이트는 켜진 조명 6개까지만 (성능)
+  // 화면 장비(프로젝터·LED)에 나가는 그림 (장비마다 그림에 쓰이는 값이 바뀔 때만 다시 그린다)
+  const displayTex = useDisplayTextures(st, sim);
+  // 실제 스포트라이트는 켜진 조명 6개까지만 (성능) — 라이트 자체는 BeamLightPool에 고정 개수로 있다
+  const beamPool = useMemo(() => new Set(), []);
   const lightSlots = Object.entries(sim.light.fixtures).filter(([, r]) => r.intensity > 0.05).slice(0, 6).map(([id]) => id);
   const fixtureAim = (w) => {
     const aim = w.slot.aim;
@@ -842,6 +884,19 @@ export default function Venue3D({
 
   const placed = Object.values(devices).filter((d) => d.placed && slotOf(d.id));
   const ghosts = Object.values(devices).filter((d) => !d.placed && slotOf(d.id));
+  // 장비 불빛 (PGM 탈리·하울링·LED 화면·방송 중) → 고정 개수 라이트(GlowLights)로 옮겨 비춘다
+  const glows = [];
+  {
+    const glowAt = (id, g, at = g.at) => ({ ...g, pos: toWorld(id, at) });
+    const pgm = placed.find((d) => d.type === 'camera' && camTally(d.id) === 'pgm');
+    if (pgm) glows.push(glowAt(pgm.id, GLOW.tally));
+    const fb = talking ? sim.loops.find((l) => l.loop >= 0 && devices[l.spk]?.placed && (devices[l.spk].type === 'speaker' || devices[l.spk].type === 'monitor') && worldOf(l.spk)) : null;
+    if (fb) glows.push(glowAt(fb.spk, devices[fb.spk].type === 'monitor' ? GLOW.wedge : GLOW.feedback));
+    const led = placed.find((d) => d.type === 'led_wall' && sim.displays[d.id] && (sim.displays[d.id].layers.length > 0 || sim.displays[d.id].program));
+    if (led) glows.push(glowAt(led.id, GLOW.ledWall, [0, 0.4 + (worldOf(led.id).slot.ledWall?.h ?? 2.25) / 2, 0.8]));
+    const pc = st.obs.streaming ? placed.find((d) => d.type === 'pc') : null;
+    if (pc) glows.push(glowAt(pc.id, GLOW.streaming));
+  }
   const pendingWorld = pending ? portWorld(pending.d, pending.p) : null;
 
   // 새로 꽂힌 케이블만 자라나는 연출을 한다
@@ -870,7 +925,7 @@ export default function Venue3D({
       case 'analog_mixer':
         return <AnalogConsole channels={st.channels} master={st.master} meters={meters} names={chNames} />;
       case 'digital_mixer':
-        return <DigitalConsole channels={st.channels} master={st.master} meters={meters} names={chNames} selected={selectedChannel} />;
+        return <DigitalConsole channels={st.channels} master={st.master} meters={meters} names={chNames} selected={cueSel ?? selectedChannel} />;
       case 'speaker': {
         const lv = sim.inLevel(d.id, 'in');
         const fb = sim.loops.some((l) => l.spk === d.id && l.loop >= 0) && talking;
@@ -886,7 +941,7 @@ export default function Venue3D({
       case 'ptz': return <PtzModel pan={s.pan ?? 0} tilt={s.tilt ?? 0} zoom={s.zoom ?? 0.3} tally={camTally(d.id)} />;
       case 'atem': return <AtemModel atem={st.atem} camAt={sim.video.camAt} />;
       case 'atem_pro': return <AtemPro2 atem={{ ...st.atem, streaming: st.atem.streaming }} camAt={sim.video.camAt} mvTex={mvTex} />;
-      case 'pc': return <PcModel screenTex={obsTex} streaming={st.obs.streaming} />;
+      case 'pc': return <PcModel screenTex={obsTex} />;
       case 'audio_interface': {
         const lv = [0, 1].map((i) => {
           const x = sim.heard.interface ? Object.entries(sim.heard.interface).find(([src]) => st.connections.some((c) => c.to.d === d.id && c.to.p === `in${i + 1}` && (c.from.d === src || chainHas(st, c.from.d, src))))?.[1] : null;
@@ -971,6 +1026,10 @@ export default function Venue3D({
       />
       <spotLight position={[-2.5, 4.5, 2.5]} angle={0.6} penumbra={0.7} intensity={30} decay={1.4} color="#ffe4c4" />
       <spotLight position={[1.5, 4, 3.5]} angle={0.6} penumbra={0.8} intensity={24} decay={1.4} color="#f1f5ff" />
+      {/* 라이트 개수 고정: 조명기 스포트라이트 6개 + 장비 불빛 4개를 처음부터 달아 두고 위치·세기만 바꾼다
+          (개수가 바뀌면 모든 재질 셰이더가 다시 컴파일되어 화면이 멈칫한다) */}
+      <BeamLightPool pool={beamPool} size={6} />
+      <GlowLights glows={glows} count={4} />
 
       <CameraRig venue={venue} resetKey={resetKey} focus={focus} portWorld={portWorld} />
       <OrbitControls
@@ -1013,7 +1072,7 @@ export default function Venue3D({
                   onClick={(e) => { if (!interactive) return; e.stopPropagation(); if (e.delta < 6) onSelectDevice?.(d.id); }}
                   onDoubleClick={(e) => { if (!interactive) return; e.stopPropagation(); focusDevice(d.id); }}
                 >
-                  <DropIn>{renderModel(d)}</DropIn>
+                  <BeamPoolCtx.Provider value={beamPool}><DropIn>{renderModel(d)}</DropIn></BeamPoolCtx.Provider>
                   {(selected || hi) && interactive && <SelectRing radius={(RADIUS_ALL[d.type] ?? 0.3) / w.scale} />}
                 </group>
                 {(interactive || hi) && (
@@ -1135,6 +1194,17 @@ function drawMultiviewMapped(ctx, w, h, { map, program, preview, pip, streaming,
   if (recording) { ctx.fillStyle = '#dc2626'; ctx.fillRect(w - 330, 14, 150, 34); ctx.fillStyle = '#fff'; ctx.font = `800 22px ${SFONT}`; ctx.fillText('● REC', w - 300, 39); }
 }
 
+// VenueRoom의 뒷벽 z — 자유 배치 프로젝터의 스크린이 벽 뒤로 가지 않게
+const BACK_Z = { seminar: -2.6, youtube_room: -1.65, church: -3.35, live_stage: -3.45, sandbox: -3.7, lecture_hall: -2.3 };
+// 자유 배치(스튜디오 모드) 프로젝터: 렌즈(+z)가 향한 쪽 3m 앞에 프로젝터를 바라보는 스크린을 세운다
+export function freeProjectorScreen(d, venueId) {
+  const rot = d.rot ?? 0;
+  const dx = Math.sin(rot), dz = Math.cos(rot);
+  const wall = BACK_Z[venueId] ?? BACK_Z.lecture_hall;
+  const D = dz < -0.01 ? Math.min(3, Math.max(0.05, (d.pos[2] - (wall + 0.1)) / -dz)) : 3; // 벽이 가까우면 벽면에 비춘다
+  return { pos: [d.pos[0] + dx * D, d.pos[1] + 1.5, d.pos[2] + dz * D], rot: rot + Math.PI, w: 2.4, h: 1.35 };
+}
+
 function zoneOfSlot(venueId, slot, slotName) {
   const STAGE = { church: ['pulpit_mic', 'worship_mic_rx_stage', 'choir_mic', 'keys', 'di_keys', 'wedge_pulpit', 'wedge_band', 'pa_left', 'pa_right'],
     live_stage: ['vocal_mic', 'gtr', 'keys', 'di_gtr', 'di_keys', 'wedge_vocal', 'wedge_keys', 'pa_left', 'pa_right', 'cam_stage'] };
@@ -1142,7 +1212,8 @@ function zoneOfSlot(venueId, slot, slotName) {
   return STAGE[venueId].includes(slotName) ? 'stage' : 'foh';
 }
 
-// 장비별 "조작 지점" (전원 스위치, 버튼 등) — 유령 손이 누를 곳
+// 장비별 "조작 지점" (전원 스위치, 버튼 등) — 유령 손이 누를 곳. (ctl, slot) → 장비 기준 로컬 좌표
+// 조명기·프로젝터는 원점이 클램프(위)이고 몸체가 아래로 매달린다
 const DEVICE_POINT = {
   speaker: () => [0.0, 1.2, -0.16],
   monitor: () => [0.0, 0.22, -0.15],
@@ -1161,9 +1232,18 @@ const DEVICE_POINT = {
   condenser_mic: () => [0, 1.5, 0.05],
   e_guitar: () => [0, 1.0, 0.1],
   keyboard: () => [0.3, 0.97, 0.05],
+  par_led: (c) => (c.key === 'terminated' ? [0.035, -0.085, -0.05] : [0, -0.075, -0.04]), // 요크 뒤 DMX 패널 · 터미네이터
+  moving_head: (c) => (c.key === 'terminated' ? [0.04, -0.07, -0.15] : [0, -0.07, -0.135]), // 뒷면 패널
+  projector: () => [-0.12, -0.12, 0.19], // 전원 램프
+  led_wall: (c, slot) => [(slot?.ledWall?.w ?? 4.2) / 2 - 0.45, 0.06, 0.41], // 아래 오른쪽 LED 프로세서
+  ptz_controller: () => [-0.11, 0.06, 0.06], // 메뉴·프리셋 버튼
+  media_server: (c) => { // 클립 런처: 레이어 조작이면 그 레이어 줄 (위 줄 = 3번)
+    const L = /^layers\.(\d)\./.exec(c.key ?? '');
+    return L ? [-0.12, 0.04, 0.12 + (2 - Number(L[1])) * 0.04] : [0.08, 0.04, 0.17];
+  },
 };
 
-export { DEVICE_POINT, FOCUS_ALL, GHOST_ALL };
+export { DEVICE_POINT, FOCUS_ALL, GHOST_ALL, PORTS_ALL };
 
 // 트러스(조명 바) 자리: 장식용 파이프
 function TrussPipes({ venue, venueId }) {
@@ -1205,9 +1285,19 @@ function ProjectorRay({ from, to }) {
     </mesh>
   );
 }
+// 화면 장비 하나가 보여 줄 그림: 카메라를 직접 꽂았으면 그 카메라, ATEM에서 오면 PGM 카메라.
+// key에는 그림에 쓰이는 값을 모두 담는다 (ATEM CUT, 미디어 서버 MASTER, PTZ 구도, 무대 어두움이 바뀌면 다시 그림)
+export function displayPlan(st, sim, r) {
+  const src = r.source ? st.devices[r.source] : null;
+  const camId = CAMERA_TYPES.has(src?.type) ? r.source : src?.type === 'atem' || src?.type === 'atem_pro' ? sim.video.programCam : null;
+  const cam = !r.layers.length && r.program && camId ? sourceOf(st, sim, camId) : null;
+  const master = r.layers.length ? st.dev[r.source]?.master ?? 100 : null;
+  return { cam, master, key: JSON.stringify([r.ok, r.scaled, r.layers, r.program, r.power, master, cam]) };
+}
 // 프로젝터·LED에 나가는 그림을 장비별 캔버스 텍스처로 만든다
-function useDisplayTextures(st, sim, key) {
+function useDisplayTextures(st, sim) {
   const cache = useRef({});
+  useEffect(() => () => Object.values(cache.current).forEach((e) => e.t.dispose()), []);
   const out = {};
   Object.entries(sim.displays).forEach(([id, r]) => {
     let entry = cache.current[id];
@@ -1216,20 +1306,22 @@ function useDisplayTextures(st, sim, key) {
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
       entry = cache.current[id] = { c, t, key: null };
     }
-    if (entry.key !== key) {
+    const plan = displayPlan(st, sim, r);
+    if (entry.key !== plan.key) {
       const ctx = entry.c.getContext('2d');
-      const src = r.source ? st.devices[r.source] : null;
       if (r.layers.length) {
-        drawComposition(ctx, r.layers, 0, 0, 640, 360, 0, { master: st.dev[r.source]?.master ?? 100 });
+        drawComposition(ctx, r.layers, 0, 0, 640, 360, 0, { master: plan.master });
         if (r.scaled) { ctx.drawImage(entry.c, 0, 0, 640, 360, 0, 0, 640, 420); ctx.fillStyle = 'rgba(239,68,68,.85)'; ctx.fillRect(0, 0, 640, 34); ctx.fillStyle = '#fff'; ctx.font = `700 20px ${SFONT}`; ctx.fillText('해상도 불일치 — 화면이 늘어남', 12, 24); }
-      } else if (r.program && src) {
-        drawSource(ctx, sourceOf(st, sim, sim.video.programCam ?? (st.devices[r.source] && ['camera', 'mirrorless', 'ptz'].includes(src.type) ? r.source : null)), 0, 0, 640, 360);
+      } else if (plan.cam) {
+        drawSource(ctx, plan.cam, 0, 0, 640, 360);
       } else { ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, 640, 360); ctx.fillStyle = '#475569'; ctx.font = `600 26px ${SFONT}`; ctx.fillText(r.power ? '신호 없음' : '', 230, 190); }
       entry.t.needsUpdate = true;
-      entry.key = key;
+      entry.key = plan.key;
     }
     out[id] = entry.t;
   });
+  // 없어진 화면 장비(스튜디오 모드에서 삭제)의 텍스처는 정리한다
+  Object.keys(cache.current).forEach((id) => { if (!sim.displays[id]) { cache.current[id].t.dispose(); delete cache.current[id]; } });
   return out;
 }
 function JoyWrap({ st, sim, id }) {

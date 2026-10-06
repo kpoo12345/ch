@@ -57,7 +57,7 @@ export function DevicePanel({ game, id }) {
         <Card title="액티브 스피커" icon={Power}>
           <Row label="전원" hint="케이블을 다 꽂은 뒤 마지막에 켜고, 끌 때는 가장 먼저 끕니다."><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           <Row label="스피커로 들어오는 신호"><div className="w-36"><Meter level={s.power ? lv : null} /></div></Row>
-          <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '청중 쪽을 향함 (마이크 뒤)'}>
+          <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '마이크보다 청중 쪽에서 청중을 향함'}>
             {free.map(([k, sl]) => <button key={k} type="button" onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
           </Row>
         </Card>
@@ -199,7 +199,7 @@ export function DevicePanel({ game, id }) {
         <Card title={d.type === 'projector' ? '프로젝터' : 'LED 전광판'} icon={Tv}>
           <Row label="전원"><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           {d.type === 'led_wall' && <Row label="LED 프로세서 입력 해상도"><span className="font-mono text-xs text-slate-200">{s.res}</span></Row>}
-          <div className="text-[11px] text-slate-400">상태: {!s.power ? '꺼짐' : !r?.source ? '입력 없음' : r.scaled ? <span className="text-red-300">해상도 불일치 — 화면이 늘어남</span> : r.ok ? <span className="text-green-300">정상 출력</span> : '신호는 있지만 보낼 화면이 비어 있음'}</div>
+          <div className="text-[11px] text-slate-400">상태: {!s.power ? '꺼짐' : !r?.source ? '입력 없음' : r.scaled ? <span className="text-red-300">해상도 불일치 — 확대되어 흐릿함</span> : r.ok ? <span className="text-green-300">정상 출력</span> : '신호는 있지만 보낼 화면이 비어 있음'}</div>
           <Canvas2D w={320} h={180} draw={(ctx, w, h) => { if (r?.layers?.length) drawComposition(ctx, r.layers, 0, 0, w, h); else if (r?.program) drawSource(ctx, sourceOf(st, nominal, nominal.video.programCam), 0, 0, w, h); else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); } }} deps={[JSON.stringify(r)]} />
         </Card>
       );
@@ -474,11 +474,11 @@ function ResolumePanel({ game, id }) {
         const l = m.layers[li];
         return (
           <div key={li} className="rounded border border-slate-700 p-1.5 space-y-1">
-            <div className="flex items-center justify-between text-xs"><b className="text-rose-300">Layer {li + 1}</b><span className="font-mono text-slate-300">투명도 {l.opacity}</span></div>
+            <div className="flex items-center justify-between text-xs"><b className="text-rose-300">Layer {li + 1}</b><span className="font-mono text-slate-300">불투명도 {l.opacity}</span></div>
             <div className="flex flex-wrap gap-1">
               {clipIds.map((c) => <button key={c} type="button" onClick={() => set(`layers.${li}.clip`, l.clip === c ? null : c)} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${l.clip === c ? 'text-slate-900' : 'bg-slate-800 text-slate-300'}`} style={l.clip === c ? { background: CLIPS[c].color } : undefined}>{CLIPS[c].name}</button>)}
             </div>
-            <input type="range" min={0} max={100} value={l.opacity} aria-label={`레이어 ${li + 1} 투명도`} onChange={(e) => set(`layers.${li}.opacity`, Number(e.target.value), false)}
+            <input type="range" min={0} max={100} value={l.opacity} aria-label={`레이어 ${li + 1} 불투명도`} onChange={(e) => set(`layers.${li}.opacity`, Number(e.target.value), false)}
               onPointerUp={(e) => show({ op: 'dev', device: id, key: `layers.${li}.opacity`, value: Number(e.currentTarget.value) }, l.opacity)} className="w-full accent-rose-500" />
           </div>
         );
