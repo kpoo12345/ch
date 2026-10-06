@@ -560,3 +560,14 @@ test('studio: a second mixer has its own channels and master; ops can target it'
   assert.equal(sim.reaches('dynamic_mic_2', 'main'), false);
   assert.equal(st.channels[0].mute, false, 'first mixer untouched');
 });
+
+test('studio feedback: a free-placed speaker aimed at the mic from close by howls; turned away it does not', () => {
+  const mk = (rot) => buildRuntime({
+    venue: 'sandbox',
+    devices: [{ id: 'mic', type: 'dynamic_mic', pos: [0, 0, 0] }, { id: 'mixer', type: 'analog_mixer', pos: [2, 0.75, 2] }, { id: 'pa', type: 'speaker', pos: [0, 0, 1.2], rot }],
+    connections: [{ from: 'mic.out', to: 'mixer.in1', cable: 'xlr' }, { from: 'mixer.main', to: 'pa.in', cable: 'xlr' }],
+    state: { channels: { 1: { gain: 38 } } },
+  });
+  assert.ok(computeSim(mk(Math.PI)).feedback, 'speaker facing the mic (rot π faces -z toward the mic)');
+  assert.equal(computeSim(mk(0)).feedback, false, 'speaker facing away');
+});

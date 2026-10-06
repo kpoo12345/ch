@@ -471,7 +471,18 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
     if (!ch) return;
     // 스피커 위치: 마이크 정면 자리(pa_alt)면 하울링에 매우 취약
     const front = FRONT_SLOTS.has(devices[spk]?.slot) || (!devices[spk]?.slot && dev[spk]?.position === 'front');
-    const pos = type === 'monitor' ? -2 : front ? 8 : -6;
+    let pos = type === 'monitor' ? -2 : front ? 8 : -6;
+    // 자유 배치: 스피커가 마이크를 향하는 각도와 거리로 판단 (정면 60° 안, 가까울수록 위험)
+    const sp = devices[spk], mp = devices[x.src];
+    if (sp?.pos && mp?.pos && !sp.slot) {
+      const dx = mp.pos[0] - sp.pos[0], dz = mp.pos[2] - sp.pos[2];
+      const dist = Math.hypot(dx, dz) || 0.01;
+      const facing = [Math.sin(sp.rot ?? 0), Math.cos(sp.rot ?? 0)];
+      const cos = (facing[0] * dx + facing[1] * dz) / dist;
+      const aimed = cos > 0.5; // 60° 안
+      const base = type === 'monitor' ? 0 : 8;
+      pos = aimed ? Math.max(-6, base - Math.max(0, dist - 1) * 2.5) : type === 'monitor' ? -4 : -7;
+    }
     const fxTerm = (ch.fx / 100) * (S.master.fxReturn / 100) * 4;
     // MID EQ는 하울링이 잘 생기는 대역(약 500Hz~4kHz)에 맞춰야 효과가 크다
     const f = ch.eqFreq ?? 1000;

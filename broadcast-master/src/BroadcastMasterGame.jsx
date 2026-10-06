@@ -2,9 +2,9 @@
  * 방송장비 마스터 (Broadcast Equipment Master)
  * 방송·음향·조명·영상 장비를 3D로 직접 설치하고 조작하며 배우는 시뮬레이션 게임
  *
- *  - 튜토리얼  : 게임이 스스로 진행하며 기초 장비를 보여 줌 (유령 손 + 내레이션) → game/v2/TutorialMode.jsx
+ *  - 튜토리얼  : 선배 엔지니어와 대화 장면으로 진행 (한 줄 설명 → 직접 해 보기 → 다음) → game/v2/TutorialMode.jsx
  *  - 교육 모드 : 장비 백과 (3D 뷰어, 체험, 퀴즈)                                 → game/EduMode.jsx
- *  - 스토리 모드: 9개 장 · 26개 현장 미션                                         → game/v2/StoryMode.jsx
+ *  - 스토리 모드: 9개 장 · 28개 현장 미션                                         → game/v2/StoryMode.jsx
  *  - 스튜디오 모드: 장비를 마음대로 추가·배치·배선하는 자유 모드                  → game/v2/Sandbox.jsx
  * ===================================================================== */
 import React, { useState } from 'react';

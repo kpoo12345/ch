@@ -36,7 +36,7 @@ export default function MainMenu({ onSelect }) {
   const modes = [
     {
       key: 'tutorial', step: 1, icon: GraduationCap, title: '튜토리얼', tag: '처음이라면',
-      desc: '게임이 스스로 진행하며 마이크·믹서·스피커, 카메라·스위처·OBS, 조명·미디어 서버·PTZ를 보여 줍니다. 유령 손이 직접 꽂고 돌리는 모습을 보고 따라 해 보세요.',
+      desc: '선배 엔지니어가 한 장면씩 설명하면, 다음을 누르거나 반짝이는 곳을 직접 조작하며 따라갑니다. 마이크·믹서·스피커, 카메라·스위처·OBS, 조명·미디어 서버·PTZ까지. 막히면 "보여 주세요".',
       progress: `${tut}/${TUTORIAL.length} 파트 완료`, cls: 'from-violet-600/90 to-violet-950/90 border-violet-400', btn: 'bg-violet-400 text-slate-950',
     },
     {
