@@ -169,11 +169,25 @@ export function runOps(st0, ops, { onStep } = {}) {
   ops.forEach((op, i) => {
     if (op.op === 'talk') talking = op.on;
     else if (op.op === 'perform') performing = op.on;
-    else if (op.op !== 'wait' && op.op !== 'say') st = applyOp(st, op);
+    else if (op.op !== 'wait' && op.op !== 'say') {
+      noteOnAirMove(st, op, latched);
+      st = applyOp(st, op);
+    }
     onStep?.(st, op, i, { talking, latched });
     latchTalk(st, talking, latched, performing);
   });
   return { st, latched, talking, performing };
+}
+
+// 방송 중(PGM)인 PTZ 카메라를 움직이면 기록 (방송 사고!)
+export function noteOnAirMove(st, op, latched) {
+  if (op.op !== 'ptz' || !(op.act === 'aim' || op.act === 'recall')) return null;
+  const cs = st.dev[op.device];
+  if (!cs) return null;
+  const sim = computeSim(st);
+  const target = Object.entries(sim.ptz).find(([, r]) => r.reachable && r.index === cs.selected + 1)?.[0];
+  if (target && sim.video.programCam === target) { latched.add(`onAirMove:${target}`); return target; }
+  return null;
 }
 
 export function latchTalk(st, talking, latched, performing) {

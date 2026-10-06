@@ -2464,6 +2464,1139 @@
    ]
   },
   {
+   "id": "light",
+   "title": "6장. 무대 조명 — Tiger Touch",
+   "venue": "church",
+   "summary": "조명 콘솔(Avolites Tiger Touch)로 DMX 연결, 주소 패치, 큐 만들기, 조명 사고 대응까지 무대 조명의 기본을 익힙니다.",
+   "stages": [
+    {
+     "id": "light-1",
+     "chapter": "light",
+     "venue": "church",
+     "title": "설교 조명 켜기",
+     "tag": "DMX 연결 · 주소",
+     "briefing": [
+      "수요 예배 전, 새로 산 LED 파 조명 두 대를 강단 앞 트러스에 달았습니다. 그런데 조명 콘솔과 아직 연결이 안 되어 있습니다.",
+      "조명은 콘솔 DMX OUT → 조명1 IN → 조명1 OUT → 조명2 IN … 처럼 줄줄이(데이지 체인) 연결합니다. 각 조명은 \"DMX 주소\"로 자기 몫의 채널을 찾아 읽습니다."
+     ],
+     "mission": "DMX 케이블로 콘솔과 조명 두 대를 잇고, 2번 조명 주소를 콘솔 패치에 맞춘 뒤 설교 조명 플레이백을 올리세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "desk",
+       "type": "lighting_console",
+       "slot": "foh2",
+       "placed": true,
+       "name": "조명 콘솔"
+      },
+      {
+       "id": "p1",
+       "type": "par_led",
+       "slot": "light_front_l",
+       "placed": true,
+       "name": "앞 조명 L",
+       "role": "front"
+      },
+      {
+       "id": "p2",
+       "type": "par_led",
+       "slot": "light_front_r",
+       "placed": true,
+       "name": "앞 조명 R",
+       "role": "front"
+      }
+     ],
+     "connections": [],
+     "inventory": {
+      "dmx": 2,
+      "xlr": 1
+     },
+     "state": {
+      "devices": {
+       "p1": {
+        "address": 1
+       },
+       "p2": {
+        "address": 1
+       },
+       "desk": {
+        "patch": [
+         {
+          "n": 1,
+          "label": "FRONT L",
+          "type": "par_led",
+          "address": 1
+         },
+         {
+          "n": 2,
+          "label": "FRONT R",
+          "type": "par_led",
+          "address": 9
+         }
+        ],
+        "playbacks": [
+         {
+          "label": "설교 조명",
+          "level": 0,
+          "cue": {
+           "fixtures": [
+            1,
+            2
+           ],
+           "intensity": 90,
+           "color": "#fff1d6"
+          }
+         }
+        ]
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "콘솔 DMX OUT → 앞 조명 L",
+       "check": {
+        "type": "connected",
+        "from": "desk.dmx1",
+        "to": "p1.dmxIn"
+       }
+      },
+      {
+       "label": "앞 조명 L OUT → 앞 조명 R (데이지 체인)",
+       "check": {
+        "type": "connected",
+        "from": "p1.dmxOut",
+        "to": "p2.dmxIn"
+       }
+      },
+      {
+       "label": "앞 조명 R 주소 = 콘솔 패치 2번(009)",
+       "check": {
+        "type": "patched",
+        "device": "p2",
+        "n": 2
+       }
+      },
+      {
+       "label": "플레이백 1 \"설교 조명\" 올리기",
+       "check": {
+        "type": "playback",
+        "index": 1,
+        "min": 70
+       }
+      },
+      {
+       "label": "설교자가 밝게 보이기 (앞 조명 모두 켜짐)",
+       "check": {
+        "type": "stageLit"
+       }
+      },
+      {
+       "label": "DMX 신호 정상 (깜빡임·충돌 없음)",
+       "check": {
+        "type": "dmxOk"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "조명 신호는 오디오처럼 한 줄씩 따로 가지 않습니다. 콘솔 → 첫 조명 → 다음 조명으로 이어지는 한 줄입니다.",
+      "케이블은 DMX 케이블을 쓰세요. 마이크(XLR) 케이블도 꽂히긴 하지만 임피던스가 달라 조명이 깜빡일 수 있습니다. 콘솔의 PATCH 화면을 보면 FRONT R은 주소 009입니다.",
+      "앞 조명 R을 선택해 주소를 9로 바꾸고(8채널 조명이라 1~8은 앞 조명 L 몫), 콘솔 플레이백 1 페이더를 끝까지 올리세요."
+     ],
+     "lessons": [
+      "DMX는 콘솔 OUT → 조명 IN → 조명 OUT(THRU) → 다음 조명 IN으로 줄줄이 연결합니다(데이지 체인).",
+      "조명마다 시작 주소를 정하고, 채널 수(8채널이면 1~8)만큼 차지합니다. 다음 조명은 겹치지 않게 9번부터.",
+      "돌아보기: 새 조명은 공장 출고 주소가 모두 001입니다. 설치할 때 주소부터 맞추는 습관을 들이세요."
+     ]
+    },
+    {
+     "id": "light-2",
+     "chapter": "light",
+     "venue": "live_stage",
+     "title": "찬양 블루 — 무빙 큐 만들기",
+     "tag": "프로그래머 · 큐 저장",
+     "briefing": [
+      "오늘 밤 밴드 공연의 조명을 맡았습니다. 앞 조명 두 대와 트러스의 무빙 헤드 두 대가 이미 연결되어 있습니다.",
+      "조명 콘솔은 \"프로그래머\"에서 조명을 고르고(SELECT) 밝기·색·위치를 만든 뒤 RECORD로 플레이백에 저장해 공연 중 페이더 하나로 불러옵니다."
+     ],
+     "mission": "무빙 헤드 두 대를 파란색으로 만들어 플레이백 2에 저장하고, 앞 조명과 함께 재생하세요. 깜빡이는 무빙도 고치세요.",
+     "talk": "auto",
+     "performing": true,
+     "devices": [
+      {
+       "id": "desk",
+       "type": "lighting_console",
+       "slot": "foh2",
+       "placed": true,
+       "name": "조명 콘솔"
+      },
+      {
+       "id": "p1",
+       "type": "par_led",
+       "slot": "light_front_l",
+       "placed": true,
+       "name": "앞 조명 L",
+       "role": "front"
+      },
+      {
+       "id": "p2",
+       "type": "par_led",
+       "slot": "light_front_r",
+       "placed": true,
+       "name": "앞 조명 R",
+       "role": "front"
+      },
+      {
+       "id": "m1",
+       "type": "moving_head",
+       "slot": "truss2",
+       "placed": true,
+       "name": "무빙 1"
+      },
+      {
+       "id": "m2",
+       "type": "moving_head",
+       "slot": "truss5",
+       "placed": true,
+       "name": "무빙 2"
+      }
+     ],
+     "connections": [
+      {
+       "from": "desk.dmx1",
+       "to": "p1.dmxIn",
+       "cable": "dmx"
+      },
+      {
+       "from": "p1.dmxOut",
+       "to": "p2.dmxIn",
+       "cable": "dmx"
+      },
+      {
+       "from": "p2.dmxOut",
+       "to": "m1.dmxIn",
+       "cable": "dmx"
+      },
+      {
+       "from": "m1.dmxOut",
+       "to": "m2.dmxIn",
+       "cable": "dmx"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "devices": {
+       "p1": {
+        "address": 1
+       },
+       "p2": {
+        "address": 9
+       },
+       "m1": {
+        "address": 17
+       },
+       "m2": {
+        "address": 33,
+        "terminated": false
+       },
+       "desk": {
+        "patch": [
+         {
+          "n": 1,
+          "label": "FRONT L",
+          "type": "par_led",
+          "address": 1
+         },
+         {
+          "n": 2,
+          "label": "FRONT R",
+          "type": "par_led",
+          "address": 9
+         },
+         {
+          "n": 3,
+          "label": "MOVER 1",
+          "type": "moving_head",
+          "address": 17
+         },
+         {
+          "n": 4,
+          "label": "MOVER 2",
+          "type": "moving_head",
+          "address": 33
+         }
+        ],
+        "playbacks": [
+         {
+          "label": "프론트 워시",
+          "level": 0,
+          "cue": {
+           "fixtures": [
+            1,
+            2
+           ],
+           "intensity": 85,
+           "color": "#fff4e0"
+          }
+         }
+        ]
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "DMX 라인 끝에 터미네이터 (깜빡임 없애기)",
+       "check": {
+        "type": "dmxOk"
+       }
+      },
+      {
+       "label": "플레이백 2에 무빙 파란색 큐 저장",
+       "check": {
+        "type": "recorded",
+        "index": 2,
+        "color": "blue"
+       }
+      },
+      {
+       "label": "무빙 1이 파란색으로 켜짐",
+       "check": {
+        "type": "fixtureColor",
+        "device": "m1",
+        "color": "blue"
+       }
+      },
+      {
+       "label": "무빙 2가 파란색으로 켜짐",
+       "check": {
+        "type": "fixtureColor",
+        "device": "m2",
+        "color": "blue"
+       }
+      },
+      {
+       "label": "프론트 워시로 보컬이 밝게 보이기",
+       "check": {
+        "type": "stageLit"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "조명이 4대 이상 길게 이어지면 라인 끝에서 신호가 반사되어 마지막 조명들이 깜빡일 수 있습니다. 마지막 조명 DMX OUT에 무엇을 꽂아야 할까요?",
+      "무빙 2를 선택해 \"터미네이터 꽂기\"를 켜세요. 그다음 콘솔 프로그래머에서 3번·4번(MOVER)을 선택하고 밝기 100, 색 파랑을 고르세요.",
+      "RECORD → 플레이백 2를 누르면 저장됩니다. 저장한 플레이백 2와 프론트 워시(플레이백 1) 페이더를 올리세요."
+     ],
+     "lessons": [
+      "DMX 라인 마지막 조명의 OUT에는 120Ω 터미네이터를 꽂아 신호 반사를 막습니다.",
+      "조명 콘솔: SELECT(조명 고르기) → 값 만들기(밝기·색·위치) → RECORD(플레이백에 저장) → 페이더로 재생.",
+      "돌아보기: 공연 전 큐를 미리 만들어 두면 공연 중에는 페이더와 GO 버튼만으로 장면을 바꿀 수 있습니다."
+     ]
+    },
+    {
+     "id": "light-3",
+     "chapter": "light",
+     "venue": "church",
+     "title": "조명이 미쳤어요!",
+     "tag": "DMX 트러블슈팅",
+     "briefing": [
+      "주일 아침, 리허설을 하려는데 강단 조명이 깜빡이고, 뒤쪽 무빙 하나는 엉뚱한 색으로 춤을 추고, 앞 조명은 아예 꺼져 있습니다.",
+      "조명 사고는 대부분 케이블(DMX가 아닌 케이블), 주소, 콘솔 설정(블랙아웃·그랜드 마스터) 세 가지에서 납니다. 하나씩 확인하세요."
+     ],
+     "mission": "숨은 조명 문제 3가지를 찾아 고치고 설교 조명을 정상으로 켜세요.",
+     "talk": "ptt",
+     "performing": false,
+     "devices": [
+      {
+       "id": "desk",
+       "type": "lighting_console",
+       "slot": "foh2",
+       "placed": true,
+       "name": "조명 콘솔"
+      },
+      {
+       "id": "p1",
+       "type": "par_led",
+       "slot": "light_front_l",
+       "placed": true,
+       "name": "앞 조명 L",
+       "role": "front"
+      },
+      {
+       "id": "p2",
+       "type": "par_led",
+       "slot": "light_front_r",
+       "placed": true,
+       "name": "앞 조명 R",
+       "role": "front"
+      },
+      {
+       "id": "m1",
+       "type": "moving_head",
+       "slot": "light_back_1",
+       "placed": true,
+       "name": "뒤 무빙 1"
+      },
+      {
+       "id": "m2",
+       "type": "moving_head",
+       "slot": "light_back_2",
+       "placed": true,
+       "name": "뒤 무빙 2"
+      }
+     ],
+     "connections": [
+      {
+       "from": "desk.dmx1",
+       "to": "p1.dmxIn",
+       "cable": "dmx"
+      },
+      {
+       "from": "p1.dmxOut",
+       "to": "p2.dmxIn",
+       "cable": "dmx"
+      },
+      {
+       "from": "p2.dmxOut",
+       "to": "m1.dmxIn",
+       "cable": "dmx"
+      },
+      {
+       "from": "m1.dmxOut",
+       "to": "m2.dmxIn",
+       "cable": "dmx"
+      }
+     ],
+     "inventory": {
+      "dmx": 1
+     },
+     "state": {
+      "devices": {
+       "p1": {
+        "address": 1
+       },
+       "p2": {
+        "address": 9
+       },
+       "m1": {
+        "address": 17
+       },
+       "m2": {
+        "address": 33,
+        "terminated": true
+       },
+       "desk": {
+        "patch": [
+         {
+          "n": 1,
+          "label": "FRONT L",
+          "type": "par_led",
+          "address": 1
+         },
+         {
+          "n": 2,
+          "label": "FRONT R",
+          "type": "par_led",
+          "address": 9
+         },
+         {
+          "n": 3,
+          "label": "BACK MOVER 1",
+          "type": "moving_head",
+          "address": 17
+         },
+         {
+          "n": 4,
+          "label": "BACK MOVER 2",
+          "type": "moving_head",
+          "address": 33
+         }
+        ],
+        "playbacks": [
+         {
+          "label": "설교 조명",
+          "level": 100,
+          "cue": {
+           "fixtures": [
+            1,
+            2
+           ],
+           "intensity": 90,
+           "color": "#fff1d6"
+          }
+         },
+         {
+          "label": "백 라이트",
+          "level": 80,
+          "cue": {
+           "fixtures": [
+            3,
+            4
+           ],
+           "intensity": 70,
+           "color": "#93c5fd",
+           "pan": 0,
+           "tilt": 35
+          }
+         }
+        ]
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "숨은 문제 모두 해결",
+       "check": {
+        "type": "faultsFixed"
+       }
+      },
+      {
+       "label": "설교자가 밝게 보이기",
+       "check": {
+        "type": "stageLit"
+       }
+      },
+      {
+       "label": "DMX 신호 정상",
+       "check": {
+        "type": "dmxOk"
+       }
+      }
+     ],
+     "faults": [
+      {
+       "type": "dmxMicCable",
+       "conn": "p1.dmxOut>p2.dmxIn"
+      },
+      {
+       "type": "dmxAddress",
+       "device": "m1",
+       "to": 21
+      },
+      {
+       "type": "blackout"
+      }
+     ],
+     "hints": [
+      "콘솔 화면에 BLACKOUT이 켜져 있으면 모든 조명이 꺼집니다. 그리고 케이블 색을 잘 보세요 — 조명 라인에 파란 마이크 케이블이 섞여 있지 않나요?",
+      "앞 조명 L과 R 사이 케이블이 XLR(마이크용)입니다. 뽑고 DMX 케이블로 다시 연결하세요. 뒤 무빙 1의 주소도 콘솔 패치와 비교해 보세요.",
+      "BLACKOUT 해제 → p1→p2 케이블 교체(DMX) → 뒤 무빙 1 주소를 17로."
+     ],
+     "lessons": [
+      "조명 라인에 마이크 케이블을 쓰면 깜빡임이 생깁니다. DMX는 110Ω 전용 케이블을 씁니다.",
+      "엉뚱하게 움직이는 조명은 대개 주소가 어긋나 다른 조명의 채널을 읽고 있는 것입니다.",
+      "돌아보기: 사고가 나면 콘솔(블랙아웃·GM) → 케이블 → 주소 순으로 빠르게 점검하세요."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "vj",
+   "title": "7장. 영상 연출 — Resolume Arena",
+   "venue": "church",
+   "summary": "미디어 서버(Resolume Arena)로 레이어를 겹쳐 가사·배경·로고를 띄우고, LED 전광판과 방송 송출로 영상을 보냅니다.",
+   "stages": [
+    {
+     "id": "vj-1",
+     "chapter": "vj",
+     "venue": "church",
+     "title": "찬양 가사 띄우기",
+     "tag": "레이어 · 출력",
+     "briefing": [
+      "예배 찬양 시간에 가사를 스크린에 띄워야 합니다. 미디어 서버 PC에는 Resolume Arena가 켜져 있고, 천장 프로젝터는 아직 연결 전입니다.",
+      "Resolume는 레이어를 위에서 아래로 겹칩니다(1번 배경, 2번 가사, 3번 로고). 각 레이어의 투명도(Opacity)와 출력 설정이 맞아야 화면에 나갑니다."
+     ],
+     "mission": "미디어 서버를 프로젝터에 연결하고 배경 위에 가사가 보이게 출력하세요.",
+     "talk": "ptt",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vj",
+       "type": "media_server",
+       "slot": "foh3",
+       "placed": true,
+       "name": "미디어 서버 (Resolume)"
+      },
+      {
+       "id": "proj",
+       "type": "projector",
+       "slot": "proj_ceiling",
+       "placed": true,
+       "name": "천장 프로젝터"
+      }
+     ],
+     "connections": [],
+     "inventory": {
+      "hdmi": 1,
+      "sdi": 1
+     },
+     "state": {
+      "devices": {
+       "vj": {
+        "layers": [
+         {
+          "clip": "worship_bg",
+          "opacity": 100
+         },
+         {
+          "clip": "lyrics",
+          "opacity": 0
+         },
+         {
+          "clip": "logo",
+          "opacity": 0
+         }
+        ],
+        "out1": "off"
+       },
+       "proj": {
+        "power": false
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "미디어 서버 HDMI OUT 1 → 프로젝터",
+       "check": {
+        "type": "connected",
+        "from": "vj.out1",
+        "to": "proj.hdmi"
+       }
+      },
+      {
+       "label": "프로젝터 전원 켜기",
+       "check": {
+        "type": "power",
+        "device": "proj"
+       }
+      },
+      {
+       "label": "화면에 찬양 배경 나오기",
+       "check": {
+        "type": "display",
+        "device": "proj",
+        "content": "worship_bg"
+       }
+      },
+      {
+       "label": "배경 위에 가사 보이기",
+       "check": {
+        "type": "display",
+        "device": "proj",
+        "content": "lyrics"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "프로젝터는 HDMI 입력입니다. SDI는 방송용 BNC 규격이라 맞지 않습니다.",
+      "Resolume의 OUTPUT 1이 꺼져(OFF) 있습니다. 컴포지션(전체 화면)을 출력하도록 바꾸세요.",
+      "2번 레이어(가사)의 투명도가 0입니다. 100으로 올리면 배경 위에 가사가 겹쳐 보입니다."
+     ],
+     "lessons": [
+      "Resolume는 레이어를 겹쳐 하나의 컴포지션을 만들고, 출력(Output)에서 그것을 실제 화면에 보냅니다.",
+      "가사처럼 자주 바뀌는 것은 위 레이어, 배경 영상은 아래 레이어에 둡니다.",
+      "돌아보기: 화면이 안 나오면 케이블 → 화면 장비 전원·입력 → 출력 설정 → 레이어 투명도 순으로 확인합니다."
+     ]
+    },
+    {
+     "id": "vj-2",
+     "chapter": "vj",
+     "venue": "live_stage",
+     "title": "LED 전광판과 오프닝 송출",
+     "tag": "해상도 · 송출 그래픽",
+     "briefing": [
+      "밴드 공연이 유튜브로도 생중계됩니다. 무대 뒤 LED 전광판에는 공연 비주얼을, 방송에는 오프닝 그래픽을 먼저 보내야 합니다.",
+      "LED 전광판은 프로세서가 정해진 픽셀 맵(해상도)으로 화면을 그립니다. 미디어 서버의 컴포지션 해상도가 다르면 화면이 늘어나 보입니다. 미디어 서버의 두 번째 출력은 ATEM으로 보내 방송 화면으로도 씁니다."
+     ],
+     "mission": "Resolume 비주얼을 LED 전광판에 정확한 해상도로 내보내고, 두 번째 출력을 ATEM에 넣어 오프닝 화면으로 생중계를 시작하세요.",
+     "talk": "auto",
+     "performing": true,
+     "devices": [
+      {
+       "id": "vox",
+       "type": "dynamic_mic",
+       "slot": "vocal_mic",
+       "placed": true,
+       "name": "보컬 마이크"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "X32"
+      },
+      {
+       "id": "vj",
+       "type": "media_server",
+       "slot": "foh2",
+       "placed": true,
+       "name": "미디어 서버 (Resolume)"
+      },
+      {
+       "id": "atem",
+       "type": "atem_pro",
+       "slot": "foh3",
+       "placed": true,
+       "name": "ATEM Mini Pro"
+      },
+      {
+       "id": "led",
+       "type": "led_wall",
+       "slot": "led_back",
+       "placed": true,
+       "name": "LED 전광판"
+      },
+      {
+       "id": "cam1",
+       "type": "camera",
+       "slot": "cam_stage",
+       "placed": true,
+       "name": "무대 카메라"
+      },
+      {
+       "id": "net",
+       "type": "router",
+       "slot": "router_foh",
+       "placed": true,
+       "name": "공유기"
+      }
+     ],
+     "connections": [
+      {
+       "from": "vox.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.aux1",
+       "to": "atem.mic1",
+       "cable": "mini"
+      },
+      {
+       "from": "cam1.hdmi",
+       "to": "atem.in1",
+       "cable": "hdmi"
+      },
+      {
+       "from": "atem.eth",
+       "to": "net.lan1",
+       "cable": "eth"
+      }
+     ],
+     "inventory": {
+      "hdmi": 2
+     },
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75,
+        "aux": 70
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "auxMaster": 70
+      },
+      "devices": {
+       "vj": {
+        "layers": [
+         {
+          "clip": "concert",
+          "opacity": 100
+         },
+         {
+          "clip": "logo",
+          "opacity": 100
+         },
+         {
+          "clip": null,
+          "opacity": 100
+         }
+        ],
+        "compRes": "1280x720"
+       },
+       "led": {
+        "res": "1920x1080"
+       }
+      },
+      "atem": {
+       "program": 1,
+       "preview": 2,
+       "streaming": false
+      }
+     },
+     "objectives": [
+      {
+       "label": "미디어 서버 OUT 1 → LED 전광판",
+       "check": {
+        "type": "connected",
+        "from": "vj.out1",
+        "to": "led.hdmi"
+       }
+      },
+      {
+       "label": "LED에 공연 비주얼 나오기",
+       "check": {
+        "type": "display",
+        "device": "led",
+        "content": "concert"
+       }
+      },
+      {
+       "label": "화면이 늘어나지 않게 해상도 맞추기",
+       "check": {
+        "type": "noScaling"
+       }
+      },
+      {
+       "label": "미디어 서버 OUT 2 → ATEM 입력",
+       "check": {
+        "type": "connected",
+        "from": "vj.out2",
+        "to": "atem"
+       }
+      },
+      {
+       "label": "오프닝: 미디어 서버 화면을 PGM에",
+       "check": {
+        "type": "program",
+        "camera": "vj"
+       }
+      },
+      {
+       "label": "생중계 시작",
+       "check": {
+        "type": "live"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "LED 프로세서의 입력 해상도는 1920×1080입니다. Resolume 컴포지션 해상도를 확인하세요.",
+      "Resolume COMPOSITION 설정에서 해상도를 1920×1080으로 바꾸세요. OUT 2는 HDMI로 ATEM 2번 입력에 연결합니다.",
+      "ATEM에서 2번(미디어 서버)을 PGM에 올리고 ON AIR를 누르세요."
+     ],
+     "lessons": [
+      "LED 전광판은 화면 픽셀 수가 정해져 있으므로 컴포지션 해상도를 거기에 맞춥니다.",
+      "미디어 서버 출력은 여러 개로 나눠 하나는 현장 화면, 하나는 방송 스위처로 보낼 수 있습니다.",
+      "돌아보기: 현장 화면과 방송 화면은 목적이 다릅니다. 무엇을 어디로 보낼지 출력 계획을 먼저 세우세요."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ptz",
+   "title": "8장. PTZ 카메라와 조이스틱",
+   "venue": "church",
+   "summary": "IP 네트워크로 PTZ 카메라를 조이스틱에 연결하고, 프리셋 구도를 저장해 혼자서 여러 카메라를 운영하는 법을 배웁니다.",
+   "stages": [
+    {
+     "id": "ptz-1",
+     "chapter": "ptz",
+     "venue": "church",
+     "title": "조이스틱으로 카메라 잡기",
+     "tag": "IP 대역 · 프리셋",
+     "briefing": [
+      "예배당 옆벽에 PTZ 카메라를 새로 달았습니다. 방송실의 조이스틱 컨트롤러로 원격 조종하려는데 카메라를 찾지 못합니다.",
+      "PTZ 카메라와 조이스틱은 같은 네트워크(공유기)에 연결되고 IP 주소 앞 세 자리(대역)가 같아야 통신합니다. 그다음 자주 쓰는 구도를 프리셋으로 저장합니다."
+     ],
+     "mission": "조이스틱을 네트워크에 연결하고 카메라 IP를 맞춘 뒤, 설교자 클로즈업을 프리셋 1, 강단 전체를 프리셋 2로 저장하세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "ptz1",
+       "type": "ptz",
+       "slot": "ptz_side",
+       "placed": true,
+       "name": "PTZ 카메라"
+      },
+      {
+       "id": "joy",
+       "type": "ptz_controller",
+       "slot": "foh4",
+       "placed": true,
+       "name": "PTZ 조이스틱"
+      },
+      {
+       "id": "net",
+       "type": "router",
+       "slot": "router_foh",
+       "placed": true,
+       "name": "공유기"
+      }
+     ],
+     "connections": [
+      {
+       "from": "ptz1.lan",
+       "to": "net.lan1",
+       "cable": "eth"
+      }
+     ],
+     "inventory": {
+      "eth": 1
+     },
+     "state": {
+      "devices": {
+       "ptz1": {
+        "ip": "192.168.0.21",
+        "pan": 0,
+        "tilt": 0,
+        "zoom": 0.2
+       }
+      }
+     },
+     "objectives": [
+      {
+       "label": "조이스틱 LAN → 공유기",
+       "check": {
+        "type": "connected",
+        "from": "joy.lan",
+        "to": "net"
+       }
+      },
+      {
+       "label": "조이스틱으로 카메라 제어 가능",
+       "check": {
+        "type": "ptzControl",
+        "device": "ptz1"
+       }
+      },
+      {
+       "label": "프리셋 1 = 설교자 클로즈업",
+       "check": {
+        "type": "ptzPreset",
+        "device": "ptz1",
+        "preset": 1,
+        "target": "pastor"
+       }
+      },
+      {
+       "label": "프리셋 2 = 강단 전체 와이드",
+       "check": {
+        "type": "ptzPreset",
+        "device": "ptz1",
+        "preset": 2,
+        "target": "wide"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "조이스틱도 카메라처럼 랜선으로 같은 공유기에 연결해야 합니다.",
+      "조이스틱은 192.168.1.x 대역인데 카메라 IP는 192.168.0.21입니다. 카메라 설정에서 IP를 192.168.1.21로 바꾸세요.",
+      "조이스틱으로 설교자를 크게 잡고(PAN 약 32°, TILT -8°, ZOOM 크게) STORE 1, 줌을 빼서 강단 전체를 잡고 STORE 2를 누르세요."
+     ],
+     "lessons": [
+      "IP 장비는 같은 네트워크에 연결되고 IP 대역(앞 세 자리)이 같아야 서로 통신합니다.",
+      "프리셋은 PAN·TILT·ZOOM 위치를 저장했다가 버튼 하나로 불러오는 기능입니다.",
+      "돌아보기: 예배·강의 전 필요한 구도(설교자, 찬양팀, 와이드)를 프리셋으로 미리 만들어 두면 혼자서도 여러 카메라를 운영할 수 있습니다."
+     ]
+    },
+    {
+     "id": "ptz-2",
+     "chapter": "ptz",
+     "venue": "church",
+     "title": "방송 중엔 움직이지 마세요",
+     "tag": "탈리 · PVW에서 준비",
+     "briefing": [
+      "찬양이 끝나고 설교가 시작됩니다. 지금 방송(PGM)에는 PTZ 카메라가 찬양 인도자를 비추고 있습니다. 설교자 화면으로 바꿔야 합니다.",
+      "방송에 나가고 있는 카메라를 움직이면 시청자는 흔들리는 화면을 보게 됩니다. 프로는 다른 카메라로 먼저 바꾸고(CUT), PVW 상태에서 PTZ를 움직인 뒤 다시 올립니다. 조이스틱의 빨간 탈리 불이 \"지금 방송 중\"이라는 신호입니다."
+     ],
+     "mission": "방송 중인 PTZ를 움직이지 않고, 설교자 클로즈업으로 PTZ 화면을 다시 방송에 올리세요.",
+     "talk": "auto",
+     "performing": false,
+     "devices": [
+      {
+       "id": "pulpit",
+       "type": "dynamic_mic",
+       "slot": "pulpit_mic",
+       "placed": true,
+       "name": "강대상 마이크"
+      },
+      {
+       "id": "mixer",
+       "type": "digital_mixer",
+       "slot": "foh1",
+       "placed": true,
+       "name": "X32"
+      },
+      {
+       "id": "atem",
+       "type": "atem",
+       "slot": "foh2",
+       "placed": true,
+       "name": "ATEM Mini"
+      },
+      {
+       "id": "pc",
+       "type": "pc",
+       "slot": "foh3",
+       "placed": true,
+       "name": "송출 PC"
+      },
+      {
+       "id": "joy",
+       "type": "ptz_controller",
+       "slot": "foh4",
+       "placed": true,
+       "name": "PTZ 조이스틱"
+      },
+      {
+       "id": "cam1",
+       "type": "camera",
+       "slot": "cam_rear",
+       "placed": true,
+       "name": "뒤쪽 와이드 카메라"
+      },
+      {
+       "id": "ptz1",
+       "type": "ptz",
+       "slot": "ptz_side",
+       "placed": true,
+       "name": "PTZ 카메라"
+      },
+      {
+       "id": "net",
+       "type": "router",
+       "slot": "router_foh",
+       "placed": true,
+       "name": "공유기"
+      }
+     ],
+     "connections": [
+      {
+       "from": "pulpit.out",
+       "to": "mixer.local1",
+       "cable": "xlr"
+      },
+      {
+       "from": "mixer.usb",
+       "to": "pc.usb2",
+       "cable": "usb"
+      },
+      {
+       "from": "cam1.hdmi",
+       "to": "atem.in1",
+       "cable": "hdmi"
+      },
+      {
+       "from": "ptz1.hdmi",
+       "to": "atem.in2",
+       "cable": "hdmi"
+      },
+      {
+       "from": "atem.usb",
+       "to": "pc.usb1",
+       "cable": "usb"
+      },
+      {
+       "from": "ptz1.lan",
+       "to": "net.lan1",
+       "cable": "eth"
+      },
+      {
+       "from": "joy.lan",
+       "to": "net.lan2",
+       "cable": "eth"
+      }
+     ],
+     "inventory": {},
+     "state": {
+      "channels": {
+       "1": {
+        "gain": 30,
+        "fader": 75
+       }
+      },
+      "master": {
+       "mainFader": 75,
+       "usbOut": "main"
+      },
+      "devices": {
+       "ptz1": {
+        "ip": "192.168.1.21",
+        "pan": 18,
+        "tilt": -6,
+        "zoom": 0.6,
+        "presets": {
+         "1": {
+          "pan": 32,
+          "tilt": -8,
+          "zoom": 0.7
+         },
+         "2": {
+          "pan": 30,
+          "tilt": -6,
+          "zoom": 0.15
+         },
+         "3": {
+          "pan": 18,
+          "tilt": -6,
+          "zoom": 0.6
+         }
+        }
+       }
+      },
+      "atem": {
+       "program": 2,
+       "preview": 1
+      },
+      "obs": {
+       "video": "atem",
+       "audio": "mixer",
+       "streaming": true
+      }
+     },
+     "objectives": [
+      {
+       "label": "방송 중(PGM)인 PTZ를 움직이지 않기",
+       "check": {
+        "type": "noOnAirMove",
+        "device": "ptz1"
+       }
+      },
+      {
+       "label": "PTZ가 설교자 클로즈업 구도",
+       "check": {
+        "type": "ptzFrames",
+        "device": "ptz1",
+        "target": "pastor"
+       }
+      },
+      {
+       "label": "PTZ 화면을 다시 PGM에",
+       "check": {
+        "type": "program",
+        "camera": "ptz1"
+       }
+      },
+      {
+       "label": "생중계 유지",
+       "check": {
+        "type": "live"
+       }
+      }
+     ],
+     "faults": [],
+     "hints": [
+      "조이스틱의 1번 카메라 버튼에 빨간 불(탈리)이 켜져 있습니다. 지금 이 카메라가 방송 중이라는 뜻입니다.",
+      "ATEM에서 1번(뒤쪽 와이드)을 PVW로 고른 뒤 CUT하세요. 이제 PTZ는 PVW(초록 탈리)가 됩니다.",
+      "조이스틱에서 프리셋 1(설교자)을 불러온 뒤, ATEM에서 다시 CUT 하세요."
+     ],
+     "lessons": [
+      "빨간 탈리 = 지금 방송 중. 그 카메라는 절대 움직이지 않습니다.",
+      "다른 카메라로 먼저 전환하고, PVW 상태에서 PTZ를 준비한 뒤 다시 올리는 것이 기본 순서입니다.",
+      "돌아보기: 와이드 카메라는 언제든 \"도망갈 곳\"입니다. 한 대는 항상 안정적인 와이드로 두세요."
+     ]
+    }
+   ]
+  },
+  {
    "id": "crisis",
    "title": "9장. 돌발 상황",
    "venue": "mixed",

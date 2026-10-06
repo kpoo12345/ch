@@ -103,6 +103,7 @@ export const VENUES = {
       light_front_r: { pos: [2.4, 3.4, 1.8], rot: faceTo([2.4, 0, 1.8], [0, 0, -1.7]), kind: 'truss', label: '앞 조명 R', aim: [0.2, 1.6, -1.7] },
       led_back: { pos: [0, P_LS, -3.3], rot: 0, kind: 'floor', label: '무대 뒤 LED 자리', ledWall: { w: 4.2, h: 2.25 } },
       ptz_truss: { pos: [0, 3.42, -1.05], rot: Math.PI, kind: 'truss', label: '트러스 PTZ 자리' },
+      router_foh: { pos: [-1.2, 0, 3.6], rot: 0, kind: 'floor', label: '공유기 자리' },
     },
     people: [{ id: 'singer', pos: [0, P_LS, -1.75], rot: 0, singer: true, talker: true, shirt: '#111827' }],
   },

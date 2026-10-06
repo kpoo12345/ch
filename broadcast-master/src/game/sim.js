@@ -485,7 +485,8 @@ export function checkObjective(check, st, sim, ctx = {}) {
     case 'stageLit': return sim.light.stageLit === true;
     case 'dmxOk': return sim.light.conflicts.length === 0 && Object.values(sim.light.fixtures).every((r) => r.receiving && !r.flicker && !r.wrong);
     case 'fixtureColor': { const r = sim.light.fixtures[check.device]; return !!r && r.intensity >= 0.3 && colorFamily(r.color) === check.color; }
-    case 'patched': { const cs = st.dev[sim.light.consoleId]; const d = st.dev[check.device]; return !!cs && !!d && cs.patch.some((e) => e.address === d.address && e.type === st.devices[check.device].type); }
+    case 'patched': { const cs = st.dev[sim.light.consoleId]; const d = st.dev[check.device]; return !!cs && !!d && cs.patch.some((e) => e.address === d.address && e.type === st.devices[check.device].type && (check.n == null || e.n === check.n)); }
+    case 'noOnAirMove': return !ctx.latched?.includes(`onAirMove:${check.device}`);
     case 'playback': { const cs = st.dev[sim.light.consoleId]; const pb = cs?.playbacks?.[check.index - 1]; return !!pb && pb.level >= (check.min ?? 50); }
     case 'recorded': { const cs = st.dev[sim.light.consoleId]; const pb = cs?.playbacks?.[check.index - 1]; return !!pb?.cue?.fixtures?.length && (!check.color || colorFamily(pb.cue.color) === check.color); }
     // 영상 화면
