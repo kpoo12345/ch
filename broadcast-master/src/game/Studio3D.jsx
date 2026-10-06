@@ -8,6 +8,9 @@ import {
   Knob, Fader, Lamp, LED_THR, LedMeter, Waves, useCanvasTexture, FONT, useHoldCamera, AfterFirstFrame,
 } from './kit3d.jsx';
 import { AnalogConsole, DigitalConsole, CONSOLE_PORTS, demoChannels } from './consoles.jsx';
+import { WedgeModel, PORTS_EXTRA } from './models2.jsx';
+import { ParLedModel, MovingHeadModel, LightingConsoleModel, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel, PtzControllerModel, drawPtzLcd, PORTS_LIGHT } from './models3.jsx';
+import { drawComposition } from './scenes.js';
 
 export { hasWebGL, NoWebGL };
 
@@ -17,49 +20,6 @@ export { hasWebGL, NoWebGL };
  * 좌표계: x = 오른쪽, y = 위, z = 관객(화면) 쪽. 단위는 대략 미터.
  * ===================================================================== */
 
-
-const LAYOUTS = {
-  pa: {
-    desk: { x: 0.3, z: 0, w: 1.4, d: 0.8 },
-    presenter: [-1.9, 0, -0.45],
-    slots: {
-      mic: { pos: [-1.9, 0, -0.02], rot: 0 },
-      mixer: { pos: [0.3, DESK_TOP, 0.0], rot: 0 },
-      speaker: { pos: [1.9, 0, 0.6], rot: -0.3 },
-    },
-    speakerFront: { pos: [-0.85, 0, 0.75], rot: faceTo([-0.85, 0, 0.75], [-1.9, 0, -0.02]) },
-    camera: { pos: [0.0, 2.25, 3.9], target: [0.0, 0.95, 0.15], halfW: 2.85 },
-  },
-  studio: {
-    desk: { x: 0.85, z: 0.15, w: 2.9, d: 0.85 },
-    presenter: [-2.3, 0, -0.75],
-    slots: {
-      mic: { pos: [-2.3, 0, -0.3], rot: 0 },
-      mixer: { pos: [0.0, DESK_TOP, 0.2], rot: 0 },
-      atem: { pos: [0.85, DESK_TOP, 0.38], rot: 0 },
-      pc: { pos: [1.72, DESK_TOP, 0.05], rot: -0.15 },
-      cam1: { pos: [-1.15, 0, 1.0], rot: faceTo([-1.15, 0, 1.0], [-2.3, 0, -0.75]) },
-      cam2: { pos: [-3.25, 0, 1.45], rot: faceTo([-3.25, 0, 1.45], [-2.3, 0, -0.75]) },
-    },
-    camera: { pos: [-0.6, 2.5, 4.6], target: [-0.65, 0.9, 0.3], halfW: 3.75 },
-  },
-  // 스튜디오 모드: PA(스피커)와 송출 장비가 한 공간에
-  sandbox: {
-    desk: { x: 0.85, z: 0.15, w: 2.9, d: 0.85 },
-    presenter: [-2.3, 0, -0.75],
-    slots: {
-      mic: { pos: [-2.3, 0, -0.3], rot: 0 },
-      mixer: { pos: [0.0, DESK_TOP, 0.2], rot: 0 },
-      atem: { pos: [0.85, DESK_TOP, 0.38], rot: 0 },
-      pc: { pos: [1.72, DESK_TOP, 0.05], rot: -0.15 },
-      cam1: { pos: [-1.15, 0, 1.0], rot: faceTo([-1.15, 0, 1.0], [-2.3, 0, -0.75]) },
-      cam2: { pos: [-3.25, 0, 1.45], rot: faceTo([-3.25, 0, 1.45], [-2.3, 0, -0.75]) },
-      speaker: { pos: [2.85, 0, 0.95], rot: -0.45 },
-    },
-    speakerFront: { pos: [-1.8, 0, 0.55], rot: faceTo([-1.8, 0, 0.55], [-2.3, 0, -0.3]) },
-    camera: { pos: [0.0, 2.7, 5.0], target: [-0.25, 0.9, 0.3], halfW: 4.2 },
-  },
-};
 
 // 장비별 단자 위치(장비 기준 로컬 좌표)와 케이블이 빠져나가는 방향
 export const PORTS3D = {
@@ -834,85 +794,7 @@ export function PcModel({ screenTex, streaming }) {
 }
 
 /* ---------------------------- 방 / 책상 ---------------------------- */
-function Room({ layout, live, studio }) {
-  const sign = useCanvasTexture(512, 160, (ctx, w, h) => {
-    ctx.fillStyle = live ? '#7f1d1d' : '#1f1414'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = live ? '#fecaca' : '#3f2a2a'; ctx.lineWidth = 8; ctx.strokeRect(10, 10, w - 20, h - 20);
-    ctx.fillStyle = live ? '#ffffff' : '#4b3535'; ctx.font = `800 96px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('ON AIR', w / 2, h / 2 + 4);
-  }, [live]);
-  const { desk } = layout;
-  const tiles = [];
-  for (let r = 0; r < 4; r += 1) for (let c = 0; c < 14; c += 1) tiles.push([-4.3 + c * 0.62, 0.5 + r * 0.62, (r + c) % 2]);
-  return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[30, 30]} /><meshStandardMaterial color="#232b3a" roughness={0.85} /></mesh>
-      <Grid position={[0, 0.002, 0]} args={[30, 30]} cellSize={0.25} cellThickness={0.6} cellColor="#2c3850" sectionSize={1} sectionThickness={1} sectionColor="#3b4a68" fadeDistance={16} infiniteGrid />
-      <mesh position={[0, 2, -2.3]} receiveShadow><planeGeometry args={[30, 6]} /><meshStandardMaterial color="#262f40" roughness={0.95} /></mesh>
-      {tiles.map(([x, y, alt]) => (
-        <mesh key={`${x}-${y}`} position={[x, y, -2.27]} rotation={[0, 0, alt ? Math.PI / 2 : 0]} receiveShadow>
-          <boxGeometry args={[0.58, 0.58, alt ? 0.05 : 0.07]} />
-          <meshStandardMaterial color={alt ? '#34405a' : '#2d384f'} roughness={1} />
-        </mesh>
-      ))}
-      {studio && (
-        <group position={[studio ? -0.6 : 0.3, 2.45, -2.2]}>
-          <mesh><boxGeometry args={[1.05, 0.34, 0.06]} /><meshStandardMaterial color="#0a0a0a" /></mesh>
-          <mesh position={[0, 0, 0.032]}>
-            <planeGeometry args={[1.0, 0.31]} />
-            <meshStandardMaterial map={sign} emissive={live ? '#ff3b3b' : '#000000'} emissiveMap={sign} emissiveIntensity={live ? 1.4 : 0} toneMapped={false} />
-          </mesh>
-          {live && <pointLight color="#ff2a2a" intensity={2.2} distance={3} position={[0, 0, 0.4]} />}
-        </group>
-      )}
-      <group position={[desk.x, 0, desk.z]}>
-        <RoundedBox args={[desk.w, 0.04, desk.d]} radius={0.01} position={[0, DESK_TOP - 0.02, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color="#6b4f3a" roughness={0.6} />
-        </RoundedBox>
-        {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => (
-          <mesh key={`${sx}${sz}`} position={[sx * (desk.w / 2 - 0.06), (DESK_TOP - 0.04) / 2, sz * (desk.d / 2 - 0.06)]} castShadow>
-            <boxGeometry args={[0.05, DESK_TOP - 0.04, 0.05]} /><meshStandardMaterial color="#1a1c20" metalness={0.5} />
-          </mesh>
-        ))}
-      </group>
-    </group>
-  );
-}
-
 /* ---------------------------- 케이블 ---------------------------- */
-export function routePoints(A, B, layout) {
-  const v = (a) => new THREE.Vector3(...a);
-  const a = v(A.p), b = v(B.p);
-  const an = v(A.n).normalize(), bn = v(B.n).normalize();
-  const a1 = a.clone().addScaledVector(an, 0.07);
-  const b1 = b.clone().addScaledVector(bn, 0.07);
-  const deskBack = layout.desk.z - layout.desk.d / 2;
-  const descend = (E, e1, en) => {
-    if (E.onDesk) {
-      return [
-        new THREE.Vector3(e1.x, DESK_TOP + 0.012, Math.min(e1.z, deskBack + 0.03)),
-        new THREE.Vector3(e1.x, DESK_TOP - 0.12, deskBack - 0.05),
-        new THREE.Vector3(e1.x, 0.012, deskBack - 0.25),
-      ];
-    }
-    return [
-      new THREE.Vector3(e1.x + en.x * 0.04, Math.max(0.3, e1.y * 0.5), e1.z + en.z * 0.04 + 0.03),
-      new THREE.Vector3(e1.x + en.x * 0.08, 0.012, e1.z + en.z * 0.08 + 0.12),
-    ];
-  };
-  let mid;
-  if (A.onDesk && B.onDesk) {
-    const m = a1.clone().lerp(b1, 0.5);
-    m.y = DESK_TOP + 0.012;
-    const q1 = a1.clone().lerp(b1, 0.2); q1.y = Math.max(DESK_TOP + 0.02, q1.y - 0.03);
-    const q2 = a1.clone().lerp(b1, 0.8); q2.y = Math.max(DESK_TOP + 0.02, q2.y - 0.03);
-    mid = [q1, m, q2];
-  } else {
-    mid = [...descend(A, a1, an), ...descend(B, b1, bn).reverse()];
-  }
-  return [a, a1, ...mid, b1, b];
-}
-
 export function Plug({ p, n, color }) {
   const q = useMemo(() => quatFromNormal(n), [n]);
   const pos = useMemo(() => new THREE.Vector3(...p).addScaledVector(new THREE.Vector3(...n).normalize(), 0.022), [p, n]);
@@ -920,50 +802,6 @@ export function Plug({ p, n, color }) {
     <group position={pos} quaternion={q}>
       <mesh castShadow><cylinderGeometry args={[0.014, 0.012, 0.045, 14]} /><meshStandardMaterial color="#121418" metalness={0.5} roughness={0.35} /></mesh>
       <mesh position={[0, 0.006, 0]}><cylinderGeometry args={[0.0145, 0.0145, 0.008, 14]} /><meshStandardMaterial color={color} /></mesh>
-    </group>
-  );
-}
-
-function Cable3D({ A, B, layout, cable, live, onDisconnect }) {
-  const hold = useHoldCamera();
-  const color = CABLES[cable].stroke;
-  const key = `${A.p.join()}|${B.p.join()}|${A.n.join()}|${B.n.join()}`;
-  const curve = useMemo(() => new THREE.CatmullRomCurve3(routePoints(A, B, layout), false, 'centripetal'), [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const geo = useMemo(() => new THREE.TubeGeometry(curve, 160, 0.0095, 8, false), [curve]);
-  useEffect(() => () => geo.dispose(), [geo]);
-  const [hover, setHover] = useState(false);
-  const pulses = useRef([]);
-  useFrame(({ clock }) => {
-    pulses.current.forEach((m, i) => {
-      if (!m) return;
-      const t = (clock.elapsedTime * 0.35 + i / 4) % 1;
-      m.position.copy(curve.getPointAt(t));
-    });
-  });
-  return (
-    <group>
-      <mesh
-        geometry={geo} castShadow
-        onPointerDown={(e) => { e.stopPropagation(); hold(); }}
-        onClick={(e) => { e.stopPropagation(); if (e.delta < 10) onDisconnect(); }}
-        onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
-        onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
-      >
-        <meshStandardMaterial color={color} roughness={0.5} emissive={color} emissiveIntensity={hover ? 0.6 : live ? 0.18 : 0} />
-      </mesh>
-      {live && [0, 1, 2, 3].map((i) => (
-        <mesh key={i} ref={(el) => { pulses.current[i] = el; }} raycast={noRaycast}>
-          <sphereGeometry args={[0.017, 12, 10]} />
-          <meshBasicMaterial color="#ffffff" toneMapped={false} />
-        </mesh>
-      ))}
-      <Plug p={A.p} n={A.n} color={color} />
-      <Plug p={B.p} n={B.n} color={color} />
-      {hover && (
-        <Label position={curve.getPointAt(0.5)} center wrapperClass="bm-noevents">
-          <div className="whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[11px] text-white">{CABLES[cable].name} · 클릭하면 분리</div>
-        </Label>
-      )}
     </group>
   );
 }
@@ -1094,252 +932,6 @@ export function FeedbackArc({ from, to }) {
   );
 }
 
-function CameraRig({ layout, resetKey, shake, portWorld, focus }) {
-  const { camera, controls, gl, size } = useThree();
-  // 자동 테스트용 훅: window.__BM_TEST가 있을 때만 단자의 화면 좌표를 계산해 준다
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.__BM_TEST) return;
-    window.__BM_TEST.project = (d, p) => {
-      const v = new THREE.Vector3(...portWorld(d, p).p).project(camera);
-      const r = gl.domElement.getBoundingClientRect();
-      return [r.left + ((v.x + 1) / 2) * r.width, r.top + ((1 - v.y) / 2) * r.height];
-    };
-  });
-  // 화면 비율에 맞춰 모든 장비가 보이도록 카메라 거리를 자동 조정
-  const aspect = size.width / Math.max(1, size.height);
-  useEffect(() => {
-    const target = new THREE.Vector3(...layout.camera.target);
-    const dir = new THREE.Vector3(...layout.camera.pos).sub(target);
-    const base = dir.length();
-    const fit = (layout.camera.halfW * (aspect < 1 ? 0.78 : 1)) / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect);
-    const dist = Math.min(11, Math.max(base, fit * 1.05));
-    camera.position.copy(target).addScaledVector(dir.normalize(), dist);
-    if (controls) { controls.target.copy(target); controls.update(); }
-  }, [layout, resetKey, controls, camera, Math.round(aspect * 20)]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 더블클릭한 장비로 부드럽게 다가가기
-  const anim = useRef(null);
-  useEffect(() => {
-    if (!focus) return;
-    const target = new THREE.Vector3(...focus.target);
-    const dir = camera.position.clone().sub(controls ? controls.target : target).normalize();
-    dir.y = Math.max(dir.y, 0.45); dir.normalize();
-    anim.current = { target, pos: target.clone().addScaledVector(dir, focus.dist), t: 0 };
-  }, [focus?.key]); // eslint-disable-line react-hooks/exhaustive-deps
-  useFrame(({ clock }, dt) => {
-    const a = anim.current;
-    if (a && controls) {
-      const k = 1 - Math.exp(-Math.min(dt, 0.1) * 5);
-      controls.target.lerp(a.target, k);
-      camera.position.lerp(a.pos, k);
-      controls.update();
-      a.t += dt;
-      if (a.t > 1.6 || camera.position.distanceTo(a.pos) < 0.01) anim.current = null;
-    }
-  });
-  return null;
-}
-
-/* =====================================================================
- * Studio3D
- * ===================================================================== */
-export default function Studio3D({
-  stageId, layoutKey, interactive = true, autoRotate = false, fallback, devices, connections, mixer, speaker, atem, obs, actual, nominal, talking, jitter, viewers,
-  pending, selectedCable, selectedDevice, labels, resetKey, focusRequest, lockView = false,
-  onPortClick, onSelectDevice, onDisconnect, onPlace, onCancelPending,
-}) {
-  const layout = LAYOUTS[layoutKey] ?? (stageId >= 3 ? LAYOUTS.studio : LAYOUTS.pa);
-  const studio = !!layout.slots.pc;
-  const pointerRef = useRef(null);
-  const [focus, setFocus] = useState(null);
-  useEffect(() => { setFocus(null); }, [resetKey]);
-  const lv = (x) => (x == null ? null : x + (talking ? jitter : 0));
-
-  const slotOf = (id) => {
-    if (id === 'speaker' && layout.speakerFront && speaker.position === 'front') return layout.speakerFront;
-    return layout.slots[id];
-  };
-  const portWorld = (d, portId) => {
-    const slot = slotOf(d);
-    const def = PORTS3D[devices[d].type][portId];
-    const lp = rotY(def.p, slot.rot);
-    return {
-      p: [slot.pos[0] + lp[0], slot.pos[1] + lp[1], slot.pos[2] + lp[2]],
-      n: rotY(def.n, slot.rot),
-      onDesk: slot.pos[1] > 0.5,
-    };
-  };
-  const isUsed = (d, p) => connections.some((c) => (c.from.d === d && c.from.p === p) || (c.to.d === d && c.to.p === p));
-  const camTally = (id) => {
-    const n = Object.entries(nominal.camAt).find(([, c]) => c === id)?.[0];
-    if (!n) return null;
-    if (Number(n) === atem.program) return 'pgm';
-    if (Number(n) === atem.preview) return 'pvw';
-    return null;
-  };
-  const connLive = (c) => {
-    if (c.from.d === 'mic') return actual.chIn != null;
-    if (c.from.d === 'mixer' && c.from.p === 'main') return actual.mainOut != null;
-    if (c.from.d === 'mixer' && c.from.p === 'usb') return actual.usbSignal != null;
-    if (c.from.d.startsWith('cam')) return true;
-    if (c.from.d === 'atem') return c.from.p === 'usb' ? !!nominal.programCam : true;
-    return false;
-  };
-
-  // 화면 텍스처: OBS 모니터, X32 스크린
-  const obsAudioLv = lv(actual.obsAudio);
-  const obsTex = useCanvasTexture(1024, 576, (ctx, w, h) => drawObsScreen(ctx, w, h, { obsVideo: nominal.obsVideo, obs, atem, obsAudioLv, viewers }),
-    [nominal.obsVideo, obs.streaming, obs.audioSource, obs.audioMuted, obs.videoSource, atem.transitioning, Math.round((obsAudioLv ?? -99) / 2), viewers]);
-
-  const chLv = lv(actual.chIn);
-  const mainLv = lv(actual.mainOut);
-  const x32Tex = useCanvasTexture(1024, 256, (ctx, w, h) => drawX32Screen(ctx, w, h, { mixer, micAtCh: nominal.micAtCh, condenser: devices.mic?.type === 'condenser_mic', chLv, mainLv }),
-    [mixer.ch1Source, mixer.usbOut, mixer.phantom, mixer.chMute, mixer.mainMute, nominal.micAtCh, devices.mic?.type, Math.round((chLv ?? -99) / 3), Math.round((mainLv ?? -99) / 3)]);
-
-  const focusDevice = (id) => {
-    const slot = slotOf(id);
-    const f = FOCUS[devices[id].type] ?? { y: 0.5, dist: 1.5 };
-    setFocus({ target: [slot.pos[0], slot.pos[1] + f.y, slot.pos[2]], dist: f.dist, key: Date.now() });
-    onSelectDevice(id);
-  };
-
-  useEffect(() => {
-    if (focusRequest && devices[focusRequest.id]?.placed) focusDevice(focusRequest.id);
-  }, [focusRequest?.key]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const micSlot = layout.slots.mic;
-  const spkSlot = slotOf('speaker');
-  const placed = Object.values(devices).filter((d) => d.placed);
-  const ghosts = Object.values(devices).filter((d) => !d.placed);
-  const pendingWorld = pending ? portWorld(pending.d, pending.p) : null;
-
-  const renderModel = (d) => {
-    switch (d.type) {
-      case 'dynamic_mic':
-      case 'condenser_mic':
-        return <MicModel type={d.type} live={actual.chIn != null} phantomOk={nominal.micPowered && d.type === 'condenser_mic' && mixer.phantom} />;
-      case 'analog_mixer': return <AnalogMixerModel mixer={mixer} chLevel={chLv} mainLevel={mainLv} />;
-      case 'digital_mixer': return <DigitalMixerModel mixer={mixer} chLevel={chLv} mainLevel={mainLv} screenTex={x32Tex} />;
-      case 'speaker': return <SpeakerModel power={speaker.power} level={lv(actual.speakerLevel)} feedback={actual.feedback} />;
-      case 'camera': return <CameraModel tally={camTally(d.id)} />;
-      case 'atem': return <AtemModel atem={atem} camAt={nominal.camAt} />;
-      case 'pc': return <PcModel screenTex={obsTex} streaming={obs.streaming} />;
-      default: return null;
-    }
-  };
-
-  return (
-    <CanvasShell
-      fallback={fallback}
-      shadows
-      dpr={[1, 1.75]}
-      camera={{ fov: 40, position: layout.camera.pos, near: 0.05, far: 60 }}
-      onPointerMissed={() => onCancelPending()}
-      style={{ touchAction: 'none' }}
-    >
-      <color attach="background" args={['#131a27']} />
-      <fog attach="fog" args={['#131a27', 10, 24]} />
-      <ambientLight intensity={0.75} />
-      <hemisphereLight args={['#d6e2f5', '#2a2622', 1.0]} />
-      <directionalLight
-        position={[3.5, 6, 4]} intensity={2.4} castShadow
-        shadow-mapSize={[2048, 2048]} shadow-camera-left={-5} shadow-camera-right={5} shadow-camera-top={5} shadow-camera-bottom={-5}
-        shadow-bias={-0.0004}
-      />
-      <spotLight position={[-2.5, 4.2, 2.5]} angle={0.55} penumbra={0.7} intensity={30} decay={1.4} color="#ffe4c4" />
-      <spotLight position={[1.2, 3.6, 2.2]} angle={0.6} penumbra={0.8} intensity={22} decay={1.4} color="#f1f5ff" />
-      <pointLight position={[1, 2.6, 1.2]} intensity={2.2} distance={6} color="#a5c8ff" />
-
-      <CameraRig layout={layout} resetKey={resetKey} shake={actual.feedback} portWorld={portWorld} focus={focus} />
-      <OrbitControls
-        makeDefault enableDamping dampingFactor={0.2}
-        enableRotate={!lockView && !pending} autoRotate={autoRotate} autoRotateSpeed={0.5}
-        enableZoom={interactive} enablePan={interactive && !lockView && !pending}
-        minDistance={1.2} maxDistance={12} maxPolarAngle={Math.PI / 2.08}
-      />
-
-      <group onPointerMove={(e) => { if (pending) pointerRef.current = e.point.clone(); }}>
-        <Room layout={layout} live={obs.streaming} studio={studio} />
-        <Presenter position={layout.presenter} talking={talking} captured={actual.chIn != null} />
-        <AfterFirstFrame>
-
-        {placed.map((d) => {
-          const slot = slotOf(d.id);
-          const selected = selectedDevice === d.id;
-          const ports = PORTS3D[d.type];
-          const def = DEVICE_TYPES[d.type];
-          return (
-            <group key={d.id}>
-              <group
-                position={slot.pos} rotation={[0, slot.rot, 0]}
-                onClick={(e) => { e.stopPropagation(); if (e.delta < 6) onSelectDevice(d.id); }}
-                onDoubleClick={(e) => { e.stopPropagation(); focusDevice(d.id); }}
-              >
-                <DropIn>{renderModel(d)}</DropIn>
-                {selected && interactive && <SelectRing radius={SELECT_RADIUS[d.type] ?? 0.3} />}
-                {interactive && <Label position={FRONT_LABEL.has(d.type) ? [0, 0.03, GHOST[d.type][2] / 2 + 0.09] : [0, GHOST[d.type][1] + 0.16, 0]} center zIndexRange={[30, 0]}>
-                  <button type="button" onClick={() => onSelectDevice(d.id)} onDoubleClick={() => focusDevice(d.id)} data-device-label={d.id} style={{ pointerEvents: 'auto' }}
-                    title="클릭: 제어 패널 · 더블클릭: 확대해서 보기"
-                    className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${selected ? 'bg-sky-500 text-white' : 'bg-slate-900/80 text-slate-200 hover:bg-slate-700'}`}>
-                    {d.name ?? def.name}
-                  </button>
-                </Label>}
-              </group>
-              {interactive && Object.keys(ports).map((pid, idx) => {
-                const port = [...def.ins, ...def.outs].find((pp) => pp.id === pid);
-                const dir = def.ins.some((pp) => pp.id === pid) ? 'in' : 'out';
-                const w = portWorld(d.id, pid);
-                const used = isUsed(d.id, pid);
-                const isPending = pending && pending.d === d.id && pending.p === pid;
-                const candidate = pending && !isPending && pending.dir !== dir && pending.d !== d.id && !used;
-                return (
-                  <Port3D key={pid} p={w.p} n={w.n} port={port} label={SHORT_LABEL[`${d.type}:${pid}`] ?? port.label}
-                    lift={FRONT_LABEL.has(d.type) && idx % 2 ? 0.035 : 0} used={used} isPending={isPending} candidate={candidate}
-                    labels={labels} onClick={() => onPortClick(d.id, pid)} />
-                );
-              })}
-            </group>
-          );
-        })}
-
-        {interactive && ghosts.map((d) => {
-          const slot = slotOf(d.id);
-          const size = GHOST[d.type] ?? [0.4, 0.4, 0.4];
-          return (
-            <group key={d.id} position={slot.pos} rotation={[0, slot.rot, 0]}>
-              <mesh position={[0, size[1] / 2, 0]}>
-                <boxGeometry args={size} />
-                <meshBasicMaterial color="#38bdf8" wireframe transparent opacity={0.35} />
-              </mesh>
-              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
-                <circleGeometry args={[Math.max(size[0], size[2]) * 0.7, 40]} />
-                <meshBasicMaterial color="#38bdf8" transparent opacity={0.12} depthWrite={false} />
-              </mesh>
-              <Label position={[0, size[1] + 0.15, 0]} center zIndexRange={[40, 0]}>
-                <button type="button" onClick={() => onPlace(d.id)} style={{ pointerEvents: 'auto' }}
-                  className="whitespace-nowrap rounded-full border border-sky-300 bg-sky-600/90 px-3 py-1 text-[12px] font-bold text-white shadow-lg hover:bg-sky-500">
-                  + {d.name ?? DEVICE_TYPES[d.type].name} 배치
-                </button>
-              </Label>
-            </group>
-          );
-        })}
-
-        {connections.map((c) => (
-          <Cable3D key={c.id} A={portWorld(c.from.d, c.from.p)} B={portWorld(c.to.d, c.to.p)} layout={layout}
-            cable={c.cable} live={connLive(c)} onDisconnect={() => onDisconnect(c)} />
-        ))}
-
-        {pendingWorld && <PendingCable from={pendingWorld} pointerRef={pointerRef} color={selectedCable ? CABLES[selectedCable].stroke : '#94a3b8'} />}
-
-        {actual.feedback && devices.speaker?.placed && devices.mic?.placed && (
-          <FeedbackArc from={[spkSlot.pos[0], 1.45, spkSlot.pos[2]]} to={[micSlot.pos[0], 1.42, micSlot.pos[2]]} />
-        )}
-        </AfterFirstFrame>
-      </group>
-    </CanvasShell>
-  );
-}
-
 /* =====================================================================
  * 교육 모드용 뷰어 — 장비 하나를 받침대 위에 올려 돌려 보며 단자를 확인한다
  * ===================================================================== */
@@ -1352,12 +944,18 @@ const VIEW = {
   di_box: { target: [0, DESK_TOP + 0.03, 0], dist: 0.42 }, headphones: { target: [0.03, DESK_TOP + 0.12, 0], dist: 0.6 },
   mirrorless: { target: [-0.02, DESK_TOP + 0.2, 0], dist: 0.55 }, ptz: { target: [0, DESK_TOP + 0.12, 0], dist: 0.6 },
   atem_pro: { target: [0, DESK_TOP + 0.12, -0.1], dist: 1.05 },
+  monitor: { target: [0, 0.2, 0], dist: 1.2 }, ptz_controller: { target: [0, DESK_TOP + 0.05, 0], dist: 0.6 },
+  lighting_console: { target: [0, DESK_TOP + 0.12, 0], dist: 1.4 }, par_led: { target: [0, 1.5, 0], dist: 1.4 }, moving_head: { target: [0, 1.45, 0], dist: 1.5 },
+  media_server: { target: [0.1, DESK_TOP + 0.25, 0], dist: 1.4 }, projector: { target: [0, 1.4, 0], dist: 2.6 }, led_wall: { target: [0, 1.5, 0], dist: 3.6 },
 };
 // 책상(받침대) 위에 올려 보여 줄 장비와 받침대 크기 [가로, 세로]
 const PEDESTAL = {
   analog_mixer: [0.85, 0.65], digital_mixer: [1.3, 0.65], atem: [0.6, 0.4], pc: [1.3, 0.65], audio_interface: [0.42, 0.32],
   wireless_mic: [0.55, 0.38], di_box: [0.32, 0.32], headphones: [0.45, 0.35], mirrorless: [0.42, 0.38], ptz: [0.4, 0.4], atem_pro: [0.75, 0.75],
+  ptz_controller: [0.5, 0.35], lighting_console: [1.15, 0.75], media_server: [1.3, 0.65],
 };
+// 매달아 보여 줄 장비 (스탠드 높이)
+const HANG_H = { par_led: 1.75, moving_head: 1.8, projector: 1.75 };
 
 function ViewerRig({ target, dist }) {
   const { camera, controls } = useThree();
@@ -1396,7 +994,9 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   const def = DEVICE_TYPES[type];
   const v = VIEW[type];
   const onDesk = !!PEDESTAL[type];
-  const base = onDesk ? DESK_TOP : 0;
+  const base = onDesk ? DESK_TOP : HANG_H[type] ?? 0;
+  const vjTex = useCanvasTexture(640, 360, (ctx, w, h) => drawComposition(ctx, demo.vj?.playing === false ? [] : demo.vj?.layers, 0, 0, w, h, 0, { master: demo.vj?.master ?? 100 }), [JSON.stringify(demo.vj)]);
+  const joyLcd = useCanvasTexture(400, 120, (ctx, w, h) => drawPtzLcd(ctx, w, h, { selected: demo.joySel ?? 0, ip: `192.168.1.2${(demo.joySel ?? 0) + 1}`, reach: true, framing: '설교자 클로즈업' }), [demo.joySel]);
   const obsTex = useCanvasTexture(1024, 576, (ctx, w, h) => drawObsScreen(ctx, w, h, {
     obsVideo: demo.obsVideo, obs: { streaming: demo.streaming, audioSource: 'x32', audioMuted: false, videoSource: 'atem' },
     atem: { transitioning: false }, obsAudioLv: demo.level, viewers: 1280,
@@ -1437,6 +1037,17 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   if (type === 'mirrorless') model = <MirrorlessModel zoom={demo.zoom} rec={demo.rec} lcdTex={camLcdTex} />;
   if (type === 'ptz') model = <PtzModel pan={demo.pan} tilt={demo.tilt} zoom={demo.zoom} tally={demo.tally} />;
   if (type === 'atem_pro') model = <AtemProModel atem={demo.atem} streaming={demo.streaming} recording={demo.recording} pip={demo.pip} mvTex={mvTex} />;
+  if (type === 'monitor') model = <WedgeModel power={demo.power} level={demo.power && demo.talking ? -12 : null} feedback={demo.power && demo.wedgeFeedback} />;
+  const L = demo.light ?? { intensity: 0.8, color: '#ffffff', pan: 0, tilt: 0 };
+  if (type === 'par_led') model = <ParLedModel intensity={L.intensity} color={L.color} flicker={L.flicker} aimTilt={0.55} beamLength={2.2} />;
+  if (type === 'moving_head') model = <MovingHeadModel intensity={L.intensity} color={L.color} pan={L.pan} tilt={L.tilt} flicker={L.flicker} aimTilt={0.3} beamLength={2.2} />;
+  if (type === 'lighting_console') model = <LightingConsoleModel cs={demo.cs} />;
+  if (type === 'media_server') model = <MediaServerModel m={demo.vj} />;
+  if (type === 'projector') model = <ProjectorModel power={demo.screenOn} on={demo.screenOn} />;
+  if (type === 'led_wall') model = <group scale={0.55}><LedWallModel w={4.2} h={2.25} tex={vjTex} on={demo.screenOn} power={demo.screenOn} /></group>;
+  if (type === 'ptz_controller') model = <PtzControllerModel selected={demo.joySel ?? 0} tallies={['pgm', 'pvw', null, null]} lcdTex={joyLcd} />;
+  const portMap = PORTS3D[type] ?? PORTS_EXTRA[type] ?? PORTS_LIGHT[type] ?? {};
+  const portScale = type === 'led_wall' ? 0.55 : 1;
 
   return (
     <CanvasShell shadows dpr={[1, 1.75]} camera={{ fov: 38, near: 0.02, far: 40, position: [1, 1.5, 2] }} style={{ touchAction: 'none' }}>
@@ -1455,12 +1066,21 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
           <meshStandardMaterial color="#6b4f3a" roughness={0.6} />
         </RoundedBox>
       )}
-      <group position={[0, base, 0]}>
+      {HANG_H[type] && (
+        <group>
+          <mesh position={[0, base / 2, -0.02]} castShadow><cylinderGeometry args={[0.02, 0.025, base, 10]} /><meshStandardMaterial color="#1c1f24" metalness={0.5} /></mesh>
+          <mesh position={[0, base + 0.06, 0]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.02, 0.02, 0.6, 8]} /><meshStandardMaterial color="#9ca3af" metalness={0.8} /></mesh>
+          {[0, 2.094, 4.188].map((a) => <mesh key={a} position={[Math.sin(a) * 0.25, 0.12, Math.cos(a) * 0.25]} rotation={[Math.cos(a) * 1.0, 0, -Math.sin(a) * 1.0]}><cylinderGeometry args={[0.012, 0.012, 0.6, 6]} /><meshStandardMaterial color="#1c1f24" /></mesh>)}
+        </group>
+      )}
+      {type === 'projector' && <group position={[0, 1.2, -2.2]}><ProjectedScreen w={2.2} h={1.24} tex={vjTex} on={demo.screenOn} /></group>}
+      <group position={[0, base, 0]} rotation={[0, type === 'projector' ? Math.PI : 0, 0]}>
         {model}
-        {Object.entries(PORTS3D[type]).map(([pid, pd], idx) => {
+        {Object.entries(portMap).map(([pid, pd], idx) => {
           const port = [...def.ins, ...def.outs].find((pp) => pp.id === pid);
+          if (!port) return null;
           return (
-            <StaticPort key={pid} p={pd.p} n={pd.n} port={port} label={SHORT_LABEL[`${type}:${pid}`] ?? port.label}
+            <StaticPort key={pid} p={pd.p.map((v) => v * portScale)} n={pd.n} port={port} label={SHORT_LABEL[`${type}:${pid}`] ?? port.label}
               lift={STAGGER.has(type) && idx % 2 ? (PORT_SCALE[type] ? 0.022 : 0.035) : 0} scale={PORT_SCALE[type] ?? 1} />
           );
         })}

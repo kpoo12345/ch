@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, BookOpen, CheckCircle2, XCircle, Lightbulb, AlertTriangle, MapPin, Cpu, Plug, Play,
-  Mic, SlidersHorizontal, Camera, Tv, MonitorPlay, Cable, GraduationCap, ArrowRight, AudioLines, Workflow, Check,
+  Mic, SlidersHorizontal, Camera, Tv, MonitorPlay, Cable, GraduationCap, ArrowRight, AudioLines, Workflow, Check, Lightbulb as LightIcon, Clapperboard,
 } from 'lucide-react';
+import { CLIPS } from './scenes.js';
 import { DEVICE_TYPES, PORT_KIND_LABEL, PORT_COLOR, CABLES, MIXER_DEFAULT, MIC_LEVEL, faderDb, fmtDb } from './engine.js';
 import { EquipmentViewer, CableShowcase, MixerSizeViewer } from './Studio3D.jsx';
 import AudioLab from './AudioLab.jsx';
@@ -13,7 +14,8 @@ import { EDU_CATEGORIES, EDU_ITEMS } from './eduContent.js';
  * 교육 모드 — 장비를 3D로 돌려 보고, 직접 만져 보고, 퀴즈로 확인한다
  * ===================================================================== */
 
-const CAT_ICON = { '기초 개념': Workflow, 마이크: Mic, '음향 장비': SlidersHorizontal, '소리 다루기': AudioLines, 카메라: Camera, 'ATEM · 스위처': Tv, 송출: MonitorPlay, 케이블: Cable };
+const CAT_ICON = { '기초 개념': Workflow, 마이크: Mic, '음향 장비': SlidersHorizontal, '소리 다루기': AudioLines, 카메라: Camera, 'ATEM · 스위처': Tv, 송출: MonitorPlay, 조명: LightIcon, '영상 연출': Clapperboard, 케이블: Cable };
+const STAGE_TITLE = { 'live-2': '4장 모니터 믹스', 'ptz-1': '8장 PTZ 조이스틱', 'ptz-2': '8장 탈리 운용', 'light-1': '6장 설교 조명', 'light-2': '6장 무빙 큐', 'light-3': '6장 조명 사고', 'vj-1': '7장 가사 띄우기', 'vj-2': '7장 LED와 송출' };
 
 const DEMO_DEFAULT = {
   talking: true,
@@ -31,7 +33,17 @@ const DEMO_DEFAULT = {
   clean: false, rec: true, zoom: 0.3, pan: 0, tilt: 0,
   // ATEM Mini Pro
   pip: false, recording: false,
+  // 조명
+  light: { intensity: 0.85, color: '#2563eb', pan: 20, tilt: 15, flicker: false },
+  cs: { gm: 100, blackout: false, patch: [{ n: 1, label: 'FRONT L', type: 'par_led', address: 1 }, { n: 2, label: 'FRONT R', type: 'par_led', address: 9 }, { n: 3, label: 'MOVER 1', type: 'moving_head', address: 17 }],
+    playbacks: [{ label: '프론트 워시', level: 80, cue: { fixtures: [1, 2], intensity: 85, color: '#fff1d6' } }, { label: '찬양 블루', level: 0, cue: { fixtures: [3], intensity: 100, color: '#2563eb' } }], programmer: { sel: [], intensity: null, color: null, pan: null, tilt: null } },
+  // 미디어 서버 / 화면
+  vj: { layers: [{ clip: 'concert', opacity: 100 }, { clip: 'lyrics', opacity: 0 }, { clip: 'logo', opacity: 100 }], master: 100, out1: 'comp', out2: 'comp', playing: true, compRes: '1920x1080' },
+  screenOn: true,
+  // 모니터 / 조이스틱
+  wedgeFeedback: false, joySel: 0,
 };
+const LIGHT_COLORS = [['#ffffff', '흰색'], ['#fff1d6', '따뜻한 흰색'], ['#ef4444', '빨강'], ['#facc15', '노랑'], ['#22c55e', '초록'], ['#2563eb', '파랑'], ['#a855f7', '보라'], ['#ec4899', '분홍']];
 const PTZ_PRESETS = { 1: { pan: 0, tilt: 0, zoom: 0.2, name: '정면 와이드' }, 2: { pan: -35, tilt: 8, zoom: 0.8, name: '진행자 클로즈업' }, 3: { pan: 40, tilt: -6, zoom: 0.5, name: '객석' } };
 
 /* ---------------------------- 체험 컨트롤 ---------------------------- */
@@ -228,6 +240,77 @@ function DemoControls({ type, demo, set }) {
             <ToggleBtn on={demo.pip} color="green" onClick={() => set({ ...demo, pip: !demo.pip })}>PIP</ToggleBtn>
           </div>
           <p className="text-xs text-slate-400">뒤쪽 모니터가 HDMI OUT의 멀티뷰 화면입니다. 입력 3은 PC 슬라이드, 4는 신호 없음입니다.</p>
+        </div>
+      );
+    case 'monitor':
+      return (
+        <div className="flex flex-wrap gap-2 items-center">
+          {talk}
+          <ToggleBtn on={demo.power} color="green" onClick={() => set({ ...demo, power: !demo.power })}>전원 {demo.power ? 'ON' : 'OFF'}</ToggleBtn>
+          <ToggleBtn on={demo.wedgeFeedback} onClick={() => set({ ...demo, wedgeFeedback: !demo.wedgeFeedback })}>AUX 과다 → 하울링</ToggleBtn>
+          <p className="text-xs text-slate-400 w-full">웨지는 마이크 바로 앞에 있어 AUX를 너무 올리면 가장 먼저 하울링이 납니다.</p>
+        </div>
+      );
+    case 'par_led':
+    case 'moving_head':
+      return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">{LIGHT_COLORS.map(([c, n]) => <button key={c} type="button" title={n} aria-label={n} onClick={() => set({ ...demo, light: { ...demo.light, color: c } })} className={`w-8 h-8 rounded-full border-2 ${demo.light.color === c ? 'border-white' : 'border-slate-600'}`} style={{ background: c }} />)}</div>
+          <Slider id="edu-int" label="밝기 (Intensity)" value={Math.round(demo.light.intensity * 100)} min={0} max={100} onChange={(v) => set({ ...demo, light: { ...demo.light, intensity: v / 100 } })} display={`${Math.round(demo.light.intensity * 100)}%`} />
+          {type === 'moving_head' && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Slider id="edu-lpan" label="PAN (좌우)" value={demo.light.pan} min={-90} max={90} onChange={(v) => set({ ...demo, light: { ...demo.light, pan: v } })} display={`${demo.light.pan}°`} />
+              <Slider id="edu-ltilt" label="TILT (상하)" value={demo.light.tilt} min={-60} max={60} onChange={(v) => set({ ...demo, light: { ...demo.light, tilt: v } })} display={`${demo.light.tilt}°`} />
+            </div>
+          )}
+          <ToggleBtn on={demo.light.flicker} onClick={() => set({ ...demo, light: { ...demo.light, flicker: !demo.light.flicker } })}>마이크 케이블로 연결 (깜빡임 체험)</ToggleBtn>
+        </div>
+      );
+    case 'lighting_console': {
+      const cs = demo.cs;
+      const setCs = (c) => set({ ...demo, cs: { ...cs, ...c } });
+      return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-3 items-end">
+            {cs.playbacks.map((pb, i) => (
+              <label key={i} className="flex flex-col items-center text-[11px] text-slate-300 gap-1">
+                <input type="range" min={0} max={100} value={pb.level} onChange={(e) => setCs({ playbacks: cs.playbacks.map((x, j) => (j === i ? { ...x, level: Number(e.target.value) } : x)) })} className="h-20 accent-orange-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
+                PB{i + 1} {pb.label}
+              </label>
+            ))}
+            <label className="flex flex-col items-center text-[11px] text-rose-300 gap-1">
+              <input type="range" min={0} max={100} value={cs.gm} onChange={(e) => setCs({ gm: Number(e.target.value) })} className="h-20 accent-rose-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />GM
+            </label>
+            <ToggleBtn on={cs.blackout} onClick={() => setCs({ blackout: !cs.blackout })}>BLACKOUT</ToggleBtn>
+          </div>
+          <p className="text-xs text-slate-400">플레이백 페이더는 저장된 장면(큐)의 밝기, GM은 전체 밝기입니다. 화면에서 패치 표와 플레이백 레벨이 함께 바뀝니다.</p>
+        </div>
+      );
+    }
+    case 'media_server':
+    case 'led_wall':
+    case 'projector': {
+      const vj = demo.vj;
+      return (
+        <div className="space-y-2">
+          {[2, 1, 0].map((li) => (
+            <div key={li} className="flex flex-wrap items-center gap-1">
+              <span className="text-[11px] font-bold text-rose-300 w-14">Layer {li + 1}</span>
+              {Object.keys(CLIPS).map((c) => <button key={c} type="button" onClick={() => set({ ...demo, vj: { ...vj, layers: vj.layers.map((l, j) => (j === li ? { ...l, clip: l.clip === c ? null : c } : l)) } })}
+                className={`px-1.5 py-0.5 rounded text-[10px] ${vj.layers[li].clip === c ? 'bg-rose-500 text-white' : 'bg-slate-700 text-slate-300'}`}>{CLIPS[c].name}</button>)}
+              <input type="range" min={0} max={100} value={vj.layers[li].opacity} aria-label={`레이어 ${li + 1} 투명도`} onChange={(e) => set({ ...demo, vj: { ...vj, layers: vj.layers.map((l, j) => (j === li ? { ...l, opacity: Number(e.target.value) } : l)) } })} className="w-24 accent-rose-500" />
+            </div>
+          ))}
+          {type !== 'media_server' && <ToggleBtn on={demo.screenOn} color="green" onClick={() => set({ ...demo, screenOn: !demo.screenOn })}>전원 {demo.screenOn ? 'ON' : 'OFF'}</ToggleBtn>}
+          <p className="text-xs text-slate-400">레이어 1이 맨 아래, 3이 맨 위입니다. 가사(Layer 2)의 투명도를 올려 보세요.</p>
+        </div>
+      );
+    }
+    case 'ptz_controller':
+      return (
+        <div className="flex flex-wrap gap-2 items-center">
+          {[0, 1, 2, 3].map((i) => <button key={i} type="button" onClick={() => set({ ...demo, joySel: i })} className={`px-3 py-1.5 rounded text-xs font-bold ${demo.joySel === i ? 'bg-sky-600 text-white' : 'bg-slate-700'}`}>CAM {i + 1}</button>)}
+          <p className="text-xs text-slate-400 w-full">CAM 1 = 빨간 탈리(방송 중), CAM 2 = 초록 탈리(PVW). 방송 중인 카메라는 움직이지 않습니다.</p>
         </div>
       );
     default: return null;
@@ -643,7 +726,69 @@ function MixerSizes({ item }) {
   );
 }
 
+function DmxVisual() {
+  const chain = [['콘솔', 'DMX OUT', null], ['LED 파 1', '001~008', 8], ['LED 파 2', '009~016', 8], ['무빙 1', '017~032', 16], ['무빙 2', '033~048', 16]];
+  return (
+    <div className="p-4 space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {chain.map(([n, a, fp], i) => (
+          <React.Fragment key={n}>
+            <div className={`rounded-lg border px-2.5 py-2 text-center ${i ? 'border-lime-500/60 bg-lime-950/40' : 'border-orange-400/60 bg-orange-950/40'}`}>
+              <div className="text-xs font-bold text-slate-100">{n}</div>
+              <div className="text-[11px] font-mono text-lime-300">{a}</div>
+              {fp && <div className="text-[10px] text-slate-400">{fp}채널</div>}
+            </div>
+            {i < chain.length - 1 && <span className="text-lime-400 text-xs font-bold">IN←OUT</span>}
+          </React.Fragment>
+        ))}
+        <div className="rounded-full border border-lime-400 px-2 py-1 text-[10px] text-lime-200">터미네이터 120Ω</div>
+      </div>
+      <div className="h-6 rounded bg-slate-950 border border-slate-700 relative overflow-hidden" aria-label="512 채널 중 사용 범위">
+        {[[0, 8, '#38bdf8'], [8, 8, '#22c55e'], [16, 16, '#f472b6'], [32, 16, '#a78bfa']].map(([st, len, c], i) => <div key={i} className="absolute top-0 bottom-0" style={{ left: `${(st / 64) * 100}%`, width: `${(len / 64) * 100}%`, background: c, opacity: 0.8 }} />)}
+        <span className="absolute right-1 top-0.5 text-[10px] text-slate-300">채널 1 ~ 64 (유니버스 1 = 512채널)</span>
+      </div>
+      <p className="text-xs text-slate-400">각 조명은 자기 시작 주소부터 채널 수만큼만 읽습니다. 범위가 겹치면 두 조명이 서로의 값을 읽어 엉뚱하게 움직입니다.</p>
+    </div>
+  );
+}
+function LayersVisual() {
+  const layers = [['Layer 3', '로고', '#38bdf8'], ['Layer 2', '가사', '#f8fafc'], ['Layer 1', '배경 영상', '#f59e0b']];
+  return (
+    <div className="p-4 grid sm:grid-cols-2 gap-4 items-center">
+      <div className="space-y-1.5">
+        {layers.map(([l, n, c], i) => (
+          <div key={l} className="rounded border border-slate-600 px-3 py-2 flex items-center gap-2 bg-slate-900" style={{ marginLeft: i * 14 }}>
+            <span className="w-3 h-3 rounded-sm" style={{ background: c }} /><b className="text-xs">{l}</b><span className="text-xs text-slate-300">{n}</span>
+          </div>
+        ))}
+        <div className="text-[11px] text-slate-400">↑ 위 레이어가 앞에 보임</div>
+      </div>
+      <div className="space-y-2 text-xs">
+        <div className="rounded-lg border border-rose-500/50 p-2"><b className="text-rose-300">출력 1 → LED 전광판</b><div className="text-slate-400">배경 + 가사, LED 해상도에 맞춤</div></div>
+        <div className="rounded-lg border border-sky-500/50 p-2"><b className="text-sky-300">출력 2 → ATEM 입력 3</b><div className="text-slate-400">방송용 오프닝·자막 그래픽</div></div>
+      </div>
+    </div>
+  );
+}
+function IpVisual() {
+  const devs = [['PTZ 카메라', '192.168.1.21', true], ['PTZ 조이스틱', '192.168.1.10', true], ['ATEM Mini Pro', '192.168.1.240', true], ['다른 대역 카메라', '192.168.0.21', false]];
+  return (
+    <div className="p-4 space-y-3">
+      <div className="mx-auto w-fit rounded-lg border border-teal-400/60 bg-teal-950/40 px-4 py-2 text-center"><div className="text-sm font-bold">공유기 / 스위치</div><div className="text-[11px] font-mono text-teal-300">192.168.1.1</div></div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {devs.map(([n, ip, ok]) => (
+          <div key={n} className={`rounded-lg border p-2 text-center ${ok ? 'border-green-500/50' : 'border-red-500/60'}`}>
+            <div className="text-xs font-bold">{n}</div><div className="text-[11px] font-mono text-slate-300">{ip}</div>
+            <div className={`text-[10px] ${ok ? 'text-green-300' : 'text-red-300'}`}>{ok ? '통신 가능' : '대역이 달라 못 찾음'}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const CONCEPT = {
+  dmx: DmxVisual, layers: LayersVisual, ipnet: IpVisual,
   flow: FlowVisual, gain: GainVisual, feedback: FeedbackVisual, pgmpvw: PgmPvwVisual,
   levels: LevelsVisual, camsettings: CamSettingsVisual, multiview: MultiviewVisual, transitions: TransitionsVisual,
   balanced: BalancedVisual, cablemap: CableMapVisual, cablecare: CableCareVisual,
@@ -855,7 +1000,7 @@ export default function EduMode({ onExit, onNavigate }) {
                   스튜디오에서 직접 설치해 보기 <ArrowRight size={15} />
                 </button>
                 {item.stage && (
-                  <button type="button" onClick={() => onNavigate('story', item.stage)} className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm">스토리 스테이지 {item.stage}에서 실습</button>
+                  <button type="button" onClick={() => onNavigate('story', item.stage)} className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm">스토리 {typeof item.stage === 'string' ? (STAGE_TITLE[item.stage] ?? item.stage) : `스테이지 ${item.stage}`}에서 실습</button>
                 )}
               </div>
             </section>
