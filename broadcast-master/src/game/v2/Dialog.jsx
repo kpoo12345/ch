@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Hand, ChevronLeft, ChevronRight, Pause, Play, X, Headphones, Wand2, CheckCircle2, FastForward } from 'lucide-react';
 import { Seg, Toggle } from './controls.jsx';
 import { saveProgress } from '../ui.jsx';
@@ -12,6 +12,7 @@ import { saveProgress } from '../ui.jsx';
 export default function Dialog({ player, tutorial, speaker = '선배 엔지니어' }) {
   const { script, narration, waiting, speaking, praised } = player;
   const [shown, setShown] = useState(0);
+  const seqRef = useRef(null);
   const text = narration?.text ?? '';
   // 글자 나타내기: 지금 읽는 부분(offset부터)을 음성 길이에 맞춰. 음성이 단어 위치를 알려 주면(pos) 그만큼은 바로 보인다.
   // 속도를 바꾸면 읽던 곳부터 새 속도로 다시 계산된다
@@ -26,12 +27,12 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
       setShown((prev) => Math.max(prev, k));
       return k >= text.length;
     };
-    // 새 대사면 처음부터, 속도만 바뀌었으면 이미 보인 글자는 그대로
-    if (from === 0) setShown(0);
+    // 새 대사(또는 같은 대사를 처음부터 다시)면 처음부터, 속도만 바뀌었으면 이미 보인 글자는 그대로
+    if (narration?.seq !== seqRef.current) { seqRef.current = narration?.seq; setShown(0); }
     tick();
     const id = setInterval(() => { if (tick()) clearInterval(id); }, 35);
     return () => clearInterval(id);
-  }, [text, narration?.i, narration?.offset, narration?.t0, speaking]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, narration?.seq, narration?.offset, narration?.t0, speaking]); // eslint-disable-line react-hooks/exhaustive-deps
   // 음성이 알려 준 단어 위치까지는 바로 보이게
   useEffect(() => { if (narration?.pos) setShown((v) => Math.max(v, Math.min(text.length, narration.pos))); }, [narration?.pos]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!speaking && text) setShown(text.length); }, [speaking, text]);

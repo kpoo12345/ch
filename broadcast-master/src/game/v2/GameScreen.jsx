@@ -223,6 +223,12 @@ export default function GameScreen({
             <ViewBtn on={follow} onClick={() => setFollow(!follow)} icon={Video} label="조작 따라가기" />
             <ViewBtn onClick={() => { setFocusRequest({ id: 'overview', key: Date.now() }); }} icon={RotateCcw} label="전체 보기" />
           </div>
+          {/* 고른 단자 안내: 아래 막대 높이가 바뀌어 3D 화면이 흔들리지 않게 화면 위에 띄운다 */}
+          {onePending && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-2 z-20 max-w-[90%] truncate rounded-full bg-sky-600/90 px-3 py-1 text-[12px] font-bold text-white shadow-lg pointer-events-none">
+              선택한 단자: {onePending} → 연결할 단자를 누르세요
+            </div>
+          )}
           {/* 알림 */}
           {game.toast && <Toast toast={game.toast} onDone={() => game.setToast(null)} />}
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
@@ -274,7 +280,6 @@ export default function GameScreen({
                 </button>
               );
             })}
-            {onePending && <span className="text-[11px] text-sky-300">선택한 단자: {onePending} → 연결할 단자를 누르세요</span>}
           </div>
           <div className="flex items-center gap-1.5 ml-auto flex-wrap">
             <button type="button"

@@ -26,9 +26,12 @@ function utter(text, { rate = 1.05, volume = 1, pitch = 1 } = {}) {
 
 // onBoundary(charIndex): 단어를 읽기 시작할 때마다 (지원하는 목소리만) — 글자 표시를 음성에 맞추는 데 쓴다
 // onError: 목소리가 없거나 합성이 실패했을 때 (이때는 onEnd를 부르지 않는다 — 부르는 쪽이 시간으로 대신 끝낸다)
-export function narrate(text, { rate = 1, onEnd, onBoundary, onError } = {}) {
+// onStart: 실제로 소리가 나기 시작할 때 (글자 표시 시간을 여기서부터 잰다)
+export function narrate(text, { rate = 1, onEnd, onBoundary, onError, onStart } = {}) {
   if (!speechOk() || !text) { onEnd?.(); return; }
   const synth = window.speechSynthesis;
+  // 먼저 지금 말을 "끝난 것"으로 표시한 뒤 끊는다 — 사파리처럼 cancel 때 바로 끝 신호를 주는 브라우저에서 앞 대사가 다음 단계를 끝내지 않게
+  state.current = null;
   synth.cancel();
   clearTimeout(state.talkTimer);
   clearTimeout(state.narrTimer);
@@ -36,6 +39,7 @@ export function narrate(text, { rate = 1, onEnd, onBoundary, onError } = {}) {
   const u = utter(text, { rate, volume: 1, pitch: 1 });
   const done = () => { if (state.current === u) { state.narrating = false; state.current = null; onEnd?.(); scheduleTalk(400); } };
   u.onend = done;
+  u.onstart = () => { if (state.current === u) onStart?.(); };
   u.onerror = (e) => {
     if (state.current !== u) return;
     if (e?.error === 'interrupted' || e?.error === 'canceled') { done(); return; }

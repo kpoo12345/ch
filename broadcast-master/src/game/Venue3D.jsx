@@ -601,20 +601,42 @@ function CameraRig({ venue, resetKey, focus, portWorld }) {
     };
   });
   const aspect = size.width / Math.max(1, size.height);
-  useEffect(() => {
+  const anim = useRef(null);
+  const focused = useRef(false); // 장비에 확대해 둔 상태 (화면 크기가 바뀌어도 풀지 않는다)
+  const overview = () => {
     const cam = venue.camera;
     const target = new THREE.Vector3(...cam.target);
     const dir = new THREE.Vector3(...cam.pos).sub(target);
-    const base = dir.length();
     const fit = (cam.halfW * (aspect < 1 ? 0.8 : 1)) / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect);
-    const dist = Math.min(14, Math.max(base, fit * 1.05));
-    camera.position.copy(target).addScaledVector(dir.normalize(), dist);
-    if (controls) { controls.target.copy(target); controls.update(); }
-    anim.current = null;
-  }, [venue, resetKey, controls, camera, Math.round(aspect * 20)]); // eslint-disable-line react-hooks/exhaustive-deps
-  const anim = useRef(null);
+    const dist = Math.min(14, Math.max(dir.length(), fit * 1.05));
+    return { target, pos: target.clone().addScaledVector(dir.normalize(), dist) };
+  };
+  // 장소가 바뀌거나 처음부터 다시: 전체 보기로
+  useEffect(() => {
+    const o = overview();
+    camera.position.copy(o.pos);
+    if (controls) { controls.target.copy(o.target); controls.update(); }
+    anim.current = null; focused.current = false;
+  }, [venue, resetKey, controls, camera]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 화면 크기만 바뀜(믹서 콘솔 열기, 휴대폰 아래 막대 변화 등): 전체 보기일 때만 다시 맞추고, 확대해 둔 장비는 그대로
+  useEffect(() => {
+    if (focused.current) return;
+    const o = overview();
+    if (anim.current?.overview) { anim.current.pos = o.pos; return; }
+    if (anim.current) return;
+    camera.position.copy(o.pos);
+    if (controls) { controls.target.copy(o.target); controls.update(); }
+  }, [Math.round(aspect * 20)]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 사용자가 직접 돌리거나 끌면 "확대 상태"를 풀어, 다음 화면 크기 변화 때 전체 보기로 맞출 수 있게
+  useEffect(() => {
+    if (!controls) return undefined;
+    const onStart = () => { if (!anim.current) focused.current = false; };
+    controls.addEventListener('start', onStart);
+    return () => controls.removeEventListener('start', onStart);
+  }, [controls]);
   useEffect(() => {
     if (!focus) return;
+    focused.current = !focus.overview;
     const target = new THREE.Vector3(...focus.target);
     let pos;
     if (focus.overview) {
@@ -628,7 +650,7 @@ function CameraRig({ venue, resetKey, focus, portWorld }) {
       dir.y = Math.max(dir.y, 0.55); dir.normalize();
       pos = target.clone().addScaledVector(dir, focus.dist);
     }
-    anim.current = { target, pos, t: 0 };
+    anim.current = { target, pos, t: 0, overview: !!focus.overview };
   }, [focus?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   useFrame((_, dt) => {
     const a = anim.current;
@@ -716,6 +738,7 @@ export default function Venue3D({
     const dir = rotY([0, 0.9, 1], w.rot);
     const opFront = devices[id].type === 'analog_mixer' || devices[id].type === 'digital_mixer';
     setFocus({ target: [w.pos[0], w.pos[1] + f.y * w.scale, w.pos[2]], dist: f.dist * (opts.zoom ?? 1), dir: opFront ? dir : null, key: `${id}-${Date.now()}` });
+    lastFocus.current = { id, t: Date.now() }; // 어떤 길로 확대했든 기억 (따라가기·두 번째 클릭 판단에 씀)
     if (!opts.silent) onSelectDevice?.(id);
   };
   // 연습 단계에서 조작할 장비(믹서·스위처 등)가 정해지면 그쪽으로 확대 (케이블 단계는 양쪽이 다 보여야 해서 제외)
@@ -729,11 +752,10 @@ export default function Venue3D({
     if (lockView) { onSelectDevice?.(id); return; }
     const again = lastFocus.current?.id === id && Date.now() - lastFocus.current.t < 8000;
     focusDevice(id, { zoom: again ? 0.6 : 1 });
-    lastFocus.current = { id, t: Date.now() };
   };
   useEffect(() => {
     if (!focusRequest) return;
-    if (focusRequest.id === 'overview') setFocus({ overview: true, target: venue.camera.target, key: `ov-${focusRequest.key}` });
+    if (focusRequest.id === 'overview') { setFocus({ overview: true, target: venue.camera.target, key: `ov-${focusRequest.key}` }); lastFocus.current = null; }
     else if (devices[focusRequest.id]?.placed) focusDevice(focusRequest.id, { silent: true, zoom: focusRequest.zoom });
   }, [focusRequest?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -755,7 +777,9 @@ export default function Venue3D({
     const act = unplug ? { ...action, ctl: { ...action.ctl, kind: 'unplug', from: unplug } } : action;
     const c = resolveCue(act);
     if (c) setCue({ ...c, key: action.key, speed: action.speed });
-    if (follow && action.device && devices[action.device]?.placed) {
+    // 플레이어가 직접 확대한 장비를 직접 조작할 때는 따라가기가 시점을 빼지 않는다 (대본·유령 손 동작은 action.speed가 있다)
+    const userOnFocused = action.speed == null && lastFocus.current?.id === action.device && action.ctl?.kind !== 'cable';
+    if (follow && action.device && devices[action.device]?.placed && !userOnFocused) {
       // 조작 따라가기: 장소 기본 시점 방향을 유지한 채 조작 지점으로 다가간다 (화면이 휙 돌지 않게)
       const kind = act.ctl?.kind;
       let tgt = action.device;

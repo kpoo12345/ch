@@ -63,7 +63,8 @@ export function CanvasShell({ children, fallback, ...canvasProps }) {
   const fb = fallback === undefined ? <NoWebGL /> : fallback;
   if (!hasWebGL()) return fb;
   return (
-    <div className="relative w-full h-full">
+    // isolate: 3D 위 이름표들이 캔버스 안에서만 쌓여, 대화 상자 같은 화면 위 패널을 가리지 않게
+    <div className="relative w-full h-full isolate">
       <PortalCtx.Provider value={portal}>
         <GLBoundary fallback={fb}><Canvas {...canvasProps}>{children}</Canvas></GLBoundary>
       </PortalCtx.Provider>

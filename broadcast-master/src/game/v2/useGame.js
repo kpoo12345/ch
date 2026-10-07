@@ -277,11 +277,14 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     setWaiting(null); setPraised(false); setNarration(null);
     setScript({ steps, i: 0, playing: true, speed: opts.speed ?? 1, practice: !!opts.practice, auto: opts.auto ?? true, done: false, ready: false, restart: 0, onDone: opts.onDone, onStep: opts.onStep });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const stop = useCallback(() => { clear(); cur.current = { i: -1 }; setScript(null); setNarration(null); setWaiting(null); setSpeaking(false); game.setScriptTalk(null); stopNarration(); }, [game]); // eslint-disable-line react-hooks/exhaustive-deps
-  const pause = useCallback(() => { clear(); stopNarration(); setSpeaking(false); setScript((s) => (s ? { ...s, playing: false } : s)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 읽던 대사 정리 (끝 타이머까지) — 일시정지·건너뛰기·멈춤 뒤에 옛 대사가 단계를 끝내지 않게
+  const dropSpeech = () => { if (speech.current?.timer) clearTimeout(speech.current.timer); speech.current = null; };
+  const stop = useCallback(() => { clear(); dropSpeech(); cur.current = { i: -1 }; setScript(null); setNarration(null); setWaiting(null); setSpeaking(false); game.setScriptTalk(null); stopNarration(); }, [game]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pause = useCallback(() => { clear(); dropSpeech(); stopNarration(); setSpeaking(false); setScript((s) => (s ? { ...s, playing: false } : s)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const resume = useCallback(() => setScript((s) => (s ? { ...s, playing: true, restart: s.restart + 1 } : s)), []); // eslint-disable-line react-hooks/exhaustive-deps
   // 지금 읽는 대사: 속도를 바꾸면 읽던 곳부터 새 속도로 이어 읽는다
-  const speech = useRef(null); // { c, text, from, t0, ms, speed, pos, timer, end }
+  const speech = useRef(null); // { c, text, from, t0, ms, speed, pos, bound, timer, end }
+  const lineSeq = useRef(0); // 새 대사가 시작될 때마다 1씩 (속도만 바꾼 재낭독과 구별)
   const voiceRef = useRef(voiceOn);
   voiceRef.current = voiceOn; // 화면에서 음성을 껐다 켰다 하면 바로 반영 (콜백이 옛 값을 쥐지 않게)
   const speak = (c, text, from, speed, end) => {
@@ -290,32 +293,48 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const part = text.slice(from);
     const ms = speechMs(part, speed);
     const t0 = Date.now();
-    const s1 = { c, text, from, t0, ms, speed, pos: from, end, timer: null };
+    const s1 = { c, text, from, t0, ms, speed, pos: from, bound: false, end, timer: null };
     speech.current = s1;
     setNarration((n) => (n && n.text === text ? { ...n, ms, offset: from, t0, pos: from } : n));
+    const endIfCurrent = () => { if (speech.current === s1) end(); };
     if (voiceRef.current && speechOk()) {
       narrate(part, {
         rate: Math.max(0.6, Math.min(2, speed)),
-        onEnd: end,
-        onBoundary: (ci) => { if (speech.current === s1) { s1.pos = from + ci; setNarration((n) => (n && n.text === text ? { ...n, pos: from + ci } : n)); } },
+        onEnd: endIfCurrent,
+        // 소리가 실제로 나기 시작한 때부터 글자·위치를 잰다
+        onStart: () => { if (speech.current !== s1) return; s1.t0 = Date.now(); setNarration((n) => (n && n.text === text ? { ...n, t0: s1.t0 } : n)); },
+        onBoundary: (ci) => { if (speech.current === s1) { s1.pos = from + ci; s1.bound = true; setNarration((n) => (n && n.text === text ? { ...n, pos: from + ci } : n)); } },
         // 목소리가 없으면(합성 실패) 글자 속도대로 시간이 지나면 끝낸다
-        onError: () => { if (speech.current !== s1) return; clearTimeout(s1.timer); s1.timer = setTimeout(end, Math.max(0, ms - (Date.now() - t0))); },
+        onError: () => { if (speech.current !== s1) return; clearTimeout(s1.timer); s1.timer = setTimeout(endIfCurrent, Math.max(0, ms - (Date.now() - s1.t0))); },
       });
-      s1.timer = setTimeout(end, ms * 1.8 + 2500); // 음성 합성이 끝 신호를 안 줄 때 대비
-    } else s1.timer = setTimeout(end, ms);
+      s1.timer = setTimeout(endIfCurrent, ms * 1.8 + 2500); // 음성 합성이 끝 신호를 안 줄 때 대비
+    } else { stopNarration(); s1.timer = setTimeout(endIfCurrent, ms); }
+  };
+  // 지금 읽고 있는 위치: 음성이 단어 위치를 알려 주면 그 단어의 처음, 아니면 시간으로 짐작해 한 단어 앞 (건너뛰는 것보다 한 단어 다시 듣는 게 낫다)
+  const spokenPos = (sp) => {
+    if (sp.bound) return sp.pos;
+    const byTime = sp.from + Math.floor(((Date.now() - sp.t0) / sp.ms) * (sp.text.length - sp.from));
+    let pos = Math.min(sp.text.length, Math.max(sp.from, byTime));
+    for (let k = 0; k < 2; k += 1) { const cut = sp.text.lastIndexOf(' ', pos - 1); pos = cut >= sp.from ? cut : sp.from; }
+    return pos > sp.from ? pos + 1 : sp.from;
   };
   const setSpeed = useCallback((speed) => {
     setScript((s) => (s ? { ...s, speed } : s));
     const sp = speech.current;
-    if (!sp || sp.c !== cur.current || sp.c.speech || sp.speed === speed) return;
-    // 지금까지 읽은 위치 (음성이 단어 위치를 알려 주면 그것, 아니면 시간으로 짐작) → 단어 앞에서 끊어 이어 읽기
-    const byTime = sp.from + Math.floor(((Date.now() - sp.t0) / sp.ms) * (sp.text.length - sp.from));
-    let pos = Math.min(sp.text.length, Math.max(sp.pos, byTime));
-    const cut = Math.max(sp.text.lastIndexOf(' ', pos), sp.from);
-    pos = cut > sp.from ? cut + 1 : sp.from;
+    // 일시정지 중이면 속도만 바꾼다 (다시 재생할 때 새 속도로 읽는다)
+    if (!scriptRef.current?.playing || !sp || sp.c !== cur.current || sp.c.speech || sp.speed === speed) return;
+    const pos = spokenPos(sp);
     if (sp.text.length - pos < 3) return;
     speak(sp.c, sp.text, pos, speed, sp.end);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 대사 도중 음성을 끄면 바로 조용히, 남은 글자는 글자 속도대로
+  useEffect(() => {
+    if (voiceOn) return;
+    stopNarration();
+    const sp = speech.current;
+    if (!sp || !scriptRef.current?.playing || sp.c !== cur.current || sp.c.speech) return;
+    speak(sp.c, sp.text, spokenPos(sp), sp.speed, sp.end);
+  }, [voiceOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const setAuto = useCallback((auto) => setScript((s) => (s ? { ...s, auto } : s)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 유령 손이 지금 단계의 동작을 대신 한다
@@ -331,7 +350,7 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   const jump = useCallback((delta) => {
     const s = scriptRef.current;
     if (!s) return;
-    clear(); stopNarration(); setWaiting(null); setPraised(false); setSpeaking(false);
+    clear(); dropSpeech(); stopNarration(); setWaiting(null); setPraised(false); setSpeaking(false);
     if (delta > 0) {
       if (s.i < s.steps.length) ghostDo(s.i, false);
       setScript((x) => (x ? { ...x, i: Math.min(x.steps.length, x.i + 1), playing: true, ready: false, restart: x.restart + 1 } : x));
@@ -378,7 +397,7 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const text = step.say ?? null;
     const est = speechMs(text, speed);
     // 대사가 없는 단계에서는 앞 대사를 그대로 띄워 둔다 (상자가 깜빡이지 않게)
-    if (text) setNarration({ text, i, n: steps.length, ms: est, offset: 0, t0: Date.now(), pos: 0 });
+    if (text) setNarration({ text, i, n: steps.length, ms: est, offset: 0, t0: Date.now(), pos: 0, seq: (lineSeq.current += 1) });
     setPraised(false);
     const c = { i, speech: !text, action: !hasOp(step) || applied.current.has(i) };
     cur.current = c;
@@ -389,7 +408,7 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     } else { setSpeaking(false); if (speech.current?.timer) clearTimeout(speech.current.timer); speech.current = null; }
     if (!c.action) {
       if (sc.practice && step.practice) setWaiting({ ...step, index: i });
-      else if (step.op === 'wait') later(() => { if (cur.current === c) { applied.current.add(i); c.action = true; bump(); } }, (step.ms ?? 1000) / speed);
+      else if (step.op === 'wait') later(() => { if (cur.current === c) { applied.current.add(i); c.action = true; bump(); } }, (step.ms ?? 1000) / (scriptRef.current?.speed ?? speed));
       else {
         setWaiting(null);
         // 설명을 어느 정도 들은 뒤(약 40%) 손이 움직이기 시작
@@ -397,7 +416,8 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
         later(() => {
           if (cur.current !== c) return;
           ghostDo(i);
-          later(() => { if (cur.current === c) { c.action = true; bump(); } }, step.op === 'fade' ? (step.ms ?? 3000) + 300 : (ACTION_MS[step.op] ?? 1400) / speed);
+          // 손 동작이 끝나는 시간은 지금 속도로 (도중에 배속을 바꿔도 맞게)
+          later(() => { if (cur.current === c) { c.action = true; bump(); } }, step.op === 'fade' ? (step.ms ?? 3000) + 300 : (ACTION_MS[step.op] ?? 1400) / (scriptRef.current?.speed ?? speed));
         }, startAt);
       }
     } else setWaiting(null);
