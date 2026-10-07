@@ -756,7 +756,7 @@ export default function Venue3D({
   useEffect(() => {
     if (!focusRequest) return;
     if (focusRequest.id === 'overview') { setFocus({ overview: true, target: venue.camera.target, key: `ov-${focusRequest.key}` }); lastFocus.current = null; }
-    else if (devices[focusRequest.id]?.placed) focusDevice(focusRequest.id, { silent: true, zoom: focusRequest.zoom });
+    else if (!lockView && devices[focusRequest.id]?.placed) focusDevice(focusRequest.id, { silent: true, zoom: focusRequest.zoom }); // 시점 고정 중에는 확대하지 않음
   }, [focusRequest?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ----- 조작 → 유령 손 ----- */

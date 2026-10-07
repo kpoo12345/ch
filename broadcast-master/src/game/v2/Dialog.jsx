@@ -9,6 +9,8 @@ import { saveProgress } from '../ui.jsx';
  *  - 말하는 동안 글자가 한 글자씩 나타나고, 상자를 누르면 바로 전부 보인다
  *  - Enter·→ = 다음, ← = 이전
  * ===================================================================== */
+const SPEEDS = [1, 1.5, 2];
+
 export default function Dialog({ player, tutorial, speaker = '선배 엔지니어' }) {
   const { script, narration, waiting, speaking, praised } = player;
   const [shown, setShown] = useState(0);
@@ -38,6 +40,8 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
   useEffect(() => { if (!speaking && text) setShown(text.length); }, [speaking, text]);
 
   const ready = !!script?.ready;
+  const speed = SPEEDS.includes(script?.speed) ? script.speed : 1;
+  const setSpeed = (v) => { player.setSpeed(v); saveProgress('bm2-speed', v); };
   const full = shown >= text.length;
   const advance = () => {
     if (!full) { setShown(text.length); return; }
@@ -88,16 +92,19 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 border-t border-slate-800 px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-          <button type="button" onClick={() => player.jump(-1)} disabled={i === 0} className="flex items-center gap-0.5 rounded-md px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-30" aria-label="이전 장면"><ChevronLeft size={15} /> 이전</button>
+        <div className="flex items-center gap-1.5 whitespace-nowrap border-t border-slate-800 px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+          <button type="button" onClick={() => player.jump(-1)} disabled={i === 0} className="flex items-center gap-0.5 rounded-md px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-30" aria-label="이전 장면"><ChevronLeft size={15} /><span className="hidden sm:inline">이전</span></button>
           {script.playing
             ? <button type="button" onClick={player.pause} className="p-1 rounded hover:bg-slate-800 text-slate-300" aria-label="일시정지"><Pause size={15} /></button>
             : <button type="button" onClick={player.resume} className="p-1 rounded hover:bg-slate-800 text-slate-300" aria-label="다시 재생"><Play size={15} /></button>}
           <Toggle small on={!!script.auto} color="sky" onClick={() => player.setAuto(!script.auto)} title="켜면 다음 장면으로 저절로 넘어갑니다">
             <span className="inline-flex items-center gap-0.5"><FastForward size={11} /> 자동</span>
           </Toggle>
-          {tutorial && <Toggle small on={!!script.practice} color="amber" onClick={() => player.setPractice(!script.practice)} title="켜면 조작을 여러분이 직접 합니다">직접 해보기</Toggle>}
-          <Seg small value={script.speed ?? 1} options={[[1, '1x'], [1.5, '1.5x'], [2, '2x']]} onChange={(v) => { player.setSpeed(v); saveProgress('bm2-speed', v); }} />
+          {tutorial && <Toggle small on={!!script.practice} color="amber" onClick={() => player.setPractice(!script.practice)} title="켜면 조작을 여러분이 직접 합니다"><span className="sm:hidden">직접</span><span className="hidden sm:inline">직접 해보기</span></Toggle>}
+          {/* 속도: 넓은 화면은 세 칸, 휴대폰은 누를 때마다 1x→1.5x→2x로 바뀌는 단추 하나 (줄바꿈 방지) */}
+          <span className="hidden sm:block"><Seg small value={speed} options={SPEEDS.map((v) => [v, `${v}x`])} onChange={setSpeed} /></span>
+          <button type="button" onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])}
+            className="sm:hidden rounded-md bg-slate-800 px-1.5 py-1 text-[11px] font-bold text-slate-200 tabular-nums" aria-label={`말하기 속도 ${speed}배 (눌러서 바꾸기)`}>{speed}x</button>
           <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{Math.min(i + 1, n)} / {n}</span>
           {!tutorial && <button type="button" onClick={player.stop} className="p-1 rounded hover:bg-slate-800 text-slate-400" aria-label="자동 진행 끄기"><X size={15} /></button>}
           <button type="button" onClick={() => player.next()}
