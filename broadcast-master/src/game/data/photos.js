@@ -64,3 +64,4 @@ export const PHOTOS = {
 // 사진 파일 주소(data URL) — 아직 받지 못한 사진은 null
 export const photoSrc = (id) => PHOTO_FILES[id]?.src ?? null;
 export const photoCredit = (id) => PHOTO_FILES[id]?.credit ?? null;
+export const photoPage = (id) => PHOTO_FILES[id]?.url ?? null;

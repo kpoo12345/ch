@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Maximize2 } from 'lucide-react';
 import { DEVICE_TYPES, CABLES } from '../engine.js';
-import { PHOTOS, photoSrc, photoCredit } from '../data/photos.js';
+import { PHOTOS, photoSrc, photoCredit, photoPage } from '../data/photos.js';
 import { THUMBS } from '../thumbs/index.js';
 import { CONCEPT } from '../eduVisuals.jsx';
 
@@ -51,7 +51,13 @@ function Picture({ c, big, onZoom }) {
 
 function Credit({ c }) {
   const credit = c.photo && photoSrc(c.photo) ? photoCredit(c.photo) : null;
-  return credit ? <div className="truncate px-2 pb-1 text-[9px] text-slate-500" title={credit}>사진: {credit}</div> : null;
+  if (!credit) return null;
+  const page = photoPage(c.photo);
+  return (
+    <div className="truncate px-2 pb-1 text-[9px] text-slate-500" title={credit}>
+      사진: {page ? <a href={page} target="_blank" rel="noreferrer" className="underline hover:text-slate-300" onClick={(e) => e.stopPropagation()}>{credit}</a> : credit}
+    </div>
+  );
 }
 
 export default function VisualCard({ show }) {
