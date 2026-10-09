@@ -239,6 +239,21 @@ export function notePop(st, op, latched) {
   // 소리를 키우는 장비(액티브 스피커·웨지·파워 앰프)가 켜져 있을 때만. 패시브 스피커는 전원이 없어 앰프가 대신 "퍽"을 낸다
   const powered = Object.values(st.devices).filter((d) => d.placed && POP_TYPES.has(d.type) && st.dev[d.id]?.power);
   if (!powered.length) return null;
+  // +48V: 마이크가 꽂힌 채널이 모두 꺼져 있거나 페이더가 내려가 있으면(또는 STEREO가 바닥) "퍽"이 스피커까지 가지 않는다
+  if (!isCable) {
+    const mid = op.mixer ?? st.mixerId;
+    const t = st.devices[mid]?.type;
+    const S = mid ? mixerStateOf(st, mid) : null;
+    if (S) {
+      const micPorts = st.connections.filter((c) => c.to.d === mid).map((c) => c.to.p);
+      const open = micPorts.some((p) => {
+        const n = t === 'analog_mixer' ? (analogChOfPort(p) ?? 0) - 1 : /^local(\d+)$/.exec(p) ? Number(/^local(\d+)$/.exec(p)[1]) - 1 : null;
+        const ch = n == null || n < 0 ? null : S.channels[n];
+        return !!ch && !ch.mute && (ch.fader ?? 75) > 0 && (t !== 'analog_mixer' || /^in\d/.test(p));
+      });
+      if (!open || (S.master.mainFader ?? 75) <= 0) return null;
+    }
+  }
   // 믹서 쪽 끝이 헤드폰 단자거나, 페이더가 내려가 있거나 꺼진 채널 입력이면 스피커까지 "퍽"이 가지 않는다
   if (isCable) {
     const quiet = [op.from, op.to].map(String).some((e) => {
@@ -247,7 +262,7 @@ export function notePop(st, op, latched) {
       if (t === 'headphones') return true;
       if (t !== 'analog_mixer' && t !== 'digital_mixer') return false;
       if (p === 'phones') return true;
-      const n = t === 'analog_mixer' ? analogChOfPort(p) : /^local(\d+)$/.exec(p) ? Number(/^local(\d+)$/.exec(p)[1]) - 1 : null;
+      const n = t === 'analog_mixer' ? (analogChOfPort(p) ?? 0) - 1 : /^local(\d+)$/.exec(p) ? Number(/^local(\d+)$/.exec(p)[1]) - 1 : null;
       if (n == null || n < 0) return false;
       const ch = mixerStateOf(st, d).channels[n];
       return !!ch && (ch.mute || (ch.fader ?? 75) <= 0);
