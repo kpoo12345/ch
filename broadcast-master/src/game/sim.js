@@ -61,7 +61,7 @@ export const zoneOf = (venue, slot) => {
 const FRONT_SLOTS = new Set(['pa_alt']);
 
 /* ---------------------------- 기본값 ---------------------------- */
-export const CH_DEFAULT = { gain: 30, pad: false, lowCut: false, comp: 0, eqHigh: 0, eqMid: 0, eqFreq: 1000, eqLow: 0, aux: 0, aux2: 0, fx: 0, pan: 0, mute: false, pfl: false, fader: 75, phantom: false, patch: null };
+export const CH_DEFAULT = { gain: 30, pad: false, lowCut: false, lowCutFreq: 100, comp: 0, eqHigh: 0, eqMid: 0, eqFreq: 1000, eqLow: 0, aux: 0, aux2: 0, fx: 0, pan: 0, mute: false, pfl: false, fader: 75, phantom: false, patch: null };
 export const MASTER_DEFAULT = { mainFader: 75, mainMute: false, auxMaster: 75, aux2Master: 75, fxReturn: 50, phonesLevel: 75, phantom: false, usbOut: 'main' };
 export const DEV_DEFAULTS = {
   speaker: () => ({ power: true, position: 'behind' }),
@@ -188,7 +188,7 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   const drumKit = Object.values(devices).find((d) => d.placed && d.type === 'drum_kit')?.id ?? null;
   const drumsHere = !!drumKit || st.venue === 'live_stage';
   const memo = new Map();
-  const notes = { thin: new Set(), humSources: new Set(), deadPhantom: new Set() };
+  const notes = { thin: new Set(), humSources: new Set(), deadPhantom: new Set(), overCut: new Set() };
 
   // 입력 단자에 도착하는 신호들
   const inputComps = (d, p) => {
@@ -319,6 +319,8 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
         let level = x.level;
         if (x.needsPhantom && !(x.jack === 'mic' && powered.has(x.port))) { if (level != null) notes.deadPhantom.add(x.src); level = null; }
         if (x.hiZ) { notes.thin.add(x.src); if (level != null) level -= 6; }
+        // LOW CUT 주파수가 너무 높으면 목소리 몸통까지 잘려 얇아진다 (말소리 기준 약 220Hz 넘게)
+        if (ch.lowCut && level != null && (ch.lowCutFreq ?? 100) > 220 && (x.kind === 'voice' || x.kind === 'line' || x.kind === 'inst')) { notes.overCut.add(x.src); level -= ((ch.lowCutFreq - 220) / 180) * 4; }
         if (level != null && x.jack === 'line') level -= LINE_PAD;
         if (level != null && ch.pad && x.jack === 'mic') level -= 26;
         const inLevel = level == null ? null : level + ch.gain;
@@ -583,7 +585,7 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
   return {
     heard, mixer: mix, loops,
     feedback: worst >= 0, ringing: worst >= -4 && worst < 0, worstLoop: worst,
-    hum: humAt, humSources: [...notes.humSources], thin: [...notes.thin], deadPhantom: [...notes.deadPhantom],
+    hum: humAt, humSources: [...notes.humSources], thin: [...notes.thin], overCut: [...notes.overCut], deadPhantom: [...notes.deadPhantom],
     clips,
     video: { camAt, programCam, previewCam, overlay, atemUsbToPc, isPro, proNet, dark: light.stageLit === false, tally, obsCam: O.programCam, obsSw },
     switcherOf: (id) => swCalc(id),

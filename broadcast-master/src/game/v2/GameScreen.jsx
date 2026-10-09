@@ -135,7 +135,7 @@ export default function GameScreen({
     const loud = mics.sort((a, b) => b[1].level - a[1].level)[0]?.[0];
     const ch = loud ? actual.channelOf(loud) : null;
     const c = ch ? st.channels[ch.index - 1] : null;
-    const eq = c ? { high: c.eqHigh ?? 0, mid: c.eqMid ?? 0, freq: c.eqFreq ?? 1000, low: c.eqLow ?? 0, lowCut: !!c.lowCut } : null;
+    const eq = c ? { high: c.eqHigh ?? 0, mid: c.eqMid ?? 0, freq: c.eqFreq ?? 1000, low: c.eqLow ?? 0, lowCut: !!c.lowCut, cutFreq: c.lowCutFreq ?? 100 } : null;
     setTalk(sfxOn && talking ? { volume: lvToVol(lv), phrases: PHRASES[st.venue] ?? PHRASES.sandbox, who: TALK_VOICE[st.venue] ?? 'talk_m', eq } : null);
   }, [actual, listen, talking, sfxOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -172,6 +172,9 @@ export default function GameScreen({
   const inv = Object.entries(st.cables).filter(([k]) => CABLES[k]);
   const cableChoices = st.unlimited ? Object.keys(CABLES) : inv.map(([k]) => k);
   const highlight = player.waiting ? targetOf(player.waiting, st) : null;
+  // 믹서 손잡이를 돌려야 하는 단계면 콘솔을 저절로 열고, 닫혀 있으면 단추를 반짝인다
+  const mixerAsk = !!player.waiting && ['ch', 'master', 'fade'].includes(player.waiting.op);
+  useEffect(() => { if (mixerAsk) setConsoleOpen(true); }, [player.waiting?.index]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
     const id = player.narration?.focus;
@@ -303,8 +306,9 @@ export default function GameScreen({
             <Seg small value={listen} options={LISTEN.filter(([k]) => k !== 'headphones' || Object.values(st.devices).some((d) => d.type === 'headphones'))} onChange={setListen} />
             <Toggle small on={compareOpen} color="sky" onClick={() => setCompareOpen(!compareOpen)} title="현장(객석)에서 들리는 소리와 방송으로 나가는 소리를 나란히 비교합니다">A/B 비교</Toggle>
             {st.mixerId && st.devices[st.mixerId]?.placed && (
-              <button type="button" onClick={() => { if (!consoleOpen && !lockView) setFocusRequest({ id: st.mixerId, key: Date.now() }); setConsoleOpen(!consoleOpen); }} className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold ${consoleOpen ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-100'}`}>
-                <SlidersHorizontal size={14} /> 믹서 콘솔
+              <button type="button" onClick={() => { if (!consoleOpen && !lockView) setFocusRequest({ id: st.mixerId, key: Date.now() }); setConsoleOpen(!consoleOpen); }} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-black ${consoleOpen ? 'bg-sky-500 text-white' : mixerAsk ? 'bg-amber-400 text-slate-900 animate-pulse ring-2 ring-amber-200' : 'bg-sky-700 text-white ring-1 ring-sky-300/60'}`}
+                title="믹서의 GAIN·EQ·페이더를 크게 열어 직접 돌립니다">
+                <SlidersHorizontal size={16} /> {consoleOpen ? '믹서 콘솔 닫기' : '믹서 콘솔 열기'}
               </button>
             )}
           </div>
@@ -375,6 +379,7 @@ function Status({ game }) {
   if (nominal.clips.length) items.push(['err', `클리핑(찢어짐): ${nominal.clips.map((s) => game.st.devices[s]?.name ?? s).join(', ')}`]);
   if (nominal.hum) items.push(['warn', `험 잡음: ${nominal.humSources.map((s) => game.st.devices[s]?.name ?? s).join(', ')}`]);
   if (nominal.deadPhantom.length) items.push(['warn', `소리 없음(팬텀 전원 필요?): ${nominal.deadPhantom.map((s) => game.st.devices[s]?.name ?? s).join(', ')}`]);
+  if (nominal.overCut?.length) items.push(['warn', `목소리가 얇음(LOW CUT 주파수가 너무 높음): ${nominal.overCut.map((s) => game.st.devices[s]?.name ?? s).join(', ')}`]);
   if (nominal.thin.length) items.push(['warn', `소리가 얇음(악기 입력 임피던스): ${nominal.thin.map((s) => game.st.devices[s]?.name ?? s).join(', ')}`]);
   if (nominal.stream.streamingAny && !nominal.stream.live) items.push(['warn', '방송 중이지만 시청자에게 영상/소리가 제대로 안 나갑니다']);
   if (nominal.stream.live) items.push(['ok', '생중계 정상 송출 중']);

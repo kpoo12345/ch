@@ -432,8 +432,8 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     cur.current = c;
     const speechEnd = () => {
       if (cur.current !== c || c.speech) return; c.speech = true; setSpeaking(false); bump();
-      // 보기 모드에서는 퀴즈 답을 잠깐 뒤 대신 보여 준다
-      if (step.quiz && !c.action && !scriptRef.current?.practice) later(() => { if (cur.current === c && !c.action) answerRef.current(step.quiz.answer, 'auto'); }, 1600 / (scriptRef.current?.speed ?? 1));
+      // 퀴즈는 직접 고를 때까지 기다린다. "자동 넘김"을 켜 둔 경우에만 생각할 시간을 준 뒤 답을 보여 준다
+      if (step.quiz && !c.action && scriptRef.current?.auto) later(() => { if (cur.current === c && !c.action && scriptRef.current?.auto) answerRef.current(step.quiz.answer, 'auto'); }, 6000 / (scriptRef.current?.speed ?? 1));
     };
     if (text) {
       setSpeaking(true);
@@ -547,7 +547,7 @@ export function opSatisfied(st, op, game, before) {
       const [fd, fp] = op.from.split('.');
       return !st.connections.some((c) => c.from.d === fd && c.from.p === fp);
     }
-    case 'ch': return near(st.channels[op.ch - 1]?.[op.key], op.value, op.key === 'gain' ? 6 : op.key === 'fader' ? 6 : 3);
+    case 'ch': return near(st.channels[op.ch - 1]?.[op.key] ?? (op.key === 'lowCutFreq' ? 100 : undefined), op.value, op.key === 'gain' ? 6 : op.key === 'fader' ? 6 : op.key === 'lowCutFreq' ? 30 : 3);
     case 'master': return near(st.master[op.key], op.value, 6);
     case 'dev': {
       const v = getPath(st.dev[op.device], op.key);

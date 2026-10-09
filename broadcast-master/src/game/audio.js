@@ -125,7 +125,7 @@ class AudioEngine {
     const on = this.sfxOn && !!v?.active;
     this.vGain.gain.setTargetAtTime(on ? v.volume * (this.voiceDucked ? 0.22 : 1) * 0.95 : 0, t, 0.05);
     const eq = v?.eq ?? {};
-    this.vHpf.frequency.setTargetAtTime(eq.lowCut ? 110 : 20, t, 0.05);
+    this.vHpf.frequency.setTargetAtTime(eq.lowCut ? (eq.cutFreq ?? 100) : 20, t, 0.05);
     this.vLow.gain.setTargetAtTime(eq.low ?? 0, t, 0.05);
     this.vMid.gain.setTargetAtTime(eq.mid ?? 0, t, 0.05);
     this.vMid.frequency.setTargetAtTime(eq.freq ?? 1000, t, 0.05);

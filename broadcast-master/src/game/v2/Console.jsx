@@ -97,13 +97,15 @@ export default function Console({ game, compact }) {
               onChange={(v) => set(c, 'gain', v)} onCommit={commit(c, 'gain')} title="입력 증폭 — 말하면서 아래 미터가 흰 칸(-20~-6dB)에 오게" />
             <div className="w-full"><Meter level={lv} target={[-20, -6]} thin /></div>
             {digital ? (
-              <Toggle small on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="100Hz 아래 저음 차단 (웅웅거림·진동·숨소리)">LOW CUT</Toggle>
+              <Toggle small on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="LOW CUT: 아래 FREQ보다 낮은 저음 차단 (웅웅거림·진동·숨소리)">LOW CUT</Toggle>
             ) : mono && (
               <div className="flex gap-0.5">
                 <Toggle small on={ch.pad} color="amber" onClick={() => tog(c, 'pad')} title="26dB PAD: MIC 단자로 들어오는 너무 큰 신호를 26dB 줄입니다">PAD</Toggle>
-                <Toggle small on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="HPF 80Hz: 80Hz 아래 저음 차단 (웅웅거림·진동·숨소리)">HPF</Toggle>
+                <Toggle small on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="HPF(LOW CUT): 아래 FREQ보다 낮은 저음 차단 (웅웅거림·진동·숨소리)">HPF</Toggle>
               </div>
             )}
+            {/* LOW CUT 주파수: 숨소리 "퍽"이 사라질 때까지 조금씩 올리고, 목소리가 얇아지기 전에 멈춘다 */}
+            {(digital || mono) && !compact && K(c, 'lowCutFreq', 'CUT Hz', { min: 20, max: 400, color: '#22d3ee', size: 26, display: `${Math.round(ch.lowCutFreq ?? 100)}Hz`, def: 100, title: 'LOW CUT 주파수 (20~400Hz): 이 아래 저음을 잘라 냅니다. 말소리는 보통 80~150Hz, 너무 올리면 목소리가 얇아져요' })}
             {!compact && (
               <>
                 {!digital && i < 6 && K(c, 'comp', 'COMP', { min: 0, max: 100, color: '#fb923c', def: 0, title: '원 노브 컴프레서: 큰 소리를 눌러 고르게 하고 작은 소리를 끌어올립니다. 많이 올리면 하울링이 잘 납니다' })}

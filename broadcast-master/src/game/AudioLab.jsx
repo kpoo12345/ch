@@ -113,7 +113,7 @@ function startNoise(ctx, out) {
 }
 const SOURCES = { voice: ['목소리 (잡음 섞임)', startVoice], music: ['음악 루프', startMusic], noise: ['핑크 노이즈', startNoise] };
 
-const DEFAULT = { gain: 30, lowCut: false, hi: 0, mid: 0, midFreq: 1500, lo: 0, reverb: 0, delay: 0, time: 0.35, fader: 75 };
+const DEFAULT = { gain: 30, lowCut: false, cutFreq: 100, hi: 0, mid: 0, midFreq: 1500, lo: 0, reverb: 0, delay: 0, time: 0.35, fader: 75 };
 const PRESETS = [
   ['원래 소리', {}],
   ['전화기 목소리', { lowCut: true, lo: -15, hi: -15, mid: 8, midFreq: 1500 }],
@@ -124,7 +124,7 @@ const PRESETS = [
 ];
 const TIPS = {
   gain: 'GAIN(프리앰프): 입력 신호를 키우는 첫 단계입니다. 너무 높이면 소리가 찌그러지고(클리핑), 너무 낮으면 잡음이 상대적으로 커집니다.',
-  lowCut: 'LOW CUT(하이패스 필터, 보통 80~100Hz): 그 아래 저음을 깎아 웅웅거림, 바람 소리, 마이크를 쥔 손 잡음, "ㅍ" 파열음을 줄입니다. 말소리 채널은 거의 항상 켭니다.',
+  lowCut: 'LOW CUT(하이패스 필터): 켠 다음 CUT 주파수를 조금씩 올려 보세요. 웅웅거림과 "ㅍ" 파열음이 사라지는 지점(말소리는 보통 80~150Hz)에서 멈추고, 더 올리면 목소리가 얇아집니다. 말소리 채널은 거의 항상 켭니다.',
   hi: 'HIGH(약 5kHz 이상): 선명함과 공기감. 올리면 또렷하지만 너무 올리면 "ㅅ, ㅊ" 소리가 날카로워집니다.',
   mid: 'MID(250Hz~4kHz): 목소리의 몸통과 명료도. 답답하면 300~500Hz를 깎고, 또렷하게 하려면 2~3kHz를 살짝 올립니다.',
   midFreq: 'MID 주파수: 중음 노브가 어느 주파수를 조절할지 고릅니다(파라메트릭/세미 파라메트릭 EQ).',
@@ -224,7 +224,7 @@ export default function AudioLab({ focus = 'eq' }) {
     if (!n || !ctx) return;
     const now = ctx.currentTime;
     n.pre.gain.setTargetAtTime(dbToGain(p.gain - 30), now, 0.02);
-    n.hp.frequency.setTargetAtTime(p.lowCut ? 100 : 10, now, 0.02);
+    n.hp.frequency.setTargetAtTime(p.lowCut ? p.cutFreq : 10, now, 0.02);
     n.lo.gain.setTargetAtTime(p.lo, now, 0.02);
     n.mid.gain.setTargetAtTime(p.mid, now, 0.02);
     n.mid.frequency.setTargetAtTime(p.midFreq, now, 0.02);
@@ -297,7 +297,7 @@ export default function AudioLab({ focus = 'eq' }) {
       // EQ 곡선
       const cf = curveFilters.current;
       if (cf) {
-        cf.hp.frequency.value = p.lowCut ? 100 : 10; cf.lo.gain.value = p.lo; cf.mid.gain.value = p.mid; cf.mid.frequency.value = p.midFreq; cf.hi.gain.value = p.hi;
+        cf.hp.frequency.value = p.lowCut ? p.cutFreq : 10; cf.lo.gain.value = p.lo; cf.mid.gain.value = p.mid; cf.mid.frequency.value = p.midFreq; cf.hi.gain.value = p.hi;
         const N = 160;
         const freqs = new Float32Array(N);
         for (let i = 0; i < N; i += 1) freqs[i] = 20 * 1000 ** (i / (N - 1));
@@ -348,7 +348,10 @@ export default function AudioLab({ focus = 'eq' }) {
             {knob('gain', 'GAIN', 0, 60, '#f87171', (v) => `+${v}dB`)}
             <span className={`text-[10px] font-bold px-1.5 rounded ${clip ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-500'}`}>CLIP</span>
           </div>
-          <ToggleBtn on={p.lowCut} color="green" onClick={() => { set('lowCut', !p.lowCut); setTip('lowCut'); }}>LOW CUT 100Hz</ToggleBtn>
+          <div className="flex flex-col items-center gap-1">
+            <ToggleBtn on={p.lowCut} color="green" onClick={() => { set('lowCut', !p.lowCut); setTip('lowCut'); }}>LOW CUT</ToggleBtn>
+            {knob('cutFreq', 'CUT 주파수', 20, 400, '#22d3ee', (v) => `${v}Hz`, 5)}
+          </div>
           <div className="grid grid-cols-2 gap-x-2 gap-y-2 justify-items-center">
             {knob('hi', 'HIGH', -15, 15, '#7dd3fc')}
             <span />

@@ -952,6 +952,12 @@ export default function Venue3D({
     if (pc) glows.push(glowAt(pc.id, GLOW.streaming));
   }
   const pendingWorld = pending ? portWorld(pending.d, pending.p) : null;
+  // 확대해서 단자를 고르면, 반대쪽 장비도 누를 수 있게 전체 보기로 빠진다
+  useEffect(() => {
+    if (!pending || lockView || !lastFocus.current) return;
+    setFocus({ overview: true, target: venue.camera.target, key: `pend-${Date.now()}` });
+    lastFocus.current = null;
+  }, [pending?.d, pending?.p]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 새로 꽂힌 케이블만 자라나는 연출을 한다
   const known = useRef(null);
@@ -1113,8 +1119,8 @@ export default function Venue3D({
       <CameraRig venue={venue} resetKey={resetKey} focus={focus} portWorld={portWorld} />
       <OrbitControls
         makeDefault enableDamping dampingFactor={0.2}
-        enableRotate={interactive && !lockView && !pending} autoRotate={autoRotate} autoRotateSpeed={0.4}
-        enableZoom={interactive} enablePan={interactive && !lockView && !pending}
+        enableRotate={interactive && !lockView} autoRotate={autoRotate} autoRotateSpeed={0.4}
+        enableZoom={interactive} enablePan={interactive && !lockView}
         minDistance={0.5} maxDistance={15} maxPolarAngle={Math.PI / 2.08}
       />
 

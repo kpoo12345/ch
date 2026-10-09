@@ -74,6 +74,8 @@ export default {
     // LOW CUT
     { who: 'junior', say: '아까 GAIN 바로 밑에 HPF라는 작은 버튼도 있던데요?' },
     { say: '그게 LOW CUT이에요. 쿵, 웅 하는 아주 낮은 소리를 싹둑 잘라 내서 컷이죠. 말소리엔 거의 늘 켜 둬요.', show: { concept: 'strip', focus: 'lowcut' }, op: 'ch', ch: 1, key: 'lowCut', value: true, practice: 'CH 1의 HPF 버튼을 눌러 켜 보세요.' },
+    { who: 'junior', say: '그럼 누르기만 하면 끝이에요?' },
+    { say: '켜는 건 시작이에요. 옆의 CUT Hz 손잡이로 어디까지 자를지 정하는데, 귀로 들으면서 조금씩 올려요. 그건 파트 4에서 제대로 해 봐요.' },
 
     // PAN
     { say: 'PAN은 이 소리를 왼쪽, 오른쪽 스피커 중 어디로 보낼지 정해요. 강연자님, 다시 한번 부탁해요!', show: { concept: 'strip', focus: 'pan' }, op: 'talk', on: true },

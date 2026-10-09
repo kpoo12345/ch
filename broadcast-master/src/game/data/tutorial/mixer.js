@@ -23,7 +23,7 @@ export default {
   ],
   inventory: { trs: 1, mini: 1 },
   state: {
-    channels: { 1: { gain: 0, fader: 0 }, 9: { gain: 0, fader: 0 } },
+    channels: { 1: { gain: 0, fader: 0, lowCutFreq: 40 }, 9: { gain: 0, fader: 0 } },
     master: { mainFader: 75 },
     devices: { lap: { playing: true } },
   },
@@ -53,6 +53,13 @@ export default {
     // 말소리엔 LOW CUT
     { who: 'junior', say: '근데 말 사이사이에 퍽, 퍽 하는 소리가 섞여요.' },
     { say: '숨이 마이크에 부딪히는 소리예요. 낮은 쿵, 웅을 잘라 내는 LOW CUT, 이 믹서엔 HPF라고 써 있는 버튼을 켜요.', show: { concept: 'strip', focus: 'lowcut' }, op: 'ch', ch: 1, key: 'lowCut', value: true, practice: 'CH 1의 HPF 버튼을 눌러 켜 보세요.' },
+    { who: 'junior', say: '켰는데도 아직 조금 퍽퍽거려요.' },
+    { say: '지금은 40Hz부터 잘리고 있어서 그래요. 버튼 옆 CUT Hz를 조금씩 올려 봐요. 퍽 소리가 사라지는 데서 멈추면 돼요.', op: 'ch', ch: 1, key: 'lowCutFreq', value: 120, practice: 'CH 1의 CUT Hz를 천천히 올려 120Hz 근처에서 멈춰 보세요.' },
+    { who: 'junior', say: '사라졌어요! 그럼 아예 끝까지 올리면 더 깨끗해지겠네요?' },
+    { say: '한번 들어 볼까요? 300Hz까지 올려 볼게요.', op: 'ch', ch: 1, key: 'lowCutFreq', value: 300 },
+    { who: 'junior', say: '어, 목소리가 전화기처럼 얇아졌어요.' },
+    { say: '목소리 몸통까지 잘려 나간 거예요. 말소리는 보통 80에서 150Hz 사이, 퍽이 없어지는 가장 낮은 곳이 정답이에요.', op: 'ch', ch: 1, key: 'lowCutFreq', value: 120 },
+    { quiz: { q: 'LOW CUT 주파수는 어떻게 맞출까요?', options: ['퍽 소리가 사라지는 가장 낮은 곳까지 조금씩 올린다', '무조건 끝까지 올린다', '켜기만 하고 손대지 않는다'], answer: 0, explain: '너무 높이면 목소리가 얇아지고, 너무 낮으면 웅웅거림이 남아요. 들으면서 조금씩 올리는 게 요령이에요.' } },
 
     // 다 듣고 나서 페이더 열기
     { say: '귀로 다 확인했으니 이제 객석에 내보내요. 맨 아래 페이더를 0 눈금까지 올려 볼까요?', op: 'ch', ch: 1, key: 'fader', value: 75, practice: 'CH 1 페이더를 0 눈금까지 올려 보세요.' },
