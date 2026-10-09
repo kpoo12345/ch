@@ -14,7 +14,7 @@ const WORDS = [
   ['LAN', '랜'], ['MIC', '마이크'], ['LINE', '라인'], ['GAIN', '게인'], ['MUTE', '뮤트'], ['PEAK', '피크'], ['MAIN', '메인'], ['STEREO', '스테레오'], ['PHANTOM', '팬텀'], ['MONO', '모노'],
   ['INPUT', '인풋'], ['OUTPUT', '아웃풋'], ['THRU', '스루'], ['RETURN', '리턴'], ['RET', '리턴'], ['SEND', '센드'], ['PAN', '팬'], ['COMP', '컴프'], ['PAD', '패드'], ['POWER', '파워'],
   ['CUT', '컷'], ['AUTO', '오토'], ['PREVIEW', '프리뷰'], ['PROGRAM', '프로그램'], ['STORE', '스토어'], ['ZOOM', '줌'], ['TILT', '틸트'], ['PHONES', '폰즈'], ['MULTI', '멀티'],
-  ['ON', '온'], ['OFF', '오프'], ['IN', '인'], ['OUT', '아웃'], ['CH', '채널'], ['L', '엘'], ['R', '알'], ['A', '에이'], ['B', '비'],
+  ['BLACKOUT', '블랙아웃'], ['MASTER', '마스터'], ['RECORD', '레코드'], ['GRAND', '그랜드'], ['Opacity', '오패시티'], ['INST', '인스트'], ['PIP', '픽처 인 픽처'], ['PC', '피씨'], ['FX', '이펙트'], ['Y', '와이'], ['LOCAL', '로컬'], ['HIGH', '하이'], ['MID', '미드'], ['LOW', '로우'], ['FREQ', '프리퀀시'], ['TILT', '틸트'], ['PRESET', '프리셋'], ['MIX', '믹스'], ['BUS', '버스'], ['CAM', '캠'], ['SPK', '스피커'], ['GROUND', '그라운드'], ['LIFT', '리프트'], ['PAN', '팬'], ['ON', '온'], ['OFF', '오프'], ['IN', '인'], ['OUT', '아웃'], ['CH', '채널'], ['L', '엘'], ['R', '알'], ['A', '에이'], ['B', '비'],
 ];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 // 영문 낱말 경계: 앞뒤가 영문자가 아닐 때만 (한글 조사 붙은 경우 "XLR을"도 바뀌게)
@@ -56,10 +56,15 @@ export function ttsText(text) {
   t = t.replace(/(\d+)\s?(개|대|명|줄|가지|군데|마리|번째|시간|살|칸|장)(?![가-힣]*\d)/g, (_, n, u) => `${native(+n)} ${u}`);
   // 9/10 채널 → 구 십 채널
   t = t.replace(/(\d+)\s?\/\s?(\d+)/g, (_, a, b) => `${sino(+a)}, ${sino(+b)}`);
+  // 부호 붙은 수: +4 → 플러스 사, -6 → 마이너스 육
+  t = t.replace(/(^|[\s(~])\+(\d)/g, '$1플러스 $2').replace(/(^|[\s(~])[-−](\d)/g, '$1마이너스 $2');
+  // 장비에 영어로 쓰인 이름 뒤 번호는 영어로 읽는다 (AUX 2 → 옥스 투, HDMI IN 1 → 인 원)
+  const EN = ['', '원', '투', '쓰리', '포', '파이브', '식스', '세븐', '에잇', '나인'];
+  t = t.replace(/(?<![A-Za-z])(AUX|IN|OUT|LOCAL|CAM|MIX|BUS|RET|RETURN|INPUT|OUTPUT|SEND|PRESET|MON|CH|LINE)\s?([1-9])(?!\d)/g, (_, w, d) => `${w} ${EN[+d]}`);
   for (const [re, v] of WORD_RES) t = t.replace(re, v);
   // 남은 숫자는 한자어 수사로 (1번 → 일 번, 12채널 → 십이 채널). 소수점은 "점"
   t = t.replace(/\d+\.\d+/g, (n) => decimal(n));
-  t = t.replace(/\d+/g, (n) => `${sino(+n)} `).replace(/ +([,.?!])/g, '$1');
+  t = t.replace(/\d+/g, (n) => sino(+n));
   // 남은 기호
   t = t.replace(/[·•]/g, ', ').replace(/[→]/g, ', ').replace(/[“”"「」『』]/g, '').replace(/\s{2,}/g, ' ');
   return t.trim();

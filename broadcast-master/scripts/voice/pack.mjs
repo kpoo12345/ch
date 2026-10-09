@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 const VOICES = JSON.parse(readFileSync(new URL('./voices.json', import.meta.url), 'utf8'));
-const tag = (who) => `s${VOICES[who].sid}-v${VOICES[who].speed}-n${VOICES.steps}`;
+// 파이썬(synth.py)과 같은 숫자 표기 (1 → 1.0)
+const num = (v) => (Number.isInteger(v) ? `${v}.0` : `${v}`);
+const tag = (who) => `s${VOICES[who].sid}-v${num(VOICES[who].speed)}-n${VOICES.steps}`;
 const [linesPath, cache] = process.argv.slice(2);
 const lines = JSON.parse(readFileSync(linesPath, 'utf8'));
 const entries = [];

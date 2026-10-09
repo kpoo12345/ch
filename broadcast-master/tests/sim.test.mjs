@@ -1031,3 +1031,15 @@ test('venues: amp_rack and iem_rack slots exist in live_stage and church with th
   assert.ok(sim.reaches('mic', 'main'));
   assert.equal(sim.hum, false);
 });
+
+test('engine tables: every port kind has a label, colour and mismatch tip; every cable fits some port kind', async () => {
+  const { PORT_ACCEPTS, PORT_KIND_LABEL, PORT_COLOR, MISMATCH_TIP, CABLES, DEVICE_TYPES } = await import('../src/game/engine.js');
+  const kinds = new Set(Object.values(DEVICE_TYPES).flatMap((d) => [...d.ins, ...d.outs].map((p) => p.kind)));
+  for (const k of kinds) {
+    assert.ok(PORT_ACCEPTS[k], `accepts ${k}`);
+    assert.ok(PORT_KIND_LABEL[k], `label ${k}`);
+    assert.ok(PORT_COLOR[k], `color ${k}`);
+    if (k !== 'combo') assert.ok(MISMATCH_TIP[k], `tip ${k}`);
+  }
+  for (const c of Object.keys(CABLES)) assert.ok(Object.values(PORT_ACCEPTS).some((a) => a.includes(c)), `cable ${c} fits somewhere`);
+});

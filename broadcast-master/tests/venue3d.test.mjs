@@ -26,6 +26,13 @@ test('3D port maps cover every engine port of their device (router LAN 1~4 inclu
   assert.equal(new Set(['lan1', 'lan2', 'lan3', 'lan4'].map((p) => V.PORTS_ALL.router[p].p.join())).size, 4);
 });
 
+test('every cable kind has a 3D plug length and cable radius', async () => {
+  const { CABLES } = await import('../src/game/engine.js');
+  const K = await server.ssrLoadModule('/src/game/kit3d.jsx');
+  const missing = Object.keys(CABLES).filter((c) => !K.PLUG_LEN[c] || !K.CABLE_R[c]);
+  assert.deepEqual(missing, []);
+});
+
 test('ghost hand presses hanging fixtures on their body (below the clamp), not above it', () => {
   ['par_led', 'moving_head', 'projector'].forEach((t) => {
     assert.ok(V.DEVICE_POINT[t]({ key: 'address' }, null)[1] < 0, t);

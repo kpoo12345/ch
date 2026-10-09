@@ -42,7 +42,7 @@ export default function GameScreen({
   const defaultListen = useMemo(() => {
     const at = (spec.objectives ?? []).map((o) => o.check.at).filter(Boolean);
     if (at.includes('main')) return 'main';
-    return at[0] ?? (Object.values(st.devices).some((d) => d.type === 'speaker') ? 'main' : 'stream');
+    return at[0] ?? (Object.values(st.devices).some((d) => d.type === 'speaker' || d.type === 'passive_speaker') ? 'main' : 'stream');
   }, [spec]); // eslint-disable-line react-hooks/exhaustive-deps
   const [listen, setListen] = useState(defaultListen);
   const [compareOpen, setCompareOpen] = useState(false);

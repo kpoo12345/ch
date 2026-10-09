@@ -17,7 +17,7 @@
  *  { op:'fade', ch?, to, ms }                   페이더를 ms 동안 천천히 (ch가 없으면 메인)
  *  { op:'talk', on } · { op:'perform', on } · { op:'wait', ms }   (화면 쪽에서 처리)
  * ===================================================================== */
-import { canConnect, computeSim, connId, mixerStateOf, newMixerState, ATEM_DEFAULT, DEV_DEFAULTS, FOOTPRINT, snakePeer } from './sim.js';
+import { canConnect, computeSim, connId, mixerStateOf, newMixerState, ATEM_DEFAULT, DEV_DEFAULTS, FOOTPRINT, snakePeer, analogChOfPort } from './sim.js';
 import { DEVICE_TYPES } from './engine.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -239,6 +239,21 @@ export function notePop(st, op, latched) {
   // 소리를 키우는 장비(액티브 스피커·웨지·파워 앰프)가 켜져 있을 때만. 패시브 스피커는 전원이 없어 앰프가 대신 "퍽"을 낸다
   const powered = Object.values(st.devices).filter((d) => d.placed && POP_TYPES.has(d.type) && st.dev[d.id]?.power);
   if (!powered.length) return null;
+  // 믹서 쪽 끝이 헤드폰 단자거나, 페이더가 내려가 있거나 꺼진 채널 입력이면 스피커까지 "퍽"이 가지 않는다
+  if (isCable) {
+    const quiet = [op.from, op.to].map(String).some((e) => {
+      const [d, p] = e.split('.');
+      const t = st.devices[d]?.type;
+      if (t === 'headphones') return true;
+      if (t !== 'analog_mixer' && t !== 'digital_mixer') return false;
+      if (p === 'phones') return true;
+      const n = t === 'analog_mixer' ? analogChOfPort(p) : /^local(\d+)$/.exec(p) ? Number(/^local(\d+)$/.exec(p)[1]) - 1 : null;
+      if (n == null || n < 0) return false;
+      const ch = mixerStateOf(st, d).channels[n];
+      return !!ch && (ch.mute || (ch.fader ?? 75) <= 0);
+    });
+    if (quiet) return null;
+  }
   const ends = isCable ? [String(op.from).split('.')[0], String(op.to).split('.')[0]] : [op.mixer ?? st.mixerId];
   const hit = powered.filter((spk) => {
     // 스피커(앰프)에서 거꾸로 따라가며 신호 경로에 있는 장비들. 앰프는 INPUT A·B 두 갈래를 다 따라간다

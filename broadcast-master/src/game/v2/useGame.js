@@ -123,7 +123,8 @@ export function useGame(spec, { onClear } = {}) {
     if (popped) {
       setLatched((s0) => new Set([...s0, ...popped.map((id) => `pop:${id}`)]));
       getAudio().pop?.();
-      notify('err', '퍽! 스피커가 켜진 채로 케이블을 꽂거나 +48V를 바꿨어요. 스피커 전원은 연결을 다 마친 뒤 마지막에 켭니다. (스피커를 껐다가 다시 순서대로 하면 됩니다)');
+      const amp = popped.some((id) => cur.devices[id]?.type === 'power_amp');
+      notify('err', `퍽! ${amp ? '파워 앰프' : '스피커'}가 켜진 채로 케이블을 꽂거나 +48V를 바꿨어요. ${amp ? '앰프' : '스피커'} 전원은 연결을 다 마친 뒤 맨 마지막에 켭니다. (껐다가 다시 순서대로 하면 됩니다)`);
     }
     if (noteOnAirMove(cur, op, lat)) {
       // 드래그 중 계속 경고가 쌓이지 않게 처음 한 번만 알린다
@@ -537,7 +538,9 @@ export function opSatisfied(st, op, game, before) {
     case 'connect': {
       const [fd, fp] = op.from.split('.'), [td, tp] = op.to.split('.');
       // 같은 두 장비를 같은 종류의 단자로 이었으면 인정 (예: PC USB 1 대신 USB 2)
-      const ok = (e, d, p) => e.d === d && (e.p === p || portKind(st.devices[d]?.type, e.p) === portKind(st.devices[d]?.type, p));
+      // 번호가 있는 단자(채널·스네이크·ATEM 입력 등)는 정확히 그 단자여야 한다. 번호 없는 같은 종류 단자(PC USB 1/2)만 서로 인정
+      const numbered = (p) => /\d/.test(p);
+      const ok = (e, d, p) => e.d === d && (e.p === p || (!numbered(p) && !numbered(e.p) && portKind(st.devices[d]?.type, e.p) === portKind(st.devices[d]?.type, p)));
       return st.connections.some((c) => (ok(c.from, fd, fp) && ok(c.to, td, tp)) || (ok(c.from, td, tp) && ok(c.to, fd, fp)));
     }
     case 'disconnect': {
