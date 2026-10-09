@@ -27,7 +27,7 @@ const CAT_ICON = { '소리 기초': Workflow, 마이크: Mic, '케이블·스네
 // Studio3D의 EquipmentViewer가 그릴 수 있는 장비 (뷰어에 새 모델을 넣으면 여기에도 추가)
 const VIEWER_TYPES = new Set([
   'dynamic_mic', 'condenser_mic', 'wireless_mic', 'kick_mic', 'snare_mic', 'overhead_mic', 'analog_mixer', 'digital_mixer', 'audio_interface', 'di_box',
-  'stage_box', 'snake_fanout', 'speaker', 'monitor', 'headphones', 'drum_kit', 'digital_piano', 'bass_guitar', 'camera', 'mirrorless', 'ptz', 'ptz_controller',
+  'stage_box', 'snake_fanout', 'speaker', 'passive_speaker', 'power_amp', 'iem', 'monitor', 'headphones', 'drum_kit', 'digital_piano', 'bass_guitar', 'camera', 'mirrorless', 'ptz', 'ptz_controller',
   'atem', 'atem_pro', 'pc', 'lighting_console', 'par_led', 'moving_head', 'media_server', 'led_wall', 'projector',
 ]);
 // 직접 만져 보기 컨트롤이 있는 장비

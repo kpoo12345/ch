@@ -261,7 +261,7 @@ export default function GameScreen({
           <div className="flex-1 overflow-y-auto p-3 space-y-3 overscroll-contain">
             {tab === 'add' && sandbox && <sandbox.Panel game={game} placing={placing} setPlacing={setPlacing} />}
             {tab === 'mission' && (
-              <MissionPanel spec={spec} game={game} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))} />
+              <MissionPanel spec={spec} game={game} tutorial={mode === 'tutorial'} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))} />
             )}
             {tab === 'device' && (game.selected && st.devices[game.selected]
               ? <DevicePanel key={game.selected} game={game} id={game.selected} />
@@ -339,7 +339,7 @@ function Toast({ toast, onDone }) {
   return <div role="status" className={`absolute top-2 left-1/2 -translate-x-1/2 max-w-[86%] rounded-lg border px-3 py-1.5 text-xs sm:text-sm shadow-lg ${cls}`}>{toast.text}</div>;
 }
 
-function MissionPanel({ spec, game, hints, onHint }) {
+function MissionPanel({ spec, game, tutorial, hints, onHint }) {
   const { objectives, st } = game;
   return (
     <div className="space-y-3">
@@ -352,7 +352,8 @@ function MissionPanel({ spec, game, hints, onHint }) {
           </li>
         ))}
       </ul>
-      <Status game={game} />
+      {/* 튜토리얼에서는 선배가 직접 짚어 주므로 정답이 될 실마리는 감춘다 */}
+      {!tutorial && <Status game={game} />}
       {spec.hints?.length > 0 && (
         <div className="space-y-1.5">
           {spec.hints.slice(0, hints).map((h, i) => <div key={i} className="rounded bg-amber-950/40 border border-amber-800/50 p-2 text-xs text-amber-100"><b>힌트 {i + 1}</b> · {h}</div>)}
