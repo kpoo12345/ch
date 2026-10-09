@@ -31,8 +31,8 @@ for (const [id, n] of Object.entries(picks)) {
   if (index[id]?.title === c.title && existsSync(new URL(`${id}.jpg`, dir))) continue;
   try {
     const raw = new URL(`${id}.src`, dir), out = new URL(`${id}.jpg`, dir);
-    writeFileSync(raw, await get(c.thumb));
-    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', raw.pathname, '-vf', 'scale=640:-2', '-q:v', '7', out.pathname]);
+    writeFileSync(raw, await get(c.thumb.replace(/\/640px-/, '/500px-')));
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', raw.pathname, '-vf', "scale='min(640,iw)':-2", '-q:v', '6', out.pathname]);
     unlinkSync(raw);
     index[id] = { file: `${id}.jpg`, title: c.title, author: c.author, license: c.license, url: c.page };
     console.log(`+ ${id}: ${c.title} (${c.license})`);
