@@ -16,8 +16,14 @@ import TutorialMode from './game/v2/TutorialMode.jsx';
 import StoryMode from './game/v2/StoryMode.jsx';
 import Sandbox from './game/v2/Sandbox.jsx';
 import { getAudio } from './game/audio.js';
+import BetaFeedback from './game/BetaFeedback.jsx';
+import { setBetaContext } from './game/betaContext.js';
 
 export default function BroadcastMasterGame() {
+  return <><Screens /><BetaFeedback /></>;
+}
+
+function Screens() {
   // 주소로 바로 가기: ?stage=light-2 (?auto=1 이면 정답 자동 진행) · ?tutorial=1 튜토리얼 파트 1 · ?dict=dynamic_mic 백과사전 항목
   const [screen, setScreen] = useState(() => {
     const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -38,6 +44,12 @@ export default function BroadcastMasterGame() {
     }));
   };
   const toMenu = () => open('menu');
+  // 베타 의견에 붙일 현재 화면 — 화면이 바뀌는 그 렌더에서 적어 둔다 (세부 위치는 각 화면의 effect가 덧붙인다)
+  const ctxKey = React.useRef(null);
+  if (ctxKey.current !== screen.key) {
+    ctxKey.current = screen.key;
+    setBetaContext({ screen: { menu: '메인 메뉴', dict: '장비 백과사전', tutorial: '튜토리얼', story: '스토리 모드', studio: '자유 스튜디오' }[screen.mode] ?? screen.mode });
+  }
   const exit = () => (screen.back ? open('dict', screen.back.entry) : toMenu());
 
   if (screen.mode === 'dict') {

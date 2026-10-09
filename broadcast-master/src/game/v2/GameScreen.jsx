@@ -19,6 +19,7 @@ import Dialog from './Dialog.jsx';
 import ListenCompare from './ListenCompare.jsx';
 import LabOverlay from './LabOverlay.jsx';
 import { PHRASES, TALK_VOICE } from '../data/phrases.js';
+import { patchBetaContext } from '../betaContext.js';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -182,6 +183,10 @@ export default function GameScreen({
   }, [player.narration?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
   // 다음 장면으로 넘어가면 실습실은 닫는다
   useEffect(() => { setLab(null); }, [player.narration?.i]);
+  // 베타 의견에 붙일 위치: 미션·파트 이름과 대화 장면 번호
+  useEffect(() => {
+    patchBetaContext({ title: spec.title, id: spec.id, step: player.narration ? `${(player.narration.i ?? 0) + 1}/${player.narration.n}` : undefined });
+  }, [spec.id, player.narration?.i]); // eslint-disable-line react-hooks/exhaustive-deps
   const onePending = game.pending ? `${st.devices[game.pending.d]?.name ?? game.pending.d} · ${portLabel(st, game.pending.d, game.pending.p)}` : null;
   const doneCount = game.objectives.filter((o) => o.ok).length;
 
