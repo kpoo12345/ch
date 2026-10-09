@@ -35,17 +35,19 @@ export const FOOTPRINT = { par_led: 8, moving_head: 16 };
 const SWITCHER_TYPES = new Set(['atem', 'atem_pro']);
 const MIXER_TYPES = new Set(['analog_mixer', 'digital_mixer']);
 const UNBALANCED = new Set(['trs', 'mini']);
+// 객석(메인) 스피커: 액티브(앰프 내장) + 패시브(파워 앰프로 울림) — 위치·하울링 계산이 같다
+export const MAIN_SPEAKERS = new Set(['speaker', 'passive_speaker']);
 
 /* ---------------------------- 장소(구역) ---------------------------- */
 // 무대(stage)와 음향 부스(foh) 사이는 먼 거리 → 언밸런스드 케이블이면 험 잡음
 export const VENUE_ZONES = {
   church: {
-    stage: ['pulpit_mic', 'worship_mic_rx_stage', 'choir_mic', 'keys', 'di_keys', 'wedge_pulpit', 'wedge_band', 'pa_left', 'pa_right'],
-    foh: ['foh1', 'foh2', 'foh3', 'foh4', 'cam_rear', 'ptz_side', 'router_foh'],
+    stage: ['pulpit_mic', 'worship_mic_rx_stage', 'choir_mic', 'keys', 'di_keys', 'wedge_pulpit', 'wedge_band', 'pa_left', 'pa_right', 'stagebox', 'iem_rack'],
+    foh: ['foh1', 'foh2', 'foh3', 'foh4', 'cam_rear', 'ptz_side', 'router_foh', 'fanout', 'amp_rack'],
   },
   live_stage: {
-    stage: ['vocal_mic', 'gtr', 'keys', 'di_gtr', 'di_keys', 'wedge_vocal', 'wedge_keys', 'pa_left', 'pa_right', 'cam_stage', 'kick_mic', 'snare_mic', 'oh_l', 'oh_r', 'bass', 'di_bass', 'di_keys2'],
-    foh: ['foh1', 'foh2', 'foh3', 'laptop_foh'],
+    stage: ['vocal_mic', 'gtr', 'keys', 'di_gtr', 'di_keys', 'wedge_vocal', 'wedge_keys', 'pa_left', 'pa_right', 'cam_stage', 'kick_mic', 'snare_mic', 'oh_l', 'oh_r', 'bass', 'di_bass', 'di_keys2', 'stagebox', 'amp_rack', 'iem_rack'],
+    foh: ['foh1', 'foh2', 'foh3', 'laptop_foh', 'fanout'],
   },
 };
 export const zoneOf = (venue, slot) => {
@@ -64,6 +66,11 @@ export const MASTER_DEFAULT = { mainFader: 75, mainMute: false, auxMaster: 75, a
 export const DEV_DEFAULTS = {
   speaker: () => ({ power: true, position: 'behind' }),
   monitor: () => ({ power: true }),
+  // 파워 앰프: 채널 A·B 레벨 (75 = 0dB). 전원은 마지막에 켜고 먼저 끈다
+  power_amp: () => ({ power: true, levelA: 75, levelB: 75 }),
+  passive_speaker: () => ({ position: 'behind' }),
+  // 인이어 모니터: 송신기 채널 = 벨트팩 수신기 채널이어야 들린다. volume = 벨트팩 볼륨 (75 = 0dB)
+  iem: () => ({ power: true, txChannel: 1, rxChannel: 1, volume: 75 }),
   wireless_mic: () => ({ txPower: true, txChannel: 1, rxChannel: 1, battery: 90 }),
   di_box: () => ({ groundLift: false, pad: false, groundLoop: false }),
   audio_interface: () => ({ in: [{ gain: 30, phantom: false, inst: false }, { gain: 30, phantom: false, inst: false }], direct: true, monitor: 60 }),
@@ -96,6 +103,14 @@ export const portKind = (type, portId) => {
   return [...def.ins, ...def.outs].find((p) => p.id === portId)?.kind;
 };
 export const isOutPort = (type, portId) => DEVICE_TYPES[type].outs.some((p) => p.id === portId);
+// 스네이크: 스테이지 박스 MULTI(출력) → 팬아웃 MULTI(입력) 한 줄로 두 장비가 이어진다. 상대 장비 id (둘 다 놓여 있을 때만)
+export function snakePeer(st, id) {
+  const t = st.devices[id]?.type;
+  if (!st.devices[id]?.placed || (t !== 'stage_box' && t !== 'snake_fanout')) return null;
+  const c = st.connections.find((x) => (t === 'stage_box' ? x.from.d === id && x.from.p === 'multi' : x.to.d === id && x.to.p === 'multi'));
+  const peer = c && (t === 'stage_box' ? c.to.d : c.from.d);
+  return peer && st.devices[peer]?.placed && st.devices[peer].type === (t === 'stage_box' ? 'snake_fanout' : 'stage_box') ? peer : null;
+}
 
 /* ---------------------------- 스테이지 빌드 ---------------------------- */
 export function buildRuntime(spec) {
@@ -106,7 +121,7 @@ export function buildRuntime(spec) {
   const dev = {};
   Object.values(devices).forEach((d) => {
     const base = DEV_DEFAULTS[d.type]?.() ?? {};
-    if (d.type === 'speaker' && FRONT_SLOTS.has(d.slot)) base.position = 'front';
+    if (MAIN_SPEAKERS.has(d.type) && FRONT_SLOTS.has(d.slot)) base.position = 'front';
     dev[d.id] = { ...base, ...structuredCloneSafe(spec.state?.devices?.[d.id] ?? {}) };
     if (d.type === 'audio_interface' && spec.state?.devices?.[d.id]?.in) {
       dev[d.id].in = [0, 1].map((i) => ({ ...base.in[i], ...(spec.state.devices[d.id].in[i] ?? {}) }));
@@ -143,7 +158,11 @@ export function canConnect(st, a, b, cable) {
   const [from, to] = outA ? [a, b] : [b, a];
   const used = (d, p) => st.connections.some((c) => (c.from.d === d && c.from.p === p) || (c.to.d === d && c.to.p === p));
   if (used(from.d, from.p) || used(to.d, to.p)) return { ok: false, reason: '이미 케이블이 꽂혀 있는 단자입니다. 기존 케이블을 클릭해 먼저 분리하세요.' };
-  const kinds = [portKind(st.devices[from.d].type, from.p), portKind(st.devices[to.d].type, to.p)];
+  // 패시브 스피커는 파워 앰프의 스피콘 출력만 받는다 / 스피콘 출력은 패시브 스피커에만
+  const ft = st.devices[from.d].type, tt = st.devices[to.d].type;
+  if (tt === 'passive_speaker' && ft !== 'power_amp') return { ok: false, mismatch: 'speakon', reason: '패시브 스피커는 앰프가 없어서 파워 앰프의 스피콘 출력으로만 소리가 납니다. 믹서·마이크 신호는 먼저 파워 앰프 INPUT에 넣고, 앰프의 SPEAKON OUT을 스피커 케이블(스피콘)로 스피커에 이으세요.' };
+  if (ft === 'power_amp' && tt !== 'passive_speaker') return { ok: false, mismatch: 'speakon', reason: '파워 앰프의 스피콘 출력은 앰프가 키운 큰 전력(스피커 레벨)이라 패시브 스피커에만 연결합니다. 믹서·액티브 스피커 입력에 넣으면 장비가 망가질 수 있습니다.' };
+  const kinds = [portKind(ft, from.p), portKind(tt, to.p)];
   const bad = kinds.find((k) => !PORT_ACCEPTS[k]?.includes(cable));
   if (bad) return { ok: false, mismatch: bad, reason: null };
   // 3.5mm 변환 케이블은 한쪽이 3.5mm 단자일 때만 의미가 있다
@@ -211,6 +230,33 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
         const ins = inputComps(d, 'input');
         if (p === 'thru') r = ins;
         else r = ins.map((x) => ({ ...x, level: x.level == null ? null : x.level - 20 - (s.pad ? 20 : 0), hiZ: false, viaDI: true, hum: x.hum || (s.groundLoop && !s.groundLift) }));
+        break;
+      }
+      // 스네이크: 멀티 케이블이 이어져 있을 때만 번호 그대로 통과 (밸런스드라 거리 험 없음, +48V도 그대로 마이크까지)
+      case 'snake_fanout': {
+        const c = feeding[`${d}.multi`];
+        const k = /^out(\d)$/.exec(p ?? '')?.[1];
+        if (c && k && devices[c.from.d]?.type === 'stage_box') r = inputComps(c.from.d, `in${k}`).map((x) => ({ ...x, viaSnake: true }));
+        break;
+      }
+      case 'stage_box': {
+        const c = outgoing[`${d}.multi`];
+        const k = /^ret(\d)$/.exec(p ?? '')?.[1];
+        if (k) { if (c && devices[c.to.d]?.type === 'snake_fanout') r = inputComps(c.to.d, `ret${k}`).map((x) => ({ ...x, viaSnake: true })); }
+        // MULTI 단자: 멀티 케이블 속 가닥 전부 — 무대 입력 8개 + 거꾸로 올라오는 리턴 2개 (케이블 신호 표시용)
+        else if (p === 'multi') {
+          r = [1, 2, 3, 4, 5, 6, 7, 8].flatMap((n) => inputComps(d, `in${n}`));
+          if (c && devices[c.to.d]?.type === 'snake_fanout') r = [...r, ...[1, 2].flatMap((n) => inputComps(c.to.d, `ret${n}`))];
+        }
+        break;
+      }
+      // 파워 앰프: INPUT A → SPEAKON A, INPUT B → SPEAKON B. 전원이 꺼지면 아무것도 나가지 않는다
+      case 'power_amp': {
+        const ch = p === 'spkA' ? 'A' : p === 'spkB' ? 'B' : null;
+        if (ch && s.power) {
+          const g = mapDb(s[`level${ch}`] ?? 75);
+          r = inputComps(d, `in${ch}`).map((x) => ({ ...x, level: x.level == null || !Number.isFinite(g) ? null : x.level + g, amped: true }));
+        }
         break;
       }
       case 'analog_mixer':
@@ -347,6 +393,18 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
       if (!dev[d.id]?.power) return;
       const comps = inputComps(d.id, 'in');
       comps.forEach((x) => { put(d.type === 'speaker' ? 'main' : 'monitor', x); speakersHearing.push({ spk: d.id, type: d.type, x }); });
+    }
+    // 패시브 스피커: 전원이 없다 — 켜진 파워 앰프가 키운 신호(스피콘)만 소리가 된다. 하울링·위치는 액티브 스피커와 같다
+    if (d.type === 'passive_speaker') {
+      inputComps(d.id, 'spk').filter((x) => x.amped).forEach((x) => { put('main', x); speakersHearing.push({ spk: d.id, type: 'speaker', x }); });
+    }
+    // 인이어 모니터: 송신기 전원 + 송신기·벨트팩 채널이 같을 때만 연주자 귀에 (스피커가 아니라 하울링 계산에 넣지 않는다)
+    if (d.type === 'iem') {
+      const s = dev[d.id] ?? {};
+      if (s.power && s.txChannel === s.rxChannel) {
+        const g = mapDb(s.volume ?? 75);
+        inputComps(d.id, 'in').forEach((x) => { if (x.level != null && Number.isFinite(g)) put('monitor', { ...x, level: x.level + g, iem: true }); });
+      }
     }
     if (d.type === 'headphones') inputComps(d.id, 'plug').forEach((x) => put('headphones', x));
   });
@@ -566,8 +624,14 @@ export function channelIndexOf(st, src) {
       const idx = st.channels.findIndex((ch, i) => (ch.patch ?? `local${i + 1}`) === out.to.p);
       return idx >= 0 ? idx + 1 : null;
     }
-    if (st.devices[out.to.d]?.type === 'di_box') cur = { d: out.to.d, p: 'out' };
-    else return null;
+    const t = st.devices[out.to.d]?.type;
+    if (t === 'di_box') cur = { d: out.to.d, p: 'out' };
+    else if (t === 'stage_box' && /^in\d$/.test(out.to.p)) {
+      // 스테이지 박스 INPUT n → (멀티) → 팬아웃 OUT n
+      const fan = snakePeer(st, out.to.d);
+      if (!fan) return null;
+      cur = { d: fan, p: `out${out.to.p.slice(2)}` };
+    } else return null;
   }
   return null;
 }
@@ -598,6 +662,7 @@ export function checkObjective(check, st, sim, ctx = {}) {
     case 'eq': { const c = ch(check.source); const v = c?.[check.band]; return v != null && v >= (check.min ?? -15) && v <= (check.max ?? 15); }
     case 'power': return !!st.dev[check.device]?.power;
     case 'wireless': { const s = st.dev[check.device]; return !!s && s.txPower && s.txChannel === s.rxChannel && s.battery > 15; }
+    case 'iem': { const s = st.dev[check.device]; return !!s && !!s.power && s.txChannel === s.rxChannel; }
     case 'cleanHdmi': return !!st.dev[check.device]?.clean;
     case 'program': return sim.video.programCam === check.camera;
     case 'live': return sim.stream.live;
@@ -673,6 +738,9 @@ export function applyFault(st, f) {
     case 'speakerOff': if (st.dev[f.device]) st.dev[f.device].power = false; break;
     case 'wirelessChannel': if (st.dev[f.device]) st.dev[f.device].rxChannel = (st.dev[f.device].txChannel % 4) + 1; break;
     case 'wirelessBattery': if (st.dev[f.device]) st.dev[f.device].battery = 5; break;
+    case 'ampOff': if (st.dev[f.device]) st.dev[f.device].power = false; break;
+    case 'ampLevelZero': if (st.dev[f.device]) st.dev[f.device][`level${f.channel ?? 'A'}`] = 0; break;
+    case 'iemChannel': if (st.dev[f.device]) st.dev[f.device].rxChannel = (st.dev[f.device].txChannel % 8) + 1; break;
     case 'groundLoop': if (st.dev[f.device]) { st.dev[f.device].groundLoop = true; st.dev[f.device].groundLift = false; } break;
     case 'auxZero': if (c) c.aux = 0; break;
     case 'atemBlack': st.atem.program = 0; break;
@@ -720,6 +788,9 @@ export function faultFixed(f, st, sim) {
     case 'speakerOff': return !!st.dev[f.device]?.power;
     case 'wirelessChannel': return st.dev[f.device]?.txChannel === st.dev[f.device]?.rxChannel;
     case 'wirelessBattery': return (st.dev[f.device]?.battery ?? 0) > 15;
+    case 'ampOff': return !!st.dev[f.device]?.power;
+    case 'ampLevelZero': return (st.dev[f.device]?.[`level${f.channel ?? 'A'}`] ?? 0) >= 50;
+    case 'iemChannel': return st.dev[f.device]?.txChannel === st.dev[f.device]?.rxChannel;
     case 'groundLoop': return !!st.dev[f.device]?.groundLift;
     case 'auxZero': return !!c && c.aux > 0 && sim.reaches(f.source, 'monitor');
     case 'atemBlack': return !!sim.video.programCam;
@@ -752,6 +823,9 @@ export const FAULT_TEXT = {
   speakerOff: (f) => `${f.device} 스피커 전원이 꺼져 있었습니다.`,
   wirelessChannel: (f) => `${f.device} 무선 마이크 송신기와 수신기의 채널이 달랐습니다.`,
   wirelessBattery: (f) => `${f.device} 무선 마이크 배터리가 거의 없었습니다.`,
+  ampOff: (f) => `${f.device} 파워 앰프 전원이 꺼져 있었습니다 (패시브 스피커는 앰프가 켜져야 울립니다).`,
+  ampLevelZero: (f) => `${f.device} 파워 앰프 채널 ${f.channel ?? 'A'} 레벨 노브가 0이었습니다.`,
+  iemChannel: (f) => `${f.device} 인이어 송신기와 벨트팩 수신기의 채널이 달랐습니다.`,
   groundLoop: (f) => `${f.device} DI 박스에서 그라운드 루프 험이 생겼습니다 (GROUND LIFT로 해결).`,
   auxZero: (f) => `${f.source}의 모니터(AUX) 보내기가 0이었습니다.`,
   atemBlack: () => 'ATEM 프로그램이 블랙(입력 없음)이었습니다.',

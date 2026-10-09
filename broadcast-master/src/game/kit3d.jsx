@@ -273,14 +273,39 @@ export function JackFace({ kind, color }) {
           <mesh position={[0, 0.0094, 0]}><cylinderGeometry args={[0.0008, 0.0008, 0.0006, 8]} />{JM.gold}</mesh>
         </group>
       );
+    case 'speakon':
+      // 스피콘(NL4) 섀시 소켓: 사각 플랜지 + 둥근 홈 + 가운데 기둥과 키 홈 2개
+      return (
+        <group>
+          <mesh position={[0, 0.001, 0]}><boxGeometry args={[0.031, 0.002, 0.031]} />{JM.plate}</mesh>
+          {[[-1, -1], [1, 1]].map(([sx, sz]) => <mesh key={sx} position={[sx * 0.0118, 0.0022, sz * 0.0118]}><cylinderGeometry args={[0.0014, 0.0014, 0.0006, 8]} />{JM.metal}</mesh>)}
+          <mesh position={[0, 0.0021, 0]}><cylinderGeometry args={[0.0125, 0.0125, 0.0012, 28]} />{JM.black}</mesh>
+          <mesh position={[0, 0.0026, 0]}><cylinderGeometry args={[0.0105, 0.0105, 0.0004, 28]} />{JM.hole}</mesh>
+          <mesh position={[0, 0.0032, 0]}><cylinderGeometry args={[0.0045, 0.0045, 0.0012, 18]} />{JM.black}</mesh>
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0072, 0.0029, 0]}><boxGeometry args={[0.0024, 0.0004, 0.0036]} />{JM.hole}</mesh>)}
+          {color && <mesh position={[0, 0.0027, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.0118, 0.0008, 6, 28]} /><meshBasicMaterial color={color} toneMapped={false} /></mesh>}
+        </group>
+      );
+    case 'multi':
+      // 멀티핀(하팅형) 리셉터클: 사각 금속 하우징 + 핀 구멍 격자 + 양쪽 잠금 레버 핀
+      return (
+        <group>
+          <mesh position={[0, 0.0015, 0]}><boxGeometry args={[0.05, 0.003, 0.034]} />{JM.plate}</mesh>
+          <mesh position={[0, 0.004, 0]}><boxGeometry args={[0.04, 0.003, 0.024]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.0057, 0]}><boxGeometry args={[0.034, 0.0006, 0.018]} />{JM.black}</mesh>
+          {Array.from({ length: 24 }, (_, i) => <mesh key={i} position={[-0.0135 + (i % 8) * 0.0039, 0.0061, -0.0055 + Math.floor(i / 8) * 0.0055]}><cylinderGeometry args={[0.0011, 0.0011, 0.0004, 8]} />{JM.hole}</mesh>)}
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0225, 0.005, 0]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.0018, 0.0018, 0.004, 10]} />{JM.metal}</mesh>)}
+          {color && <mesh position={[0, 0.0032, 0.0135]}><boxGeometry args={[0.03, 0.0006, 0.0016]} /><meshBasicMaterial color={color} toneMapped={false} /></mesh>}
+        </group>
+      );
     default:
       return <mesh position={[0, 0.001, 0]}><cylinderGeometry args={[0.008, 0.008, 0.002, 16]} />{JM.black}</mesh>;
   }
 }
 
 // 단자에 꽂힌 플러그: 원점 = 단자 면, +Y 방향으로 몸통이 뻗는다. 반환 길이만큼 뒤에서 케이블이 이어진다
-export const PLUG_LEN = { xlr: 0.058, dmx: 0.058, trs: 0.05, mini: 0.03, hdmi: 0.036, usb: 0.03, eth: 0.034, sdi: 0.04 };
-export const CABLE_R = { xlr: 0.0052, dmx: 0.0052, trs: 0.0046, mini: 0.0028, hdmi: 0.0042, usb: 0.0033, eth: 0.0031, sdi: 0.0036 };
+export const PLUG_LEN = { xlr: 0.058, dmx: 0.058, trs: 0.05, mini: 0.03, hdmi: 0.036, usb: 0.03, eth: 0.034, sdi: 0.04, multi: 0.084, speakon: 0.062 };
+export const CABLE_R = { xlr: 0.0052, dmx: 0.0052, trs: 0.0046, mini: 0.0028, hdmi: 0.0042, usb: 0.0033, eth: 0.0031, sdi: 0.0036, multi: 0.0115, speakon: 0.0062 }; // 멀티 = 마이크 선 여러 가닥을 묶은 굵은 피복 · 스피콘 = 굵은 2심 전력선
 export function PlugBody({ cable, color }) {
   const body = <meshStandardMaterial color="#121418" roughness={0.45} metalness={0.2} />;
   const boot = <meshStandardMaterial color="#0d0e11" roughness={0.8} />;
@@ -349,6 +374,31 @@ export function PlugBody({ cable, color }) {
           <mesh position={[0, 0.022, 0]} castShadow><cylinderGeometry args={[0.0052, 0.0062, 0.018, 16]} />{body}</mesh>
           <mesh position={[0, 0.0145, 0]}><cylinderGeometry args={[0.0063, 0.0063, 0.002, 16]} />{band}</mesh>
           <mesh position={[0, 0.035, 0]}><cylinderGeometry args={[0.0038, 0.0052, 0.01, 10]} />{boot}</mesh>
+        </group>
+      );
+    case 'speakon':
+      return (
+        <group>
+          {/* 스피콘(NL4) 플러그: 돌려서 잠그는 파란 링 + 검은 몸통 + 꼬리 */}
+          <mesh position={[0, 0.005, 0]}><cylinderGeometry args={[0.0108, 0.0108, 0.01, 24]} />{body}</mesh>
+          <mesh position={[0, 0.016, 0]} castShadow><cylinderGeometry args={[0.0125, 0.0125, 0.012, 24]} /><meshStandardMaterial color="#2563eb" roughness={0.45} /></mesh>
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0125, 0.016, 0]}><boxGeometry args={[0.003, 0.01, 0.004]} /><meshStandardMaterial color="#1d4ed8" /></mesh>)}
+          <mesh position={[0, 0.034, 0]} castShadow><cylinderGeometry args={[0.0098, 0.011, 0.024, 20]} />{body}</mesh>
+          <mesh position={[0, 0.0475, 0]}><cylinderGeometry args={[0.0099, 0.0099, 0.003, 20]} />{band}</mesh>
+          <mesh position={[0, 0.056, 0]}><cylinderGeometry args={[0.0068, 0.0094, 0.014, 14]} />{boot}</mesh>
+        </group>
+      );
+    case 'multi':
+      return (
+        <group>
+          {/* 하팅형 멀티 커넥터: 금속 후드 + 잠금 레버 + 케이블 글랜드 */}
+          <mesh position={[0, 0.004, 0]}><boxGeometry args={[0.042, 0.008, 0.026]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.026, 0]} castShadow><boxGeometry args={[0.046, 0.036, 0.03]} /><meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.35} /></mesh>
+          <mesh position={[0, 0.0455, 0]} castShadow><boxGeometry args={[0.036, 0.008, 0.024]} /><meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.35} /></mesh>
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.0245, 0.016, 0]}><boxGeometry args={[0.003, 0.03, 0.02]} /><meshStandardMaterial color="#d1d5db" metalness={0.85} roughness={0.25} /></mesh>)}
+          <mesh position={[0, 0.0525, 0]}><cylinderGeometry args={[0.0115, 0.0115, 0.006, 6]} />{JM.metal}</mesh>
+          <mesh position={[0, 0.058, 0]}><cylinderGeometry args={[0.012, 0.012, 0.004, 20]} />{band}</mesh>
+          <mesh position={[0, 0.072, 0]}><cylinderGeometry args={[0.0118, 0.0135, 0.024, 16]} />{boot}</mesh>
         </group>
       );
     default:

@@ -45,6 +45,14 @@ class AudioEngine {
       this.verbSend = ctx.createGain(); this.verbSend.gain.value = 0;
       this.verb = ctx.createConvolver(); this.verb.buffer = this.impulse(2.4);
       this.stageBus.connect(this.stageHP).connect(this.shaper).connect(this.master);
+      // 무대 위 말소리(녹음): 채널 LOW CUT · LOW · MID · HIGH → 무대 체인 (클리핑·울림·얇은 소리가 그대로 들린다)
+      this.vGain = ctx.createGain(); this.vGain.gain.value = 0;
+      this.vHpf = ctx.createBiquadFilter(); this.vHpf.type = 'highpass'; this.vHpf.frequency.value = 20;
+      this.vLow = ctx.createBiquadFilter(); this.vLow.type = 'lowshelf'; this.vLow.frequency.value = 140;
+      this.vMid = ctx.createBiquadFilter(); this.vMid.type = 'peaking'; this.vMid.frequency.value = 1000; this.vMid.Q.value = 0.9;
+      this.vHigh = ctx.createBiquadFilter(); this.vHigh.type = 'highshelf'; this.vHigh.frequency.value = 5500;
+      this.vGain.connect(this.vHpf).connect(this.vLow).connect(this.vMid).connect(this.vHigh).connect(this.stageBus);
+      this.voiceBufs = new Map(); this.voiceIdx = 0;
       this.shaper.connect(this.verbSend).connect(this.verb).connect(this.master);
       // 트랙별 게인
       this.tracks = {};
@@ -84,7 +92,7 @@ class AudioEngine {
   /* ----- 설정 ----- */
   setBgm({ on, volume } = {}) { if (on != null) this.bgmOn = on; if (volume != null) this.bgmVol = volume; this.applyBgm(); }
   setSong(song) { this.song = song; }
-  setSfx(on) { this.sfxOn = on; if (!on) this.setStage({}); }
+  setSfx(on) { this.sfxOn = on; if (!on) this.setStage({}); if (this.voiceSpec) this.setVoice(this.voiceSpec); }
   applyBgm() {
     if (!this.ctx) return;
     const v = this.bgmOn ? this.bgmVol * 0.32 * this.duck : 0;
@@ -106,6 +114,40 @@ class AudioEngine {
     const loud = Math.max(...TRACKS.map((k) => this.stage[k] ?? 0));
     this.duck = loud > 0.05 ? 0.25 : 1;
     this.applyBgm();
+  }
+
+  /* ----- 무대 위 말소리 (녹음) ----- */
+  // v: { active, volume(0~1), eq: { high, mid, freq, low, lowCut }, clips: [{ key, bytes() }] } | null
+  setVoice(v) {
+    this.voiceSpec = v;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const on = this.sfxOn && !!v?.active;
+    this.vGain.gain.setTargetAtTime(on ? v.volume * (this.voiceDucked ? 0.22 : 1) * 0.95 : 0, t, 0.05);
+    const eq = v?.eq ?? {};
+    this.vHpf.frequency.setTargetAtTime(eq.lowCut ? 110 : 20, t, 0.05);
+    this.vLow.gain.setTargetAtTime(eq.low ?? 0, t, 0.05);
+    this.vMid.gain.setTargetAtTime(eq.mid ?? 0, t, 0.05);
+    this.vMid.frequency.setTargetAtTime(eq.freq ?? 1000, t, 0.05);
+    this.vHigh.gain.setTargetAtTime(eq.high ?? 0, t, 0.05);
+    if (on && !this.voicePlaying) this.nextPhrase();
+  }
+  // 튜토리얼 내레이션이 나오는 동안 무대 말소리를 줄인다
+  duckVoice(d) { if (this.voiceDucked === d) return; this.voiceDucked = d; if (this.voiceSpec) this.setVoice(this.voiceSpec); }
+  async nextPhrase() {
+    const v = this.voiceSpec;
+    if (!v?.active || !v.clips?.length || !this.sfxOn || !this.ctx) { this.voicePlaying = false; return; }
+    this.voicePlaying = true;
+    const c = v.clips[this.voiceIdx % v.clips.length];
+    this.voiceIdx += 1;
+    let buf = this.voiceBufs.get(c.key);
+    if (!buf) {
+      try { const b = c.bytes(); buf = await this.ctx.decodeAudioData(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); this.voiceBufs.set(c.key, buf); } catch { this.voicePlaying = false; return; }
+    }
+    if (!this.voiceSpec?.active) { this.voicePlaying = false; return; }
+    const src = this.ctx.createBufferSource(); src.buffer = buf; src.connect(this.vGain);
+    src.onended = () => { setTimeout(() => this.nextPhrase(), 420); };
+    src.start();
   }
 
   /* ----- 시퀀서 ----- */

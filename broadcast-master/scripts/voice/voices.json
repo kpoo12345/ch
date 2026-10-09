@@ -1,0 +1,8 @@
+{
+  "_": "Supertonic 3 화자 번호 (0~4 여성, 5~9 남성) · 빠르기 · 단계 수. 바꾸면 그 목소리 줄만 다시 만든다",
+  "senior": { "sid": 3, "speed": 1.06 },
+  "junior": { "sid": 7, "speed": 1.1 },
+  "talk_m": { "sid": 5, "speed": 1.0 },
+  "talk_f": { "sid": 1, "speed": 1.04 },
+  "steps": 10
+}

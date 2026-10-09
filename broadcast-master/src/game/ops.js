@@ -17,7 +17,7 @@
  *  { op:'fade', ch?, to, ms }                   페이더를 ms 동안 천천히 (ch가 없으면 메인)
  *  { op:'talk', on } · { op:'perform', on } · { op:'wait', ms }   (화면 쪽에서 처리)
  * ===================================================================== */
-import { canConnect, computeSim, connId, mixerStateOf, newMixerState, ATEM_DEFAULT, DEV_DEFAULTS, FOOTPRINT } from './sim.js';
+import { canConnect, computeSim, connId, mixerStateOf, newMixerState, ATEM_DEFAULT, DEV_DEFAULTS, FOOTPRINT, snakePeer } from './sim.js';
 import { DEVICE_TYPES } from './engine.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -230,22 +230,32 @@ export function runOps(st0, ops, { onStep } = {}) {
 }
 
 // 켜진 스피커로 가는 길에 케이블을 꽂고 빼거나 +48V를 바꾸면 "퍽" (팝 노이즈) — 스피커 전원은 마지막에 켠다
+// 패시브 스피커 시스템에서는 파워 앰프가 그 역할: 앰프를 마지막에 켜고 먼저 끈다 (팝은 'pop:<앰프 id>'로 기록)
+export const POP_TYPES = new Set(['speaker', 'monitor', 'power_amp']);
 export function notePop(st, op, latched) {
   if (op.op === 'dev' && op.key === 'power' && op.value === false) { latched.delete(`pop:${op.device}`); return null; }
   const isCable = op.op === 'connect' || op.op === 'disconnect';
   if (!isCable && !((op.op === 'ch' || op.op === 'master') && op.key === 'phantom')) return null;
-  const powered = Object.values(st.devices).filter((d) => d.placed && (d.type === 'speaker' || d.type === 'monitor') && st.dev[d.id]?.power);
+  // 소리를 키우는 장비(액티브 스피커·웨지·파워 앰프)가 켜져 있을 때만. 패시브 스피커는 전원이 없어 앰프가 대신 "퍽"을 낸다
+  const powered = Object.values(st.devices).filter((d) => d.placed && POP_TYPES.has(d.type) && st.dev[d.id]?.power);
   if (!powered.length) return null;
   const ends = isCable ? [String(op.from).split('.')[0], String(op.to).split('.')[0]] : [op.mixer ?? st.mixerId];
   const hit = powered.filter((spk) => {
-    // 스피커에서 거꾸로 따라가며 신호 경로에 있는 장비들
+    // 스피커(앰프)에서 거꾸로 따라가며 신호 경로에 있는 장비들. 앰프는 INPUT A·B 두 갈래를 다 따라간다
     const chain = new Set([spk.id]);
-    let cur = spk.id;
-    for (let k = 0; k < 5; k += 1) {
-      const c = st.connections.find((x) => x.to.d === cur);
-      if (!c || chain.has(c.from.d)) break;
-      chain.add(c.from.d); cur = c.from.d;
-    }
+    (spk.type === 'power_amp' ? ['inA', 'inB'] : [null]).forEach((start) => {
+      let cur = spk.id, inPort = start;
+      for (let k = 0; k < 5; k += 1) {
+        const c = st.connections.find((x) => x.to.d === cur && (inPort == null || x.to.p === inPort));
+        if (!c || chain.has(c.from.d)) break;
+        chain.add(c.from.d); cur = c.from.d; inPort = null;
+        // 스네이크는 번호 그대로 건너간다: 박스 RETURN n ← 팬아웃 RETURN IN n, 팬아웃 OUT n ← 박스 INPUT n
+        const t = st.devices[cur]?.type;
+        const n = /^(?:ret|out)(\d)$/.exec(c.from.p)?.[1];
+        const peer = n && (t === 'stage_box' || t === 'snake_fanout') ? snakePeer(st, cur) : null;
+        if (peer) { chain.add(peer); cur = peer; inPort = t === 'stage_box' ? `ret${n}` : `in${n}`; }
+      }
+    });
     return ends.some((e) => chain.has(e));
   }).map((d) => d.id);
   hit.forEach((id) => latched.add(`pop:${id}`));

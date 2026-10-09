@@ -1,2 +1,4 @@
 node_modules
 dist
+scripts/voice/.cache/
+src/game/photos/*.src

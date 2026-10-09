@@ -17,6 +17,8 @@ import { Seg, Toggle } from './controls.jsx';
 import { addDeviceOp } from '../ops.js';
 import Dialog from './Dialog.jsx';
 import ListenCompare from './ListenCompare.jsx';
+import LabOverlay from './LabOverlay.jsx';
+import { PHRASES, TALK_VOICE } from '../data/phrases.js';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -24,14 +26,6 @@ import ListenCompare from './ListenCompare.jsx';
  * ===================================================================== */
 
 const LISTEN = [['main', '객석 스피커'], ['monitor', '무대 모니터'], ['headphones', '헤드폰'], ['stream', '방송(시청자)']];
-const PHRASES = {
-  seminar: ['아, 아, 마이크 테스트.', '안녕하십니까, 오늘 세미나를 시작하겠습니다.', '뒤에 계신 분들 잘 들리시나요?'],
-  youtube_room: ['안녕하세요 여러분, 라이브 방송에 오신 걸 환영해요!', '오늘은 커버곡을 들려드릴게요.', '채팅 많이 남겨 주세요!'],
-  church: ['하나님의 은혜와 평강이 함께 하시기를 바랍니다.', '오늘 말씀은 시편 23편입니다.', '다 함께 찬양하겠습니다.'],
-  live_stage: ['안녕하세요! 반갑습니다!', '다음 곡 들려드릴게요!', '다 같이 손 들어 주세요!'],
-  lecture_hall: ['안녕하세요, 오늘 강의를 시작하겠습니다.', '화면을 보시면서 따라와 주세요.', '질문은 채팅으로 남겨 주세요.'],
-  sandbox: ['아, 아, 마이크 테스트.', '하나, 둘, 셋.', '잘 들리시나요?'],
-};
 const noWatch = () => null;
 const INSTRUMENTS = new Set(['e_guitar', 'keyboard', 'digital_piano', 'bass_guitar', 'drum_kit', 'kick_mic', 'snare_mic', 'overhead_mic']);
 const lvToVol = (lv) => (lv == null ? 0 : Math.max(0, Math.min(1, (lv + 42) / 32)));
@@ -52,6 +46,7 @@ export default function GameScreen({
   }, [spec]); // eslint-disable-line react-hooks/exhaustive-deps
   const [listen, setListen] = useState(defaultListen);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [lab, setLab] = useState(null); // 튜토리얼에서 연 실습실 { lab, goal }
   // 자유 모드: 탭과 상관없이 자동 저장·도전 과제 (훅은 화면이 살아 있는 동안 늘 같은 것이 불린다)
   const useWatch = sandbox?.useWatch ?? noWatch;
   useWatch(game);
@@ -134,8 +129,14 @@ export default function GameScreen({
   // 사람 말소리
   useEffect(() => {
     const heard = actual.heard[listen] ?? {};
-    const lv = Math.max(-99, ...Object.entries(heard).filter(([src]) => ['dynamic_mic', 'condenser_mic', 'wireless_mic'].includes(st.devices[src]?.type)).map(([, h]) => h.level));
-    setTalk(sfxOn && talking ? { volume: lvToVol(lv), phrases: PHRASES[st.venue] ?? PHRASES.sandbox } : null);
+    const mics = Object.entries(heard).filter(([src]) => ['dynamic_mic', 'condenser_mic', 'wireless_mic'].includes(st.devices[src]?.type));
+    const lv = Math.max(-99, ...mics.map(([, h]) => h.level));
+    // 가장 크게 들리는 마이크가 꽂힌 채널의 EQ를 말소리에 그대로 건다
+    const loud = mics.sort((a, b) => b[1].level - a[1].level)[0]?.[0];
+    const ch = loud ? actual.channelOf(loud) : null;
+    const c = ch ? st.channels[ch.index - 1] : null;
+    const eq = c ? { high: c.eqHigh ?? 0, mid: c.eqMid ?? 0, freq: c.eqFreq ?? 1000, low: c.eqLow ?? 0, lowCut: !!c.lowCut } : null;
+    setTalk(sfxOn && talking ? { volume: lvToVol(lv), phrases: PHRASES[st.venue] ?? PHRASES.sandbox, who: TALK_VOICE[st.venue] ?? 'talk_m', eq } : null);
   }, [actual, listen, talking, sfxOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 스페이스바 = 말하기
@@ -171,6 +172,13 @@ export default function GameScreen({
   const inv = Object.entries(st.cables).filter(([k]) => CABLES[k]);
   const cableChoices = st.unlimited ? Object.keys(CABLES) : inv.map(([k]) => k);
   const highlight = player.waiting ? targetOf(player.waiting, st) : null;
+  // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
+  useEffect(() => {
+    const id = player.narration?.focus;
+    if (id && !lockView && st.devices[id]?.placed) setFocusRequest({ id, key: Date.now() });
+  }, [player.narration?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 다음 장면으로 넘어가면 실습실은 닫는다
+  useEffect(() => { setLab(null); }, [player.narration?.i]);
   const onePending = game.pending ? `${st.devices[game.pending.d]?.name ?? game.pending.d} · ${portLabel(st, game.pending.d, game.pending.p)}` : null;
   const doneCount = game.objectives.filter((o) => o.ok).length;
 
@@ -233,7 +241,8 @@ export default function GameScreen({
           {game.toast && <Toast toast={game.toast} onDone={() => game.setToast(null)} />}
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
-          <Dialog player={player} tutorial={!!tutorial} />
+          <Dialog player={player} tutorial={!!tutorial} onLab={setLab} />
+          {lab && <LabOverlay lab={lab} onClose={() => setLab(null)} />}
         </div>
 
         {/* 사이드 패널 */}

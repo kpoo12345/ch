@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Hand, ChevronLeft, ChevronRight, Pause, Play, X, Headphones, Wand2, CheckCircle2, FastForward } from 'lucide-react';
+import { Hand, ChevronLeft, ChevronRight, Pause, Play, X, Headphones, Wand2, CheckCircle2, FastForward, Sprout, FlaskConical, XCircle } from 'lucide-react';
 import { Seg, Toggle } from './controls.jsx';
 import { saveProgress } from '../ui.jsx';
+import { SPEAKERS } from '../data/tutorial.js';
+import VisualCard from './VisualCard.jsx';
 
 /* =====================================================================
  * 대화 장면 상자 — 튜토리얼·정답 보기의 진행 화면
@@ -11,8 +13,10 @@ import { saveProgress } from '../ui.jsx';
  * ===================================================================== */
 const SPEEDS = [1, 1.5, 2];
 
-export default function Dialog({ player, tutorial, speaker = '선배 엔지니어' }) {
-  const { script, narration, waiting, speaking, praised } = player;
+const LAB_NAME = { fade: '페이드 실습실', eq: 'EQ 실습실', fx: '울림(리버브) 실습실' };
+
+export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab }) {
+  const { script, narration, waiting, speaking, praised, quiz } = player;
   const [shown, setShown] = useState(0);
   const seqRef = useRef(null);
   const text = narration?.text ?? '';
@@ -25,7 +29,10 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
     const t0 = narration?.t0 ?? Date.now();
     const total = Math.max(400, (narration?.ms ?? 2000) * 0.92);
     const tick = () => {
-      const k = Math.min(text.length, from + Math.ceil(((Date.now() - t0) / total) * (text.length - from)));
+      // 녹음 목소리면 재생 위치를 그대로 따라간다
+      const k = narration?.audio
+        ? Math.min(text.length, Math.ceil((player.progress?.current ?? 0) * text.length * 1.04))
+        : Math.min(text.length, from + Math.ceil(((Date.now() - t0) / total) * (text.length - from)));
       setShown((prev) => Math.max(prev, k));
       return k >= text.length;
     };
@@ -34,7 +41,7 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
     tick();
     const id = setInterval(() => { if (tick()) clearInterval(id); }, 35);
     return () => clearInterval(id);
-  }, [text, narration?.seq, narration?.offset, narration?.t0, speaking]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, narration?.seq, narration?.offset, narration?.t0, narration?.audio, speaking]); // eslint-disable-line react-hooks/exhaustive-deps
   // 음성이 알려 준 단어 위치까지는 바로 보이게
   useEffect(() => { if (narration?.pos) setShown((v) => Math.max(v, Math.min(text.length, narration.pos))); }, [narration?.pos]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!speaking && text) setShown(text.length); }, [speaking, text]);
@@ -43,9 +50,11 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
   const speed = SPEEDS.includes(script?.speed) ? script.speed : 1;
   const setSpeed = (v) => { player.setSpeed(v); saveProgress('bm2-speed', v); };
   const full = shown >= text.length;
+  const q = narration?.quiz;
+  const quizOn = !!q && quiz?.i === narration?.i && !quiz.solved;
   const advance = () => {
     if (!full) { setShown(text.length); return; }
-    if (waiting) return; // 직접 해야 하는 단계는 해내야(또는 "보여 주세요") 넘어간다
+    if (waiting || quizOn) return; // 직접 해야 하는 단계·퀴즈는 해내야(또는 "보여 주세요"·건너뛰기) 넘어간다
     player.next();
   };
   // 키보드: Enter/→ 다음, ← 이전
@@ -54,6 +63,7 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
       if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
       if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); advance(); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); player.jump(-1); }
+      if (quizOn && /^[1-4]$/.test(e.key)) { e.preventDefault(); player.pick(Number(e.key) - 1); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -62,17 +72,22 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
   if (!script || (!narration && !waiting)) return null;
   const n = narration?.n ?? script.steps.length;
   const i = narration?.i ?? script.i;
+  const who = narration?.who === 'junior' ? 'junior' : 'senior';
+  const sp = tutorial ? SPEAKERS[who] : { name: speaker };
+  const junior = who === 'junior';
   return (
     <div className="absolute left-1/2 -translate-x-1/2 bottom-2 w-[min(97%,720px)] z-20">
-      <div className="rounded-2xl border border-violet-400/50 bg-slate-950/95 backdrop-blur shadow-2xl overflow-hidden">
+      {/* 설명 카드 (사진·3D 모형·그림) */}
+      {narration?.show && <div key={narration.seq} className="mb-1.5 flex bm-pop"><VisualCard show={narration.show} /></div>}
+      <div className={`rounded-2xl border ${junior ? 'border-emerald-400/50' : 'border-violet-400/50'} bg-slate-950/95 backdrop-blur shadow-2xl overflow-hidden`}>
         {/* 진행 막대 */}
         <div className="h-1 bg-slate-800"><div className="h-full bg-violet-400 transition-all" style={{ width: `${((i + (ready ? 1 : 0.4)) / n) * 100}%` }} /></div>
         <div className="flex gap-3 px-3 pt-2.5 pb-2 cursor-pointer select-none" onClick={advance} role="button" tabIndex={-1} aria-label="다음 대사">
           <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5">
-            <div className={`h-11 w-11 rounded-full bg-gradient-to-br from-violet-500 to-sky-500 flex items-center justify-center ring-2 ${speaking ? 'ring-violet-300 animate-pulse' : 'ring-slate-700'}`}>
-              <Headphones size={22} className="text-white" />
+            <div className={`h-11 w-11 rounded-full bg-gradient-to-br ${junior ? 'from-emerald-400 to-amber-400' : 'from-violet-500 to-sky-500'} flex items-center justify-center ring-2 ${speaking ? (junior ? 'ring-emerald-200 animate-pulse' : 'ring-violet-300 animate-pulse') : 'ring-slate-700'}`} title={sp.role}>
+              {junior ? <Sprout size={22} className="text-white" /> : <Headphones size={22} className="text-white" />}
             </div>
-            <span className="text-[9px] font-bold text-violet-200 whitespace-nowrap">{speaker}</span>
+            <span className={`text-[9px] font-bold whitespace-nowrap ${junior ? 'text-emerald-200' : 'text-violet-200'}`}>{sp.name}</span>
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[15px] leading-relaxed text-slate-50 min-h-[3em]">
@@ -86,6 +101,31 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
                   <Wand2 size={13} /> 보여 주세요
                 </button>
               </div>
+            )}
+            {q && quiz?.i === narration?.i && full && (
+              <div className="mt-1.5 grid gap-1 sm:grid-cols-2" onClick={(e) => e.stopPropagation()} role="group" aria-label="퀴즈 보기">
+                {q.options.map((o, k) => {
+                  const wrong = quiz.wrong.includes(k);
+                  const right = quiz.solved && k === q.answer;
+                  return (
+                    <button key={k} type="button" disabled={quiz.solved || wrong} onClick={() => player.pick(k)}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-sm font-bold transition ${right ? 'border-green-400 bg-green-600/25 text-green-100' : wrong ? 'border-red-500/60 bg-red-900/20 text-red-300 line-through' : quiz.solved ? 'border-slate-700 text-slate-500' : 'border-sky-500/60 bg-sky-900/20 text-sky-50 hover:bg-sky-800/40'}`}>
+                      <span className="shrink-0 h-5 w-5 rounded-full bg-slate-800 text-[11px] flex items-center justify-center">{right ? <CheckCircle2 size={14} className="text-green-300" /> : wrong ? <XCircle size={14} /> : k + 1}</span>
+                      <span>{o}</span>
+                    </button>
+                  );
+                })}
+                {quiz.solved && q.explain && (
+                  <p className="sm:col-span-2 text-[13px] text-slate-200 leading-relaxed">
+                    {quiz.by === 'auto' && <>정답은 <b className="text-green-300">{q.options[q.answer]}</b>. </>}{q.explain}
+                  </p>
+                )}
+              </div>
+            )}
+            {narration?.lab && full && onLab && (
+              <button type="button" onClick={(e) => { e.stopPropagation(); onLab(narration.lab); }} className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/60 bg-cyan-900/30 px-2.5 py-1.5 text-sm font-bold text-cyan-100 hover:bg-cyan-800/40">
+                <FlaskConical size={15} /> {LAB_NAME[narration.lab.lab] ?? '실습실'} 열기
+              </button>
             )}
             {praised && (
               <div className="mt-1.5 text-sm font-bold text-green-300 flex items-center gap-1"><CheckCircle2 size={16} /> 좋아요, 잘했어요!</div>
@@ -108,9 +148,9 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
           <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{Math.min(i + 1, n)} / {n}</span>
           {!tutorial && <button type="button" onClick={player.stop} className="p-1 rounded hover:bg-slate-800 text-slate-400" aria-label="자동 진행 끄기"><X size={15} /></button>}
           <button type="button" onClick={() => player.next()}
-            className={`flex items-center gap-0.5 rounded-lg px-3 py-1.5 text-sm font-black transition ${ready && !waiting ? 'bg-violet-500 text-white shadow-[0_0_14px_rgba(167,139,250,.7)] animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-            title={waiting ? '이 단계는 대신 처리하고 넘어갑니다' : '다음 장면 (Enter)'}>
-            {waiting ? '건너뛰기' : '다음'} <ChevronRight size={16} />
+            className={`flex items-center gap-0.5 rounded-lg px-3 py-1.5 text-sm font-black transition ${ready && !waiting && !quizOn ? 'bg-violet-500 text-white shadow-[0_0_14px_rgba(167,139,250,.7)] animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            title={waiting ? '이 단계는 대신 처리하고 넘어갑니다' : quizOn ? '퀴즈를 건너뜁니다' : '다음 장면 (Enter)'}>
+            {waiting || quizOn ? '건너뛰기' : '다음'} <ChevronRight size={16} />
           </button>
         </div>
       </div>

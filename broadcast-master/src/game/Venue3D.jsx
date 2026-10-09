@@ -13,8 +13,12 @@ import {
 } from './Studio3D.jsx';
 import { AnalogConsole, DigitalConsole, CONSOLE_SIZE, consoleControl } from './consoles.jsx';
 import { KickMicModel, SnareMicModel, OverheadMicModel, DigitalPianoModel, BassGuitarModel, DrumKitModel, PORTS_INSTR, GHOST_INSTR, FOCUS_INSTR, SELECT_RADIUS_INSTR, INSTR_TYPES } from './models4.jsx';
+import {
+  StageBoxModel, FanoutModel, PORTS_SNAKE, GHOST_SNAKE, FOCUS_SNAKE, SELECT_RADIUS_SNAKE, SNAKE_TYPES,
+  PowerAmpModel, PassiveSpeakerModel, IemModel, PORTS_AMP, GHOST_AMP, FOCUS_AMP, SELECT_RADIUS_AMP, POINT_AMP,
+} from './models5.jsx';
 import { VENUES, P_CH, P_LS } from './venues.js';
-import { mixerStateOf, atemStateOf } from './sim.js';
+import { mixerStateOf, atemStateOf, snakePeer, zoneOf, VENUE_ZONES } from './sim.js';
 import {
   ParLedModel, MovingHeadModel, LightingConsoleModel, lightConsoleControl, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel,
   PtzControllerModel, drawPtzLcd, PORTS_LIGHT, GHOST_LIGHT, FOCUS_LIGHT, BeamPoolCtx, BeamLightPool,
@@ -35,11 +39,12 @@ import {
  * ===================================================================== */
 
 const DT = DESK_TOP;
+const NUM8 = [1, 2, 3, 4, 5, 6, 7, 8];
 
 /* ---------------------------- 장비 장착 방식 ---------------------------- */
-const FLOOR_NATIVE = new Set(['dynamic_mic', 'condenser_mic', 'speaker', 'monitor', 'camera', 'e_guitar', 'keyboard', 'di_box', ...INSTR_TYPES]);
+const FLOOR_NATIVE = new Set(['dynamic_mic', 'condenser_mic', 'speaker', 'passive_speaker', 'monitor', 'camera', 'e_guitar', 'keyboard', 'di_box', ...INSTR_TYPES, ...SNAKE_TYPES]);
 const MIC_TYPES = new Set(['dynamic_mic', 'condenser_mic']);
-const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA, ...PORTS_LIGHT, ...PORTS_INSTR };
+const PORTS_ALL = { ...PORTS3D, ...PORTS_EXTRA, ...PORTS_LIGHT, ...PORTS_INSTR, ...PORTS_SNAKE, ...PORTS_AMP };
 const FIXTURES = new Set(['par_led', 'moving_head']);
 const HANGING = new Set(['par_led', 'moving_head', 'projector']);
 const CAMERA_TYPES = new Set(['camera', 'mirrorless', 'ptz']);
@@ -49,11 +54,11 @@ const SEL_KEYS = new Set(['gain', 'lowCut', 'phantom', 'eqHigh', 'eqMid', 'eqLow
 const OWN_JACKS = new Set(['analog_mixer', 'digital_mixer']);
 const GHOST_ALL = { ...GHOST, ...GHOST_EXTRA, analog_mixer: CONSOLE_SIZE.analog_mixer, digital_mixer: CONSOLE_SIZE.digital_mixer,
   audio_interface: [0.22, 0.06, 0.12], wireless_mic: [0.4, 0.3, 0.2], di_box: [0.12, 0.07, 0.15], headphones: [0.25, 0.25, 0.2],
-  mirrorless: [0.25, 0.3, 0.2], ptz: [0.18, 0.25, 0.18], atem_pro: [0.46, 0.4, 0.45], ...GHOST_LIGHT, ...GHOST_INSTR };
+  mirrorless: [0.25, 0.3, 0.2], ptz: [0.18, 0.25, 0.18], atem_pro: [0.46, 0.4, 0.45], ...GHOST_LIGHT, ...GHOST_INSTR, ...GHOST_SNAKE, ...GHOST_AMP };
 const FOCUS_ALL = { ...FOCUS, ...FOCUS_EXTRA, analog_mixer: { y: 0.07, dist: 0.85 }, digital_mixer: { y: 0.1, dist: 1.05 },
   audio_interface: { y: 0.03, dist: 0.5 }, wireless_mic: { y: 0.08, dist: 0.7 }, di_box: { y: 0.03, dist: 0.5 }, headphones: { y: 0.12, dist: 0.6 },
-  mirrorless: { y: 0.2, dist: 0.6 }, ptz: { y: 0.12, dist: 0.6 }, atem_pro: { y: 0.12, dist: 0.95 }, ...FOCUS_LIGHT, ...FOCUS_INSTR };
-const RADIUS_ALL = { ...SELECT_RADIUS, ...SELECT_RADIUS_EXTRA, ...SELECT_RADIUS_INSTR };
+  mirrorless: { y: 0.2, dist: 0.6 }, ptz: { y: 0.12, dist: 0.6 }, atem_pro: { y: 0.12, dist: 0.95 }, ...FOCUS_LIGHT, ...FOCUS_INSTR, ...FOCUS_SNAKE, ...FOCUS_AMP };
+const RADIUS_ALL = { ...SELECT_RADIUS, ...SELECT_RADIUS_EXTRA, ...SELECT_RADIUS_INSTR, ...SELECT_RADIUS_SNAKE, ...SELECT_RADIUS_AMP };
 
 // 책상 위 마이크(데스크 암·강대상 구즈넥): 마이크 머리 높이 H
 function deskMicPorts(type, H) {
@@ -80,7 +85,7 @@ export function mountOf(slot, type) {
     return { y: DT, scale: 1, base: 'rack' };
   }
   if (slot.kind === 'wall') return { y: 0, scale: 1, base: 'shelf' };
-  if (slot.kind === 'desk' && FLOOR_NATIVE.has(type) && type !== 'di_box') return { y: 0, scale: 0.5, base: null };
+  if (slot.kind === 'desk' && FLOOR_NATIVE.has(type) && type !== 'di_box' && !SNAKE_TYPES.has(type)) return { y: 0, scale: 0.5, base: null };
   return { y: 0, scale: 1, base: null };
 }
 
@@ -418,8 +423,8 @@ function cableRoute(A, B, venue, lane) {
   return [a, a1, ...da, ...mid, ...db, b1, b];
 }
 
-// 케이블 피복: 실제 케이블처럼 어두운 색에 종류 색이 살짝 섞인다 (플러그의 색 링으로 종류를 구분)
-const jacketColor = (hex) => `#${new THREE.Color(hex).lerp(new THREE.Color('#0b0c0f'), 0.55).getHexString()}`;
+// 케이블 피복: 실제 케이블처럼 어두운 색에 종류 색이 살짝 섞인다 (플러그의 색 링으로 종류를 구분). 멀티(스네이크)는 거의 검정
+const jacketColor = (hex, k = 0.55) => `#${new THREE.Color(hex).lerp(new THREE.Color('#0b0c0f'), k).getHexString()}`;
 // 플러그 꼬리에서 케이블이 시작되도록 끝점을 단자 방향으로 밀어 준다
 const atPlugTail = (E, cable) => {
   const n = new THREE.Vector3(...E.n).normalize();
@@ -430,7 +435,7 @@ const atPlugTail = (E, cable) => {
 function Cable3D({ A, B, venue, lane, cable, live, fresh, onDisconnect, interactive, tipRef }) {
   const hold = useHoldCamera();
   const color = CABLES[cable]?.stroke ?? '#94a3b8';
-  const jacket = useMemo(() => jacketColor(color), [color]);
+  const jacket = useMemo(() => jacketColor(color, cable === 'multi' ? 0.82 : 0.55), [color, cable]);
   const key = `${A.p.join()}|${B.p.join()}|${lane}`;
   const curve = useMemo(() => new THREE.CatmullRomCurve3(cableRoute(atPlugTail(A, cable), atPlugTail(B, cable), venue, lane), false, 'centripetal'), [key, cable]); // eslint-disable-line react-hooks/exhaustive-deps
   const segs = Math.min(400, Math.max(80, Math.round(curve.getLength() * 60)));
@@ -467,7 +472,7 @@ function Cable3D({ A, B, venue, lane, cable, live, fresh, onDisconnect, interact
   return (
     <group>
       <mesh geometry={geo} castShadow raycast={noRaycast}>
-        <meshStandardMaterial color={hover ? color : jacket} roughness={0.55} emissive={color} emissiveIntensity={hover ? 0.7 : live ? 0.18 : 0} />
+        <meshStandardMaterial color={hover ? color : jacket} roughness={0.55} emissive={color} emissiveIntensity={hover ? 0.7 : live ? (cable === 'multi' ? 0.05 : 0.18) : 0} />
       </mesh>
       {hitGeo && (
         <mesh
@@ -939,7 +944,7 @@ export default function Venue3D({
     const glowAt = (id, g, at = g.at) => ({ ...g, pos: toWorld(id, at) });
     const pgm = placed.find((d) => d.type === 'camera' && camTally(d.id) === 'pgm');
     if (pgm) glows.push(glowAt(pgm.id, GLOW.tally));
-    const fb = talking ? sim.loops.find((l) => l.loop >= 0 && devices[l.spk]?.placed && (devices[l.spk].type === 'speaker' || devices[l.spk].type === 'monitor') && worldOf(l.spk)) : null;
+    const fb = talking ? sim.loops.find((l) => l.loop >= 0 && devices[l.spk]?.placed && ['speaker', 'passive_speaker', 'monitor'].includes(devices[l.spk].type) && worldOf(l.spk)) : null;
     if (fb) glows.push(glowAt(fb.spk, devices[fb.spk].type === 'monitor' ? GLOW.wedge : GLOW.feedback));
     const led = placed.find((d) => d.type === 'led_wall' && sim.displays[d.id] && (sim.displays[d.id].layers.length > 0 || sim.displays[d.id].program));
     if (led) glows.push(glowAt(led.id, GLOW.ledWall, [0, 0.4 + (worldOf(led.id).slot.ledWall?.h ?? 2.25) / 2, 0.8]));
@@ -984,6 +989,17 @@ export default function Venue3D({
         const fb = sim.loops.some((l) => l.spk === d.id && l.loop >= 0) && talking;
         return <SpeakerModel power={!!s.power} level={s.power ? lv : null} feedback={fb} />;
       }
+      case 'passive_speaker': {
+        // 전원이 없다: 켜진 앰프가 보내는 스피콘 신호만 소리가 된다
+        const lv = sim.inLevel(d.id, 'spk');
+        const fb = sim.loops.some((l) => l.spk === d.id && l.loop >= 0) && talking;
+        return <PassiveSpeakerModel level={lv} feedback={fb} />;
+      }
+      case 'power_amp': {
+        const out = ['A', 'B'].map((ch) => sim.outLevel(d.id, `spk${ch}`));
+        return <PowerAmpModel power={!!s.power} levelA={s.levelA ?? 75} levelB={s.levelB ?? 75} sigA={live(out[0])} sigB={live(out[1])} clipA={out[0] != null && out[0] > 4} clipB={out[1] != null && out[1] > 4} />;
+      }
+      case 'iem': return <IemModel power={!!s.power} txChannel={s.txChannel ?? 1} rxChannel={s.rxChannel ?? 1} volume={s.volume ?? 75} sig={live(sim.inLevel(d.id, 'in'))} />;
       case 'monitor': {
         const lv = sim.inLevel(d.id, 'in');
         const fb = sim.loops.some((l) => l.spk === d.id && l.loop >= 0) && talking;
@@ -1003,6 +1019,10 @@ export default function Venue3D({
         return <Interface2 cfg={s} levels={lv} />;
       }
       case 'di_box': return <DiBoxModel groundLift={!!s.groundLift} pad={!!s.pad} />;
+      case 'stage_box':
+        return <StageBoxModel sig={NUM8.map((n) => live(sim.inLevel(d.id, `in${n}`)))} ret={[1, 2].map((n) => live(sim.outLevel(d.id, `ret${n}`)))} link={!!snakePeer(st, d.id)} />;
+      case 'snake_fanout':
+        return <FanoutModel sig={NUM8.map((n) => live(sim.outLevel(d.id, `out${n}`)))} ret={[1, 2].map((n) => live(sim.inLevel(d.id, `ret${n}`)))} link={!!snakePeer(st, d.id)} />;
       case 'headphones': return <HeadphonesModel />;
       case 'e_guitar': return <GuitarModel performing={performing} />;
       case 'keyboard': return <KeyboardModel performing={performing} />;
@@ -1154,8 +1174,8 @@ export default function Venue3D({
                   const hiPort = (highlight?.port && highlight.device === d.id && highlight.port === pid) || (highlight?.port2 && highlight.device2 === d.id && highlight.port2 === pid);
                   return (
                     <Port3D key={pid} p={pw.p} n={pw.n} port={port} label={SHORT_LABEL[`${d.type}:${pid}`] ?? port.label}
-                      lift={d.type === 'digital_mixer' && idx % 2 ? 0.035 : 0} used={used} isPending={isPending} candidate={candidate || hiPort}
-                      bare={OWN_JACKS.has(d.type)} labels={labels && d.type !== 'analog_mixer'} onClick={() => onPortClick?.(d.id, pid)} />
+                      lift={(d.type === 'digital_mixer' || SNAKE_TYPES.has(d.type)) && idx % 2 ? 0.035 : 0} used={used} isPending={isPending} candidate={candidate || hiPort}
+                      bare={OWN_JACKS.has(d.type)} hitR={SNAKE_TYPES.has(d.type) ? 0.024 : undefined} labels={labels && d.type !== 'analog_mixer'} onClick={() => onPortClick?.(d.id, pid)} />
                   );
                 })}
               </group>
@@ -1225,11 +1245,15 @@ function CamLcdWrap({ s, tally }) {
   );
 }
 
-function chainHas(st, d, src) {
-  // DI 등을 거쳐 src가 d로 들어오는지
-  const c = st.connections.find((x) => x.to.d === d);
+function chainHas(st, d, src, port = null, seen = new Set()) {
+  // DI 등을 거쳐 src가 d로 들어오는지. 스네이크는 번호 그대로 건너간다 (팬아웃 OUT n ← 박스 IN n, 박스 RET n ← 팬아웃 RET n)
+  const c = !seen.has(d) && st.connections.find((x) => x.to.d === d && (port == null || x.to.p === port));
   if (!c) return false;
-  return c.from.d === src || chainHas(st, c.from.d, src);
+  seen.add(d); // 순환 방지 (믹서 AUX → 팬아웃 → 믹서 …)
+  if (c.from.d === src) return true;
+  const t = st.devices[c.from.d]?.type, n = /^(?:out|ret)(\d)$/.exec(c.from.p)?.[1];
+  if (n && SNAKE_TYPES.has(t)) { const peer = snakePeer(st, c.from.d); return !!peer && chainHas(st, peer, src, t === 'snake_fanout' ? `in${n}` : `ret${n}`, seen); }
+  return chainHas(st, c.from.d, src, null, seen);
 }
 
 function drawMultiviewMapped(ctx, w, h, { map, program, preview, pip, streaming, recording }) {
@@ -1264,16 +1288,17 @@ export function freeProjectorScreen(d, venueId) {
   return { pos: [d.pos[0] + dx * D, d.pos[1] + 1.5, d.pos[2] + dz * D], rot: rot + Math.PI, w: 2.4, h: 1.35 };
 }
 
+// 케이블 길 찾기용 구역: 무대 / 그 밖(음향 부스 쪽). 시뮬레이션(험 계산)과 같은 VENUE_ZONES를 쓴다
+// (드럼 마이크·스테이지 박스·앰프 랙처럼 무대 위 장비끼리는 객석 통로로 돌아가지 않는다)
 function zoneOfSlot(venueId, slot, slotName) {
-  const STAGE = { church: ['pulpit_mic', 'worship_mic_rx_stage', 'choir_mic', 'keys', 'di_keys', 'wedge_pulpit', 'wedge_band', 'pa_left', 'pa_right'],
-    live_stage: ['vocal_mic', 'gtr', 'keys', 'di_gtr', 'di_keys', 'wedge_vocal', 'wedge_keys', 'pa_left', 'pa_right', 'cam_stage'] };
-  if (!STAGE[venueId]) return 'room';
-  return STAGE[venueId].includes(slotName) ? 'stage' : 'foh';
+  if (!VENUE_ZONES[venueId]) return 'room';
+  return zoneOf(venueId, slotName) === 'stage' ? 'stage' : 'foh';
 }
 
 // 장비별 "조작 지점" (전원 스위치, 버튼 등) — 유령 손이 누를 곳. (ctl, slot) → 장비 기준 로컬 좌표
 // 조명기·프로젝터는 원점이 클램프(위)이고 몸체가 아래로 매달린다
 const DEVICE_POINT = {
+  ...POINT_AMP,
   speaker: () => [0.0, 1.2, -0.16],
   monitor: () => [0.0, 0.22, -0.15],
   wireless_mic: (c) => (c.key === 'txPower' || c.key === 'battery' || c.key === 'txChannel' ? [0.15, 0.2, 0.02] : [-0.07, 0.03, 0.08]),

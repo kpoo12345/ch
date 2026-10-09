@@ -15,3 +15,8 @@ body {
   background: #0f172a;
   color: #f8fafc;
 }
+
+/* 튜토리얼 설명 카드가 뜰 때 */
+@keyframes bm-pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+.bm-pop { animation: bm-pop .25s ease-out; }
+@media (prefers-reduced-motion: reduce) { .bm-pop { animation: none; } }

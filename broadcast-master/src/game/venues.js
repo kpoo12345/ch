@@ -66,6 +66,13 @@ export const VENUES = {
       cam_rear: { pos: [-1.3, 0, 3.4], rot: faceTo([-1.3, 0, 3.4], [-0.3, 0, -2.0]), kind: 'floor', label: '뒤쪽 카메라 자리' },
       ptz_side: { pos: [-3.75, 2.05, 0.6], rot: faceTo([-3.75, 0, 0.6], [0, 0, -2.0]), kind: 'wall', label: '옆벽 PTZ 자리' },
       router_foh: { pos: [-0.75, 0, 3.35], rot: 0, kind: 'floor', label: '공유기 자리' },
+      // 스네이크: 강단 앞 가운데(강대상 모니터 옆) 바닥의 스테이지 박스 ↔ 방송실 책상 왼쪽 끝 바닥의 팬아웃
+      stagebox: { pos: [0.75, P_CH, -1.25], rot: 0, kind: 'floor', label: '스테이지 박스 자리' },
+      fanout: { pos: [-0.65, 0, 2.75], rot: 0.4, kind: 'floor', label: '스네이크 팬아웃 자리 (믹서 옆)' },
+      // 파워 앰프 랙: 방송실 책상 오른쪽 끝 바닥 (스피커 케이블이 객석 옆을 따라 메인 스피커까지 간다)
+      amp_rack: { pos: [3.7, 0, 2.45], rot: -0.5, kind: 'floor', label: '파워 앰프 랙 자리 (방송실)' },
+      // 인이어 송신기 랙: 강단 오른쪽 앞 (반주자 모니터 옆)
+      iem_rack: { pos: [2.75, P_CH, -1.3], rot: -0.3, kind: 'floor', label: '인이어 송신기 자리 (강단 옆)' },
       light_front_l: { pos: [-1.7, 3.5, 1.0], rot: faceTo([-1.7, 0, 1.0], [-0.4, 0, -2.0]), kind: 'truss', label: '앞 조명 L (설교자)', aim: [-0.4, 1.7, -2.0] },
       light_front_r: { pos: [1.7, 3.5, 1.0], rot: faceTo([1.7, 0, 1.0], [0.4, 0, -2.0]), kind: 'truss', label: '앞 조명 R (찬양팀)', aim: [1.0, 1.6, -1.9] },
       light_back_1: { pos: [-1.4, 3.6, -3.0], rot: 0, kind: 'truss', label: '뒤 조명 1', aim: [-0.5, P_CH, -1.4] },
@@ -114,6 +121,12 @@ export const VENUES = {
       bass: { pos: [-2.75, P_LS, -2.35], rot: 0.25, kind: 'floor', label: '베이스 자리' },
       di_bass: { pos: [-2.2, P_LS, -1.3], rot: 0, kind: 'floor', label: '베이스 DI 자리' },
       di_keys2: { pos: [1.75, P_LS, -1.3], rot: 0, kind: 'floor', label: '건반 DI 2 자리' },
+      // 스네이크: 무대 앞 가운데(보컬 옆)의 스테이지 박스 ↔ FOH 책상 왼쪽 끝 바닥의 팬아웃
+      stagebox: { pos: [0.5, P_LS, -1.1], rot: 0, kind: 'floor', label: '스테이지 박스 자리' },
+      fanout: { pos: [-0.95, 0, 3.2], rot: 0.4, kind: 'floor', label: '스네이크 팬아웃 자리 (믹서 옆)' },
+      // 무대 왼쪽 옆(사이드 스테이지)의 파워 앰프 랙 · 오른쪽 옆의 인이어 송신기 랙
+      amp_rack: { pos: [-3.25, P_LS, -2.95], rot: 0.5, kind: 'floor', label: '파워 앰프 랙 자리 (무대 옆)' },
+      iem_rack: { pos: [3.2, P_LS, -2.75], rot: -0.5, kind: 'floor', label: '인이어 송신기 자리 (무대 옆)' },
     },
     people: [{ id: 'singer', pos: [0, P_LS, -1.75], rot: 0, singer: true, talker: true, shirt: '#111827' }],
   },

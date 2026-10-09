@@ -1,4 +1,4 @@
-import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar, Piano, Laptop, Router, Volume1, Lightbulb, Spotlight, PanelsTopLeft, Projector, Grid3x3, Clapperboard, Joystick, Drum } from 'lucide-react';
+import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLines, Radio, Headphones, Camera, Cctv, Guitar, Piano, Laptop, Router, Volume1, Lightbulb, Spotlight, PanelsTopLeft, Projector, Grid3x3, Clapperboard, Joystick, Drum, Boxes, Split, Zap, Ear } from 'lucide-react';
 
 /* =====================================================================
  * 방송장비 마스터 — 게임 데이터 & 신호 계산 엔진
@@ -15,18 +15,23 @@ export const CABLES = {
   mini: { name: '3.5mm 변환 케이블', short: '3.5mm', desc: '3.5mm ↔ 3.5mm/6.3mm(TRS)/XLR 변환 · 노트북·ATEM MIC', stroke: '#f472b6', dot: 'bg-pink-400' },
   eth: { name: '랜선 (이더넷)', short: 'LAN', desc: 'RJ45 · 인터넷 송출·네트워크 제어', stroke: '#2dd4bf', dot: 'bg-teal-400' },
   dmx: { name: 'DMX 케이블 (5핀)', short: 'DMX', desc: '110Ω 조명 제어 신호 · 조명끼리 줄줄이(데이지 체인) 연결', stroke: '#a3e635', dot: 'bg-lime-400' },
+  speakon: { name: '스피커 케이블 (스피콘)', short: 'SPK', desc: '앰프가 키운 큰 전력 신호(스피커 레벨) · 파워 앰프 출력 → 패시브 스피커 입력 전용 (돌려서 잠그는 NL4 커넥터)', stroke: '#ef4444', dot: 'bg-red-500' },
+  multi: { name: '멀티 케이블 (스네이크)', short: 'MULTI', desc: '밸런스드 마이크 선 여러 가닥을 한 피복에 묶은 굵은 케이블 · 스테이지 박스 ↔ 팬아웃 전용', stroke: '#fb7185', dot: 'bg-rose-400' },
 };
 
 export const PORT_ACCEPTS = {
   xlr: ['xlr', 'mini'], trs: ['trs', 'mini'], combo: ['xlr', 'trs', 'mini'], hdmi: ['hdmi'], sdi: ['sdi'], usb: ['usb'], eth: ['eth'], mini: ['mini'],
   dmx: ['dmx', 'xlr'], // 마이크(XLR) 케이블도 물리적으로는 꽂힌다 — 하지만 임피던스가 달라 신호가 깨질 수 있다
+  multi: ['multi'], // 멀티핀 커넥터: 스테이지 박스 ↔ 팬아웃 전용
+  speakon: ['speakon'], // 스피콘: 파워 앰프 출력 → 패시브 스피커 전용 (큰 전력이 흐르는 선)
 };
 export const PORT_KIND_LABEL = {
   xlr: 'XLR 단자', trs: '6.3mm TRS 단자', combo: 'XLR/TRS 콤보 단자',
   hdmi: 'HDMI 단자', sdi: 'BNC(SDI) 단자', usb: 'USB-C 단자', eth: 'RJ45 LAN 단자', mini: '3.5mm 미니잭', dmx: 'DMX 단자 (5핀 XLR)',
+  multi: '멀티핀 단자 (스네이크)', speakon: '스피콘 단자 (NL4)',
 };
 export const PORT_COLOR = {
-  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80', eth: '#2dd4bf', mini: '#f472b6', dmx: '#a3e635',
+  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80', eth: '#2dd4bf', mini: '#f472b6', dmx: '#a3e635', multi: '#fb7185',
 };
 export const MISMATCH_TIP = {
   xlr: 'XLR 단자는 3핀 캐논 커넥터라서 XLR 케이블만 들어갑니다.',
@@ -38,6 +43,8 @@ export const MISMATCH_TIP = {
   eth: 'LAN(RJ45) 단자에는 랜선을 꽂습니다.',
   mini: '3.5mm 미니잭에는 3.5mm 케이블(또는 변환 케이블)을 씁니다.',
   dmx: 'DMX 단자에는 DMX 케이블을 씁니다. 오디오 케이블은 조명 신호를 보내는 용도가 아닙니다.',
+  speakon: '스피콘 단자는 파워 앰프와 패시브 스피커를 잇는 전용 단자입니다. 앰프가 키운 큰 전력이 흐르므로 스피커 케이블(스피콘)만 맞고, 스피콘 케이블은 믹서·액티브 스피커 입력에 꽂히지 않습니다.',
+  multi: '멀티 단자는 스테이지 박스와 팬아웃을 잇는 전용 멀티핀 커넥터입니다. 멀티 케이블(스네이크)만 맞고, 멀티 케이블은 다른 단자에 꽂히지 않습니다.',
 };
 
 /* ---------------------------- 장비 정의 ---------------------------- */
@@ -106,6 +113,40 @@ export const DEVICE_TYPES = {
     ins: [{ id: 'input', label: 'INPUT (TS)', kind: 'trs' }],
     outs: [{ id: 'thru', label: 'THRU (TS)', kind: 'trs' }, { id: 'out', label: 'OUTPUT (XLR)', kind: 'xlr' }],
     info: '기타·키보드 같은 악기의 언밸런스드 신호(TS)를 밸런스드 마이크 레벨(XLR)로 바꿔, 긴 케이블로도 잡음 없이 믹서에 보낼 수 있게 해 줍니다. THRU로는 원래 신호를 앰프에 그대로 보냅니다.',
+  },
+  stage_box: {
+    name: '스테이지 박스', model: '8 IN / 2 RETURN 멀티 (무대 쪽)', icon: Boxes, w: 220,
+    ins: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `in${n}`, label: `INPUT ${n} (XLR)`, kind: 'xlr' })),
+    outs: [
+      { id: 'ret1', label: 'RETURN 1 (XLR)', kind: 'xlr' }, { id: 'ret2', label: 'RETURN 2 (XLR)', kind: 'xlr' },
+      { id: 'multi', label: 'MULTI (스네이크 → 믹서 쪽)', kind: 'multi' },
+    ],
+    info: '무대 위 마이크·DI를 가까운 박스에 꽂고, 굵은 멀티 케이블(스네이크) 한 줄로 20~40m 떨어진 음향 부스(FOH)의 믹서까지 보내는 장비입니다. 마이크 선 8가닥을 객석으로 따로 끌고 가지 않아도 되고, 모든 가닥이 밸런스드라 멀리 가도 잡음이 없습니다. 박스 INPUT 번호 = 팬아웃 OUT 번호 = 믹서 채널 번호로 맞추는 것이 원칙입니다. RETURN은 반대로, 믹서의 AUX(모니터) 믹스를 무대로 돌려보내 웨지·인이어에 연결합니다. +48V 팬텀도 같은 선을 타고 무대의 콘덴서 마이크까지 갑니다.',
+  },
+  snake_fanout: {
+    name: '스네이크 팬아웃', model: '믹서 쪽 브레이크아웃 (OUT 8 / RET 2)', icon: Split, w: 220,
+    ins: [
+      { id: 'multi', label: 'MULTI (스테이지 박스에서)', kind: 'multi' },
+      { id: 'ret1', label: 'RETURN 1 IN (← 믹서 AUX)', kind: 'combo' }, { id: 'ret2', label: 'RETURN 2 IN (← 믹서 AUX)', kind: 'combo' },
+    ],
+    outs: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `out${n}`, label: `OUT ${n} → 믹서 CH${n}`, kind: 'xlr' })),
+    info: '스네이크의 믹서 쪽 끝입니다. 멀티 케이블로 들어온 무대 신호가 번호 붙은 짧은 XLR 꼬리(OUT 1~8)로 갈라져 믹서 MIC 입력에 꽂힙니다. 스테이지 박스 INPUT 3에 꽂은 마이크는 팬아웃 OUT 3으로 나오므로 믹서 CH3에 꽂으면 번호가 그대로 맞습니다. RETURN IN에는 믹서의 AUX SEND를 꽂아 모니터 믹스를 무대로 돌려보냅니다 (XLR·TRS 모두 꽂히는 콤보 단자).',
+  },
+  power_amp: {
+    name: '파워 앰프', model: '2채널 랙 앰프 (2U)', icon: Zap, w: 220,
+    ins: [{ id: 'inA', label: 'INPUT A (XLR/TRS)', kind: 'combo' }, { id: 'inB', label: 'INPUT B (XLR/TRS)', kind: 'combo' }],
+    outs: [{ id: 'spkA', label: 'SPEAKON OUT A', kind: 'speakon' }, { id: 'spkB', label: 'SPEAKON OUT B', kind: 'speakon' }],
+    info: '믹서의 작은 라인 레벨 신호를 스피커 콘을 움직일 수 있는 큰 전력(스피커 레벨)으로 키우는 장비입니다. 채널이 A·B 두 개라 패시브 스피커 두 대(왼쪽·오른쪽)를 따로 울릴 수 있고, 앞면의 채널 레벨 노브로 음량을 정합니다(75 = 0dB). 출력은 스피콘 단자로만 나가고 패시브 스피커에만 연결합니다. 전원은 액티브 스피커처럼 "가장 마지막에 켜고, 가장 먼저 끈다" — 앰프가 켜진 채로 케이블을 꽂거나 빼면 "펑" 하는 팝 노이즈가 스피커로 나갑니다.',
+  },
+  passive_speaker: {
+    name: '패시브 스피커', model: '앰프 없는 스피커 (8Ω)', icon: Speaker, w: 170,
+    ins: [{ id: 'spk', label: 'SPEAKON IN', kind: 'speakon' }], outs: [],
+    info: '앰프가 들어 있지 않은 스피커입니다. 스스로 소리를 키울 수 없어서 전원 스위치도 없고, 파워 앰프의 스피콘 출력으로 큰 전력을 받아야만 소리가 납니다. 믹서 출력(라인 레벨)이나 마이크를 바로 꽂으면 소리가 나지 않습니다. 소리가 나기만 하면 하울링·위치는 액티브 스피커와 똑같이 조심해야 합니다.',
+  },
+  iem: {
+    name: '인이어 모니터 송신기', model: 'IEM 무선 송신기 + 벨트팩 수신기', icon: Ear, w: 200,
+    ins: [{ id: 'in', label: 'INPUT (XLR/TRS)', kind: 'combo' }], outs: [],
+    info: '믹서의 AUX(모니터) 믹스를 전파로 보내, 연주자가 허리에 찬 벨트팩 수신기와 귀에 꽂은 이어폰으로 듣게 하는 장비입니다. 송신기와 벨트팩의 채널(주파수)이 같아야 들리고, 벨트팩의 볼륨으로 크기를 정합니다. 소리가 귀 안으로만 들어가서 무대 웨지처럼 마이크로 되돌아가지 않으므로 하울링이 생기지 않고, 무대 위 소음도 줄어듭니다.',
   },
   headphones: {
     name: '모니터 헤드폰', model: '밀폐형 (Closed-back)', icon: Headphones, w: 170,

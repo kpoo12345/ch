@@ -3,7 +3,8 @@ import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHA
 import { applyOp, opToAction, noteOnAirMove, notePop, getPath } from '../ops.js';
 import { getAudio } from '../audio.js';
 import { MISMATCH_TIP, DEVICE_TYPES, CABLES } from '../engine.js';
-import { narrate, stopNarration, speechOk } from '../speech.js';
+import { narrate, stopNarration, speechOk, hasClip, setNarrationRate, clipStatus } from '../speech.js';
+import { STOCK } from '../data/tutorial.js';
 
 /* =====================================================================
  * 게임 상태 훅 — 스토리·튜토리얼·자유 모드가 함께 쓴다
@@ -260,6 +261,8 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   const [waiting, setWaiting] = useState(null); // 연습: 플레이어가 직접 해야 하는 단계
   const [speaking, setSpeaking] = useState(false);
   const [praised, setPraised] = useState(false); // 연습 단계를 해냈을 때 잠깐 칭찬
+  const [quiz, setQuiz] = useState(null); // 퀴즈 장면: { i, wrong: [고른 오답], solved, by: 'me' | 'auto' }
+  const progress = useRef(0); // 녹음 재생 위치 (0~1) — 글자 표시가 소리를 따라간다
   const [tick, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
   const timers = useRef([]);
@@ -287,18 +290,34 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   const lineSeq = useRef(0); // 새 대사가 시작될 때마다 1씩 (속도만 바꾼 재낭독과 구별)
   const voiceRef = useRef(voiceOn);
   voiceRef.current = voiceOn; // 화면에서 음성을 껐다 켰다 하면 바로 반영 (콜백이 옛 값을 쥐지 않게)
-  const speak = (c, text, from, speed, end) => {
+  const speak = (c, text, from, speed, end, who = 'senior') => {
     const sp = speech.current;
     if (sp?.timer) clearTimeout(sp.timer);
     const part = text.slice(from);
     const ms = speechMs(part, speed);
     const t0 = Date.now();
-    const s1 = { c, text, from, t0, ms, speed, pos: from, bound: false, end, timer: null };
+    const s1 = { c, text, from, t0, ms, speed, pos: from, bound: false, end, timer: null, who, audio: false };
     speech.current = s1;
-    setNarration((n) => (n && n.text === text ? { ...n, ms, offset: from, t0, pos: from } : n));
     const endIfCurrent = () => { if (speech.current === s1) end(); };
+    // 미리 녹음한 목소리가 있으면 그걸 튼다 (처음부터 읽을 때만 — 중간부터는 합성 음성)
+    if (voiceRef.current && from === 0 && hasClip(who, text)) {
+      s1.audio = true;
+      progress.current = 0;
+      setNarration((n) => (n && n.text === text ? { ...n, ms, offset: 0, t0, pos: 0, audio: true } : n));
+      narrate(text, {
+        who, rate: speed,
+        onEnd: endIfCurrent,
+        onStart: () => { if (speech.current !== s1) return; s1.t0 = Date.now(); },
+        onProgress: (f) => { if (speech.current === s1) { progress.current = f; s1.pos = Math.floor(f * text.length); s1.bound = true; } },
+        onError: () => { if (speech.current !== s1) return; s1.audio = false; setNarration((n) => (n && n.text === text ? { ...n, audio: false, t0: Date.now() } : n)); clearTimeout(s1.timer); s1.timer = setTimeout(endIfCurrent, ms); },
+      });
+      s1.timer = setTimeout(endIfCurrent, ms * 2.2 + 4000); // 끝 신호가 안 올 때 대비
+      return;
+    }
+    setNarration((n) => (n && n.text === text ? { ...n, ms, offset: from, t0, pos: from, audio: false } : n));
     if (voiceRef.current && speechOk()) {
       narrate(part, {
+        who,
         rate: Math.max(0.6, Math.min(2, speed)),
         onEnd: endIfCurrent,
         // 소리가 실제로 나기 시작한 때부터 글자·위치를 잰다
@@ -323,9 +342,16 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const sp = speech.current;
     // 일시정지 중이면 속도만 바꾼다 (다시 재생할 때 새 속도로 읽는다)
     if (!scriptRef.current?.playing || !sp || sp.c !== cur.current || sp.c.speech || sp.speed === speed) return;
+    // 녹음이면 빠르기만 바꾼다 (끝 대비 타이머만 다시)
+    if (sp.audio && setNarrationRate(speed)) {
+      sp.speed = speed;
+      const left = clipStatus()?.remainMs ?? sp.ms;
+      clearTimeout(sp.timer); sp.timer = setTimeout(() => { if (speech.current === sp) sp.end(); }, left * 1.6 + 3000);
+      return;
+    }
     const pos = spokenPos(sp);
     if (sp.text.length - pos < 3) return;
-    speak(sp.c, sp.text, pos, speed, sp.end);
+    speak(sp.c, sp.text, pos, speed, sp.end, sp.who);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사 도중 음성을 끄면 바로 조용히, 남은 글자는 글자 속도대로
   useEffect(() => {
@@ -333,7 +359,7 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     stopNarration();
     const sp = speech.current;
     if (!sp || !scriptRef.current?.playing || sp.c !== cur.current || sp.c.speech) return;
-    speak(sp.c, sp.text, spokenPos(sp), sp.speed, sp.end);
+    speak(sp.c, sp.text, spokenPos(sp), sp.speed, sp.end, sp.who);
   }, [voiceOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const setAuto = useCallback((auto) => setScript((s) => (s ? { ...s, auto } : s)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -350,7 +376,7 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   const jump = useCallback((delta) => {
     const s = scriptRef.current;
     if (!s) return;
-    clear(); dropSpeech(); stopNarration(); setWaiting(null); setPraised(false); setSpeaking(false);
+    clear(); dropSpeech(); stopNarration(); setWaiting(null); setPraised(false); setSpeaking(false); setQuiz(null);
     if (delta > 0) {
       if (s.i < s.steps.length) ghostDo(s.i, false);
       setScript((x) => (x ? { ...x, i: Math.min(x.steps.length, x.i + 1), playing: true, ready: false, restart: x.restart + 1 } : x));
@@ -394,17 +420,23 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const step = steps[i];
     if (!snaps.current[i]) snaps.current[i] = clone(game.stRef.current);
     sc.onStep?.(step, i);
-    const text = step.say ?? null;
+    const text = step.say ?? step.quiz?.q ?? null;
+    const who = step.quiz ? 'senior' : step.who ?? 'senior';
     const est = speechMs(text, speed);
     // 대사가 없는 단계에서는 앞 대사를 그대로 띄워 둔다 (상자가 깜빡이지 않게)
-    if (text) setNarration({ text, i, n: steps.length, ms: est, offset: 0, t0: Date.now(), pos: 0, seq: (lineSeq.current += 1) });
+    if (text) setNarration({ text, who, i, n: steps.length, ms: est, offset: 0, t0: Date.now(), pos: 0, seq: (lineSeq.current += 1), show: step.show ?? null, quiz: step.quiz ?? null, lab: step.lab ?? null, focus: step.focus ?? null });
     setPraised(false);
-    const c = { i, speech: !text, action: !hasOp(step) || applied.current.has(i) };
+    setQuiz(step.quiz ? { i, wrong: [], solved: applied.current.has(i), by: null } : null);
+    const c = { i, speech: !text, action: (!hasOp(step) || applied.current.has(i)) && (!step.quiz || applied.current.has(i)) };
     cur.current = c;
-    const speechEnd = () => { if (cur.current !== c || c.speech) return; c.speech = true; setSpeaking(false); bump(); };
+    const speechEnd = () => {
+      if (cur.current !== c || c.speech) return; c.speech = true; setSpeaking(false); bump();
+      // 보기 모드에서는 퀴즈 답을 잠깐 뒤 대신 보여 준다
+      if (step.quiz && !c.action && !scriptRef.current?.practice) later(() => { if (cur.current === c && !c.action) answerRef.current(step.quiz.answer, 'auto'); }, 1600 / (scriptRef.current?.speed ?? 1));
+    };
     if (text) {
       setSpeaking(true);
-      speak(c, text, 0, speed, speechEnd);
+      speak(c, text, 0, speed, speechEnd, who);
     } else { setSpeaking(false); if (speech.current?.timer) clearTimeout(speech.current.timer); speech.current = null; }
     if (!c.action) {
       if (sc.practice && step.practice) setWaiting({ ...step, index: i });
@@ -441,6 +473,43 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     return () => clearTimeout(t);
   }, [script?.ready, script?.auto, script?.i, script?.playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 짧은 한마디 (칭찬·아쉬움) — 단계 진행을 막지 않는다
+  const quip = (list) => {
+    // 지금 대사를 읽는 중이면 끊지 않는다
+    if (!voiceRef.current || !list?.length || (speech.current && !cur.current.speech)) return;
+    const line = list[Math.floor(Math.random() * list.length)];
+    if (hasClip('senior', line)) narrate(line, { who: 'senior', rate: scriptRef.current?.speed ?? 1 });
+  };
+  // 퀴즈 답 고르기: 맞으면 설명을 들려주고 다음으로, 틀리면 다시 (두 번 틀리면 정답을 알려 준다)
+  const answer = (k, by = 'me') => {
+    const s = scriptRef.current;
+    const c = cur.current;
+    const step = s?.steps[c.i];
+    if (!step?.quiz || c.action) return;
+    const q = step.quiz;
+    if (k !== q.answer) {
+      getAudio().error();
+      setQuiz((x) => (x && x.i === c.i ? { ...x, wrong: [...new Set([...x.wrong, k])] } : x));
+      const wrongs = (quizRef.current?.wrong?.length ?? 0) + 1;
+      if (wrongs < 2) { quip(STOCK.wrong); return; }
+    } else getAudio().ok();
+    applied.current.add(c.i);
+    c.action = true;
+    setQuiz((x) => (x && x.i === c.i ? { ...x, solved: true, by } : x));
+    if (k === q.answer && by === 'me') setPraised(true);
+    // 설명을 다 듣고 나서 ready
+    if (q.explain) {
+      c.speech = false; setSpeaking(true);
+      speak(c, q.explain, 0, s.speed, () => { if (cur.current !== c) return; c.speech = true; setSpeaking(false); bump(); }, 'senior');
+    }
+    bump();
+  };
+  const answerRef = useRef(answer);
+  answerRef.current = answer;
+  const quizRef = useRef(null);
+  quizRef.current = quiz;
+  const pick = useCallback((k) => answerRef.current(k, 'me'), []);
+
   // 연습 단계 완료 감지
   useEffect(() => {
     if (!waiting || !scriptRef.current) return;
@@ -450,12 +519,13 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
       setWaiting(null);
       setPraised(true);
       getAudio().ok();
+      quip(STOCK.praise);
       if (cur.current.i === i) { cur.current.action = true; bump(); }
     }
   }, [game.st, game.talking, game.latched, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { clear(); stopNarration(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return { script, narration, waiting, speaking, praised, start, stop, pause, resume, setSpeed, setPractice, setAuto, jump, next, showMe };
+  return { script, narration, waiting, speaking, praised, quiz, pick, progress, start, stop, pause, resume, setSpeed, setPractice, setAuto, jump, next, showMe };
 }
 
 // 연습 단계: 플레이어가 그 조작을 했는지 (수치는 근처면 인정)
@@ -478,7 +548,10 @@ export function opSatisfied(st, op, game, before) {
     case 'master': return near(st.master[op.key], op.value, 6);
     case 'dev': {
       const v = getPath(st.dev[op.device], op.key);
-      return Array.isArray(op.value) ? JSON.stringify(v) === JSON.stringify(op.value) : near(v, op.value, op.key.includes('gain') ? 6 : 5);
+      if (Array.isArray(op.value)) return JSON.stringify(v) === JSON.stringify(op.value);
+      // 채널·주소·프리셋 번호는 정확히 같아야 한다 (근처 값은 다른 채널이다)
+      if (/channel|address|preset|ip/i.test(op.key)) return v === op.value;
+      return near(v, op.value, op.key.includes('gain') ? 6 : 5);
     }
     // CUT/AUTO: 단계를 시작할 때와 PGM이 바뀌었어야 인정
     case 'atem': return op.key === 'cut' || op.key === 'auto' ? !!before && st.atem.program !== before.atem.program : st.atem[op.key] === op.value;

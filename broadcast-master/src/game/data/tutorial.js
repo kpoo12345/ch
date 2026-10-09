@@ -1,136 +1,48 @@
 /* =====================================================================
- * 튜토리얼 — 게임이 스스로 진행하며(유령 손) 기초 장비를 보여 준다
- * "직접 해보기"를 켜면 practice 문구가 있는 단계에서 플레이어가 직접 조작할 때까지 기다린다
+ * 튜토리얼 — 주제별 파트. 선배(서진)와 신입(하늘)이 대화하며 한 장면씩 진행한다.
+ *  파트 하나 = src/game/data/tutorial/<이름>.js (export default { ... })
+ *
+ *  파트: { id, venue, title, summary, mission, devices, connections, inventory, state, objectives: [], talk, performing, steps }
+ *   - devices/connections/inventory/state 형식은 스토리 스테이지(story.json)와 같다 (buildRuntime이 읽는다)
+ *
+ *  장면(step) 한 칸:
+ *   say      화면에 보이고 읽어 주는 대사 (한두 문장)
+ *   who      'senior'(선배 서진, 기본) | 'junior'(신입 하늘 — 학습자 입장에서 묻고 반응한다)
+ *   show     설명 카드: { photo: 'mic_dynamic' } | { model: 'condenser_mic' } | { connector: 'xlr', female? }
+ *            | { concept: 'balanced' } | { concept: 'strip', focus: 'gain' } (채널 스트립 그림에서 그 부분만 빛난다)
+ *            | { items: [카드, 카드, (카드)] } — 카드마다 label 가능, 전체에 caption 가능
+ *            photo id는 data/photos.js의 PHOTOS. 사진이 아직 없으면 그 항목의 model/connector 그림으로 대신한다
+ *   quiz     { q, options: [..], answer: 정답 번호(0부터), explain } — 맞히면 칭찬 후 다음, 틀리면 설명을 보여 주고 다시
+ *   lab      { lab: 'fade' | 'eq' | 'fx', goal } — 실습실을 열어 직접 만져 본다 (닫으면 다음)
+ *   focus    장비 id — 카메라가 그 장비로 다가간다
+ *   op ...   조작 (place, connect, dev, ch, master, fade, move, atem, obs, ptz, talk, perform, wait …)
+ *   practice "직접 해 보세요" 안내. 이게 있는 조작 장면은 직접 해보기가 켜져 있으면 플레이어가 해낼 때까지 기다린다
  * ===================================================================== */
+import sound from './tutorial/sound.js';
+import mic from './tutorial/mic.js';
+import cable from './tutorial/cable.js';
+import mixer from './tutorial/mixer.js';
+import speaker from './tutorial/speaker.js';
+import instrument from './tutorial/instrument.js';
+import stream from './tutorial/stream.js';
+import show from './tutorial/show.js';
 
-export const TUTORIAL = [
-  {
-    id: 'tut-pa', venue: 'seminar', title: '파트 1 · 소리의 길 (PA 기초)',
-    summary: '마이크 → 믹서 → 스피커. GAIN과 페이더, 클리핑과 하울링까지 음향의 기본.',
-    mission: '유령 손을 따라 마이크·믹서·스피커를 설치하고 첫 소리를 내 봅니다.',
-    devices: [
-      { id: 'mic', type: 'dynamic_mic', slot: 'presenter_mic', placed: false, name: '다이나믹 마이크' },
-      { id: 'mixer', type: 'analog_mixer', slot: 'desk1', placed: false, name: '아날로그 믹서' },
-      { id: 'pa', type: 'speaker', slot: 'pa_main', placed: false, name: '메인 스피커' },
-      { id: 'lap', type: 'laptop', slot: 'desk2', placed: false, name: 'BGM 노트북' },
-    ],
-    connections: [], inventory: { xlr: 2, mini: 1 },
-    state: { channels: { 1: { gain: 0, fader: 0 }, 9: { gain: 0, fader: 0 } }, master: { mainFader: 0 }, devices: { pa: { power: false }, lap: { playing: true } } },
-    objectives: [], talk: 'ptt', performing: false,
-    steps: [
-      { say: '반가워요, 오늘 같이 일할 선배 엔지니어예요. 제가 한 줄씩 설명하면 다 듣고 다음을 눌러 주세요. 직접 해 볼 차례가 오면 해야 할 곳이 반짝여요.' },
-      { say: '막히면 보여 주세요를 누르세요. 화면 속 손이 대신 해 줄 거예요. 그럼 소리가 어떤 길로 가는지부터 볼게요.' },
-      { say: '소리는 늘 소스, 처리, 출력 순서로 가요. 마이크가 전기 신호로 바꾸고, 믹서가 다듬고, 스피커가 다시 소리로 내보내죠.' },
-      { say: '먼저 소스, 다이나믹 마이크를 강연자 앞에 세울게요. 전원이 필요 없고 튼튼해서 행사장에서 제일 많이 써요.', op: 'place', device: 'mic', practice: '강연자 앞의 + 다이나믹 마이크 배치 버튼을 눌러 주세요.' },
-      { say: '다음은 처리 담당, 믹서예요. 여러 소리를 한데 모아서 크기랑 음색을 다듬죠. 책상 위에 올려 둘게요.', op: 'place', device: 'mixer', practice: '책상 위의 + 아날로그 믹서 배치 버튼을 눌러 주세요.' },
-      { say: '출력은 스피커예요. 강연자보다 앞쪽에서 청중 쪽을 보게 놓는데, 왜 꼭 이 자리인지는 조금 이따 보여 드릴게요.', op: 'place', device: 'pa', practice: '+ 메인 스피커 배치 버튼을 눌러 주세요.' },
-      { say: '그럼 케이블을 이어요. 마이크엔 XLR을 쓰는데, 3핀 밸런스드라서 길게 끌어도 잡음이 거의 안 타요.' },
-      { say: '마이크 XLR 출력에서 믹서 1번 채널 MIC 단자로 꽂을게요. 믹서 뒤쪽 위에 있는 큰 동그란 구멍이 MIC, 그 아래 작은 구멍이 LINE 단자예요.', op: 'connect', from: 'mic.out', to: 'mixer.in1', cable: 'xlr', practice: '아래에서 XLR을 고르고 마이크 XLR OUT, 믹서 1번 MIC 단자를 차례로 눌러 주세요.' },
-      { say: '그다음은 믹서 오른쪽 위 STEREO OUT L에서 스피커 INPUT으로요. 신호는 늘 OUT에서 나와서 IN으로 들어가요.', op: 'connect', from: 'mixer.main', to: 'pa.in', cable: 'xlr', practice: 'XLR로 믹서 STEREO OUT L과 스피커 INPUT을 이어 주세요.' },
-      { say: '스피커 전원은 선을 다 꽂고 맨 마지막에 켜요. 켜 놓고 꽂으면 퍽 소리가 나서 스피커가 상할 수 있거든요.', op: 'dev', device: 'pa', key: 'power', value: true, practice: '스피커를 클릭하고 전원을 ON으로 켜 주세요.' },
-      { say: '제가 한번 말해 볼게요. 어, 소리가 안 나죠? 믹서 GAIN이랑 페이더가 전부 0이라서 그래요.', op: 'talk', on: true },
-      { say: 'GAIN은 마이크의 작은 신호를 믹서가 다룰 크기로 키워요. 말할 때 미터가 마이너스 20에서 마이너스 6 데시벨 사이면 되고, 30쯤 맞출게요.', op: 'ch', ch: 1, key: 'gain', value: 30, practice: '믹서 콘솔을 열고 CH 1의 GAIN을 30 근처로 올려 주세요.' },
-      { say: '페이더는 이 채널을 전체 소리에 얼마나 섞을지 정해요. 0 눈금이 원래 크기라서 거기까지 올릴게요.', op: 'ch', ch: 1, key: 'fader', value: 75, practice: 'CH 1 페이더를 0 눈금까지 올려 주세요.' },
-      { say: '마지막으로 오른쪽 끝 빨간 STEREO 페이더예요. 믹서 전체 출력이라 이걸 올려야 스피커로 소리가 나가요.', op: 'master', key: 'mainFader', value: 75, practice: 'STEREO 페이더도 0 눈금까지 올려 주세요.' },
-      { op: 'wait', ms: 1800 },
-      { say: '이게 제일 단순한 확성 시스템, PA예요. 케이블 위로 흐르는 빛 보이시죠? 그게 신호예요.', op: 'talk', on: false },
-      { say: 'GAIN을 일부러 확 올리고 말해 볼게요. 미터가 0 데시벨을 넘어 빨간불이 들어오면 소리가 찢어져요. 이게 클리핑이에요.', op: 'ch', ch: 1, key: 'gain', value: 50 },
-      { op: 'talk', on: true },
-      { op: 'wait', ms: 1800 },
-      { say: '적당한 레벨로 다시 내릴게요. GAIN은 노브 눈금 말고 미터를 보고 맞춰요. 신호 크기가 마이크랑 목소리마다 다르거든요.', op: 'ch', ch: 1, key: 'gain', value: 30 },
-      { op: 'talk', on: false },
-      { say: '이번엔 스피커를 강연자 정면으로 옮겨 볼게요. 스피커 소리가 마이크로 다시 들어가면 어떻게 되는지 들어 보죠.', op: 'move', device: 'pa', slot: 'pa_alt' },
-      { op: 'ch', ch: 1, key: 'gain', value: 40 },
-      { say: '다시 말해 볼게요. 스피커 소리가 빨간 화살표처럼 마이크로 되돌아가서 계속 커지죠? 이게 하울링, 피드백이에요.', op: 'talk', on: true },
-      { op: 'wait', ms: 2200 },
-      { op: 'talk', on: false },
-      { say: '고치는 건 간단해요. 스피커를 다시 마이크보다 앞쪽, 청중 쪽으로 빼고 GAIN도 적당히 내리면 돼요.', op: 'move', device: 'pa', slot: 'pa_main' },
-      { op: 'ch', ch: 1, key: 'gain', value: 30 },
-      { say: '이번엔 강연 전에 틀 배경음악이에요. 노트북은 소리가 커서 MIC 단자 말고 LINE 단자에 꽂아요. 노트북은 스테레오라 9/10 스테레오 채널로 받을게요.', op: 'place', device: 'lap', practice: '책상 위의 + BGM 노트북 배치 버튼을 눌러 주세요.' },
-      { say: '3.5mm 케이블로 노트북 출력을 9/10 채널의 L/MONO 단자에 꽂을게요. 한쪽만 꽂아도 양쪽 스피커로 다 나와요.', op: 'connect', from: 'lap.out', to: 'mixer.st9L', cable: 'mini', practice: '3.5mm 케이블을 고르고 노트북 출력, 믹서 9/10 L/MONO 단자를 차례로 눌러 주세요.' },
-      { say: 'LINE 단자는 MIC 단자보다 26데시벨 둔하게 만들어져 있어서 GAIN은 20 정도면 충분해요.', op: 'ch', ch: 9, key: 'gain', value: 20, practice: '믹서 콘솔에서 9/10 채널 GAIN을 20 근처로 맞춰 주세요.' },
-      { say: '페이더를 0 눈금까지 올리면 음악이 나와요.', op: 'ch', ch: 9, key: 'fader', value: 75, practice: '9/10 채널 페이더를 0 눈금까지 올려 주세요.' },
-      { op: 'wait', ms: 1500 },
-      { say: '강연자가 걸어 나오면 음악을 꺼야겠죠. 그런데 한 번에 내리면 뚝 끊겨서 사고처럼 들려요. 2, 3초에 걸쳐 천천히 내리는 걸 페이드 아웃이라고 해요.' },
-      { say: '이렇게요. 페이더를 일정한 속도로, 끝으로 갈수록 더 천천히 내려요.', op: 'fade', ch: 9, to: 0, ms: 3500, practice: '9/10 채널 페이더를 2~3초에 걸쳐 천천히 맨 아래까지 내려 보세요.' },
-      { say: '소리가 스르르 사라졌죠? 페이드는 소리뿐 아니라 화면 전환, 조명에도 똑같이 써요. 교육 모드의 페이드 실습실에서 CUT이랑 비교해서 들어 볼 수 있어요.' },
-      { say: '파트 1은 여기까지예요. EQ랑 게인 스테이징은 스토리 모드 1장, 세미나실에서 더 깊게 연습해요.' },
-    ],
-  },
-  {
-    id: 'tut-stream', venue: 'lecture_hall', title: '파트 2 · 방송의 길 (카메라 · 스위처 · OBS)',
-    summary: '카메라 → ATEM 스위처 → PC(OBS). PVW와 PGM, 탈리, 디지털 믹서 USB 라우팅.',
-    mission: '카메라 두 대와 ATEM, OBS로 생중계를 시작해 봅니다.',
-    devices: [
-      { id: 'host', type: 'dynamic_mic', slot: 'host_mic', name: '진행자 마이크' },
-      { id: 'mixer', type: 'digital_mixer', slot: 'desk1', name: '디지털 믹서 X32' },
-      { id: 'atem', type: 'atem', slot: 'desk2', name: 'ATEM Mini' },
-      { id: 'pc', type: 'pc', slot: 'desk3', name: '송출 PC (OBS)' },
-      { id: 'cam1', type: 'camera', slot: 'cam1', placed: false, name: '카메라 1 (클로즈업)' },
-      { id: 'cam2', type: 'camera', slot: 'cam2', placed: false, name: '카메라 2 (와이드)' },
-    ],
-    connections: [{ from: 'host.out', to: 'mixer.local1', cable: 'xlr' }],
-    inventory: { hdmi: 2, usb: 2 },
-    state: { channels: { 1: { gain: 30, fader: 75 } }, master: { mainFader: 75, usbOut: 'off' }, atem: { program: 0, preview: 1 }, obs: { video: 'none', audio: 'none' } },
-    objectives: [], talk: 'auto', performing: false,
-    steps: [
-      { say: '이번엔 방송이에요. 영상까지 만들어 인터넷으로 내보내는데, 오디오랑 비디오가 다른 길로 와서 송출 PC의 OBS에서 만나요.' },
-      { say: '카메라는 두 대 세울게요. 1번은 진행자를 가까이 잡는 클로즈업용이에요.', op: 'place', device: 'cam1', practice: '+ 카메라 1 (클로즈업) 배치 버튼을 눌러 주세요.' },
-      { say: '2번은 전체를 넓게 보여 주는 와이드고요.', op: 'place', device: 'cam2', practice: '+ 카메라 2 (와이드) 배치 버튼을 눌러 주세요.' },
-      { say: '영상은 HDMI 케이블로 스위처, ATEM Mini에 넣어요. 카메라 1은 1번 입력으로요.', op: 'connect', from: 'cam1.hdmi', to: 'atem.in1', cable: 'hdmi', practice: 'HDMI를 고르고 카메라 1 HDMI OUT, ATEM HDMI IN 1을 눌러 주세요.' },
-      { say: '카메라 2는 2번 입력에 꽂을게요. 번호를 맞춰 두면 나중에 헷갈릴 일이 없거든요.', op: 'connect', from: 'cam2.hdmi', to: 'atem.in2', cable: 'hdmi', practice: 'HDMI로 카메라 2와 ATEM HDMI IN 2를 이어 주세요.' },
-      { say: '스위처는 여러 화면 중 하나를 골라 방송으로 내보내요. 프리뷰는 다음에 나갈 화면, 프로그램은 지금 나가고 있는 화면이에요.' },
-      { say: '먼저 프리뷰에 카메라 1을 올려서 준비해 둘게요.', op: 'atem', key: 'preview', value: 1, practice: 'ATEM을 클릭하고 PREVIEW 줄의 1을 눌러 주세요.' },
-      { say: 'CUT을 누르면 카메라 1이 프로그램으로 넘어가요. 카메라 위 빨간 불이 탈리인데, 지금 방송 중이라는 표시예요.', op: 'atem', key: 'cut', practice: 'ATEM 패널의 CUT 버튼을 눌러 주세요.' },
-      { say: 'ATEM을 USB로 PC에 꽂으면, PC는 이걸 웹캠처럼 알아봐요.', op: 'connect', from: 'atem.usb', to: 'pc.usb1', cable: 'usb', practice: 'USB를 고르고 ATEM USB WEBCAM, PC USB 1 순서로 눌러 주세요.' },
-      { say: '그래서 OBS 영상 소스를 ATEM으로 잡아 줄게요.', op: 'obs', key: 'video', value: 'atem', practice: '송출 PC를 클릭하고 영상 소스를 ATEM으로 골라 주세요.' },
-      { say: '소리는 따로 가요. 디지털 믹서 X32에서 USB로 PC에 보낼게요.', op: 'connect', from: 'mixer.usb', to: 'pc.usb2', cable: 'usb', practice: 'USB로 믹서 USB AUDIO와 PC USB 2를 이어 주세요.' },
-      { say: '디지털 믹서는 꽂기만 한다고 끝이 아니에요. USB로 뭘 보낼지 라우팅을 해 줘야 하거든요. 여기선 메인을 보낼게요.', op: 'master', key: 'usbOut', value: 'main', practice: '믹서 콘솔 MASTER에서 USB 출력을 Main L/R로 바꿔 주세요.' },
-      { say: 'OBS 오디오 소스도 믹서 USB로 골라 줄게요. 이걸 빼먹으면 화면만 나가고 소리는 안 나가요.', op: 'obs', key: 'audio', value: 'mixer', practice: '송출 PC 패널에서 오디오 소스를 믹서 USB로 골라 주세요.' },
-      { say: '이제 방송 시작을 누를게요. 뒤쪽 벽에 ON AIR 불 들어온 거 보이시죠?', op: 'obs', key: 'streaming', value: true, practice: '송출 PC 패널에서 방송 시작을 눌러 주세요.' },
-      { say: '지금부터 시청자한테 영상이랑 소리가 같이 나가요. 아래 귀 모양 옆에서 방송 시청자를 고르면 시청자가 듣는 그대로 들려요.', op: 'wait', ms: 1500 },
-      { say: '그런데 현장에서 들리는 소리랑 방송으로 나가는 소리는 달라요. 아래 A/B 비교를 열고 A 현장, B 방송을 번갈아 눌러 보세요. 키보드 A, B로도 바꿀 수 있어요.' },
-      { say: '시청자는 대부분 이어폰으로 들어서 현장보다 잡음이 더 잘 들려요. 방송을 하는 동안엔 헤드폰으로 방송 소리를 꼭 직접 들어 보는 습관을 들이세요.' },
-      { say: '그럼 와이드로 바꿔 볼게요. 프리뷰에 카메라 2를 먼저 올려 두고요.', op: 'atem', key: 'preview', value: 2 },
-      { say: 'AUTO를 누르면 CUT처럼 툭 끊기지 않고, 화면이 부드럽게 겹치면서 넘어가요.', op: 'atem', key: 'auto' },
-      { say: '파트 2는 여기까지예요. 무선 마이크, 미러리스 카메라 클린 HDMI, PC 없는 ATEM Pro 송출은 스토리 모드에서 다뤄요.' },
-    ],
-  },
-  {
-    id: 'tut-show', venue: 'church', title: '파트 3 · 빛과 화면 (조명 · 미디어 서버 · PTZ)',
-    summary: 'Tiger Touch 조명 콘솔과 DMX, Resolume 레이어, PTZ 조이스틱 프리셋 맛보기.',
-    mission: '조명을 켜고 가사를 띄우고 PTZ 카메라로 설교자를 잡아 봅니다.',
-    devices: [
-      { id: 'desk', type: 'lighting_console', slot: 'foh2', name: '조명 콘솔 (Tiger Touch)' },
-      { id: 'p1', type: 'par_led', slot: 'light_front_l', name: '앞 조명 L', role: 'front' },
-      { id: 'p2', type: 'par_led', slot: 'light_front_r', name: '앞 조명 R', role: 'front' },
-      { id: 'vj', type: 'media_server', slot: 'foh3', name: '미디어 서버 (Resolume)' },
-      { id: 'proj', type: 'projector', slot: 'proj_ceiling', name: '프로젝터' },
-      { id: 'ptz1', type: 'ptz', slot: 'ptz_side', name: 'PTZ 카메라' },
-      { id: 'joy', type: 'ptz_controller', slot: 'foh4', name: 'PTZ 조이스틱' },
-      { id: 'net', type: 'router', slot: 'router_foh', name: '공유기' },
-    ],
-    connections: [{ from: 'ptz1.lan', to: 'net.lan1', cable: 'eth' }, { from: 'joy.lan', to: 'net.lan2', cable: 'eth' }],
-    inventory: { dmx: 2, hdmi: 1 },
-    state: { devices: {
-      p1: { address: 1 }, p2: { address: 9 },
-      desk: { patch: [{ n: 1, label: 'FRONT L', type: 'par_led', address: 1 }, { n: 2, label: 'FRONT R', type: 'par_led', address: 9 }], playbacks: [{ label: '설교 조명', level: 0, cue: { fixtures: [1, 2], intensity: 90, color: '#fff1d6' } }] },
-      vj: { layers: [{ clip: 'worship_bg', opacity: 100 }, { clip: 'lyrics', opacity: 100 }, { clip: null, opacity: 100 }], out1: 'comp' },
-      proj: { power: false }, ptz1: { ip: '192.168.1.21', pan: 0, tilt: 0, zoom: 0.2 },
-    } },
-    objectives: [], talk: 'auto', performing: false,
-    steps: [
-      { say: '큰 행사에선 소리만큼 빛이랑 화면도 신경 써야 해요. 조명, 미디어 서버, PTZ 카메라를 가볍게 한번 훑어볼게요.' },
-      { say: '무대 조명은 조명 콘솔에서 DMX 케이블로 제어해요. 콘솔 DMX 출력을 앞 조명 L 입력에 꽂을게요.', op: 'connect', from: 'desk.dmx1', to: 'p1.dmxIn', cable: 'dmx', practice: 'DMX를 고르고 콘솔 DMX A, 앞 조명 L DMX IN 순서로 눌러 주세요.' },
-      { say: '조명끼리는 OUT에서 다음 조명 IN으로 줄줄이 이어요. 이걸 데이지 체인이라고 해요.', op: 'connect', from: 'p1.dmxOut', to: 'p2.dmxIn', cable: 'dmx', practice: '앞 조명 L DMX OUT과 앞 조명 R DMX IN을 이어 주세요.' },
-      { say: 'DMX 주소도 봐야 해요. 8채널 조명이면 첫 대는 1번에서 8번, 다음 대는 9번부터 읽어요. 콘솔 패치랑 같아야 켜지고요.' },
-      { say: 'Tiger Touch에서 플레이백 페이더를 올릴게요. 저장해 둔 장면, 큐가 켜지죠.', op: 'dev', device: 'desk', key: 'playbacks.0.level', value: 100, practice: '조명 콘솔을 클릭하고 설교 조명 페이더를 올려 주세요.' },
-      { say: '이번엔 화면이에요. 미디어 서버 Resolume Arena는 영상 레이어를 겹쳐서 내보내요. HDMI로 프로젝터에 물릴게요.', op: 'connect', from: 'vj.out1', to: 'proj.hdmi', cable: 'hdmi', practice: 'HDMI로 미디어 서버 HDMI OUT 1과 프로젝터를 이어 주세요.' },
-      { say: '프로젝터를 켜 볼게요. 1번 레이어인 배경 위에 2번 레이어 가사가 겹쳐 보이죠?', op: 'dev', device: 'proj', key: 'power', value: true, practice: '프로젝터를 클릭하고 전원을 ON으로 켜 주세요.' },
-      { say: '마지막은 PTZ 카메라예요. 카메라맨 없이 조이스틱으로 원격 조종하죠. 1번 카메라부터 고를게요.', op: 'ptz', device: 'joy', act: 'select', value: 0 },
-      { say: '조이스틱으로 방향을 돌리고 줌을 당겨서 설교자를 크게 잡을게요.', op: 'ptz', device: 'joy', act: 'aim', pan: 32, tilt: -8, zoom: 0.7 },
-      { say: '이 구도를 STORE로 프리셋 1번에 저장해 둘게요. 다음부턴 버튼 하나로 바로 불러와요.', op: 'ptz', device: 'joy', act: 'store', value: 1 },
-      { say: '튜토리얼은 여기까지예요. 조명 큐 만들기, LED 전광판, 방송 중 카메라 운용은 스토리 모드 6장에서 8장까지 이어져요.' },
-    ],
-  },
-];
+export const TUTORIAL = [sound, mic, cable, mixer, speaker, instrument, stream, show];
+
+// 말하는 사람
+export const SPEAKERS = {
+  senior: { name: '서진 선배', role: '음향·영상 엔지니어' },
+  junior: { name: '하늘', role: '오늘 처음 온 신입' },
+};
+
+// 설명 카드에 쓸 수 있는 개념 그림 (eduVisuals.jsx의 CONCEPT 키) · 실습실
+export const CONCEPT_KEYS = ['strip', 'flow', 'gain', 'feedback', 'pgmpvw', 'levels', 'camsettings', 'multiview', 'transitions', 'balanced', 'cablemap', 'cablecare', 'dmx', 'layers', 'ipnet'];
+export const LABS = ['fade', 'eq', 'fx'];
+// strip 그림에서 빛낼 수 있는 부분
+export const STRIP_PARTS = ['input', 'phantom', 'pad', 'gain', 'lowcut', 'comp', 'high', 'mid', 'low', 'aux', 'fx', 'pan', 'mute', 'pfl', 'fader', 'master'];
+
+// 짧은 한마디 (미리 녹음해 둔다)
+export const STOCK = {
+  praise: ['좋아요, 잘했어요!', '바로 그거예요.', '오, 손이 빠른데요?', '완벽해요.'],
+  wrong: ['음, 아까워요. 다시 골라 볼까요?', '거의 다 왔어요. 한 번만 더 생각해 봐요.'],
+};

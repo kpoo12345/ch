@@ -15,8 +15,8 @@ import GameScreen from './GameScreen.jsx';
 const CATALOG = [
   ['음향 소스', ['dynamic_mic', 'condenser_mic', 'wireless_mic', 'e_guitar', 'bass_guitar', 'keyboard', 'digital_piano', 'laptop']],
   ['드럼', ['drum_kit', 'kick_mic', 'snare_mic', 'overhead_mic']],
-  ['음향 처리', ['analog_mixer', 'digital_mixer', 'audio_interface', 'di_box']],
-  ['음향 출력', ['speaker', 'monitor', 'headphones']],
+  ['음향 처리', ['analog_mixer', 'digital_mixer', 'audio_interface', 'di_box', 'stage_box', 'snake_fanout']],
+  ['음향 출력', ['speaker', 'power_amp', 'passive_speaker', 'monitor', 'iem', 'headphones']],
   ['영상', ['camera', 'mirrorless', 'ptz', 'ptz_controller', 'atem', 'atem_pro']],
   ['송출·네트워크', ['pc', 'router']],
   ['조명', ['lighting_console', 'par_led', 'moving_head']],

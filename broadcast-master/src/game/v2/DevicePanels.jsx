@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Power, Radio, Cable, Camera, Tv, MonitorPlay, Lightbulb, Clapperboard, Joystick, Router as RouterIcon, Laptop, Info } from 'lucide-react';
-import { DEVICE_TYPES, CABLES } from '../engine.js';
-import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel, mixerStateOf, atemStateOf } from '../sim.js';
+import { Power, Radio, Cable, Camera, Tv, MonitorPlay, Lightbulb, Clapperboard, Joystick, Router as RouterIcon, Laptop, Info, Boxes, Zap, Ear, Speaker } from 'lucide-react';
+import { DEVICE_TYPES, CABLES, faderDb, fmtDb } from '../engine.js';
+import { FOOTPRINT, PTZ_TARGETS, COLOR_NAMES, colorFamily, chCountOf, chLabel, mixerStateOf, atemStateOf, snakePeer, analogChOfPort } from '../sim.js';
 import { VENUES } from '../venues.js';
 import { nextDmxAddress, patchOverlap, discoverCams } from '../ops.js';
 import { Meter } from '../ui.jsx';
@@ -60,6 +60,78 @@ export function DevicePanel({ game, id }) {
           <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '마이크보다 청중 쪽에서 청중을 향함'}>
             {free.map(([k, sl]) => <button key={k} type="button" onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
           </Row>
+        </Card>
+      );
+      break;
+    }
+    case 'passive_speaker': {
+      const venue = VENUES[st.venue];
+      const free = Object.entries(venue?.slots ?? {}).filter(([k]) => /^pa_/.test(k) && !Object.values(st.devices).some((x) => x.slot === k));
+      const c = st.connections.find((x) => x.to.d === id && x.to.p === 'spk');
+      const amp = c ? st.devices[c.from.d] : null;
+      const ampOn = !!amp && !!st.dev[amp.id]?.power;
+      body = (
+        <Card title="패시브 스피커" icon={Speaker}>
+          <div className={`rounded px-2 py-1 text-xs ${amp && ampOn ? 'bg-emerald-950 text-emerald-200' : 'bg-amber-950 text-amber-200'}`}>
+            {!amp ? '전원 스위치가 없습니다 — 파워 앰프의 SPEAKON OUT을 스피커 케이블(스피콘)로 이어야 소리가 납니다.'
+              : ampOn ? `${amp.name ?? DEVICE_TYPES[amp.type].name} 채널 ${c.from.p === 'spkB' ? 'B' : 'A'}에서 전력을 받는 중`
+                : `${amp.name ?? DEVICE_TYPES[amp.type].name} 전원이 꺼져 있어 소리가 나지 않습니다.`}
+          </div>
+          <Row label="앰프에서 들어오는 신호"><div className="w-36"><Meter level={actual.inLevel(id, 'spk')} /></div></Row>
+          <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '마이크보다 청중 쪽에서 청중을 향함'}>
+            {free.map(([k, sl]) => <button key={k} type="button" onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
+          </Row>
+          <p className="text-[11px] text-slate-400">앰프가 들어 있지 않아 믹서·마이크 신호를 바로 꽂아도 소리가 나지 않습니다. 하울링은 액티브 스피커와 똑같이 조심합니다.</p>
+        </Card>
+      );
+      break;
+    }
+    case 'power_amp': {
+      const outs = ['A', 'B'].map((ch) => {
+        const src = st.connections.find((x) => x.to.d === id && x.to.p === `in${ch}`);
+        const dst = st.connections.find((x) => x.from.d === id && x.from.p === `spk${ch}`);
+        return { ch, src, dst, lv: actual.outLevel(id, `spk${ch}`) };
+      });
+      const nameOf = (x) => st.devices[x]?.name ?? DEVICE_TYPES[st.devices[x]?.type]?.name ?? x;
+      body = (
+        <Card title="파워 앰프 (2채널)" icon={Zap}>
+          <Row label="전원" hint="케이블을 다 꽂은 뒤 맨 마지막에 켜고, 끌 때는 맨 먼저 끕니다."><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          {outs.map(({ ch, src, dst, lv }) => {
+            const key = `level${ch}`;
+            const v = s[key] ?? 75;
+            return (
+              <div key={ch} className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <Knob label={`CH ${ch}`} value={v} min={0} max={100} color="#fbbf24" size={40} def={75} display={v <= 0 ? '-∞' : fmtDb(faderDb(v)).replace(' dB', '')}
+                  onChange={(x) => set(key, x, false)} onCommit={commit(key)} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Meter level={s.power ? lv : null} />
+                  <div className="truncate text-[11px] text-slate-300">
+                    {src ? `${nameOf(src.from.d)} ${src.from.p.toUpperCase()}` : '입력 없음'} → {dst ? nameOf(dst.to.d) : '스피커 없음'}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-slate-400">INPUT A·B는 믹서 출력(라인 레벨)을, SPEAKON OUT A·B는 패시브 스피커만 받습니다. 레벨 노브 75 = 0dB.</p>
+        </Card>
+      );
+      break;
+    }
+    case 'iem': {
+      const ok = s.power && s.txChannel === s.rxChannel;
+      body = (
+        <Card title="인이어 모니터 (송신기 + 벨트팩)" icon={Ear}>
+          <div className={`rounded px-2 py-1 font-mono text-xs ${ok ? 'bg-sky-950 text-sky-200' : 'bg-red-950 text-red-200'}`}>
+            {!s.power ? '송신기 전원 꺼짐 — 소리 없음' : ok ? `CH ${s.txChannel} 수신 중 (RF ▮▮▮▮)` : `채널 불일치 (송신 ${s.txChannel} / 벨트팩 ${s.rxChannel}) — 소리 없음`}
+          </div>
+          <Row label="송신기 전원"><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="송신기 채널"><Stepper value={s.txChannel} min={1} max={8} onChange={(v) => set('txChannel', v)} label="송신기 채널" /></Row>
+          <Row label="벨트팩(수신기) 채널" hint="송신기와 같은 채널이어야 들립니다."><Stepper value={s.rxChannel} min={1} max={8} onChange={(v) => set('rxChannel', v)} label="벨트팩 채널" /></Row>
+          <Row label="송신기로 들어오는 신호 (AUX)"><div className="w-36"><Meter level={s.power ? actual.inLevel(id, 'in') : null} /></div></Row>
+          <Row label="벨트팩 볼륨" hint="귀를 보호하려면 작게 시작해 천천히 올립니다.">
+            <Knob value={s.volume ?? 75} min={0} max={100} size={34} def={75} onChange={(v) => set('volume', v, false)} onCommit={commit('volume')} />
+          </Row>
+          <p className="text-[11px] text-slate-400">소리가 귀 안으로만 들어가 마이크로 되돌아가지 않으므로 하울링이 생기지 않습니다.</p>
         </Card>
       );
       break;
@@ -214,6 +286,8 @@ export function DevicePanel({ game, id }) {
         </Card>
       );
       break;
+    case 'stage_box':
+    case 'snake_fanout': body = <SnakePanel game={game} id={id} />; break;
     case 'headphones':
       body = <Card title="헤드폰" icon={Radio}><p className="text-[11px] text-slate-400">연결된 장비의 헤드폰 출력이 들립니다. 아래 "듣는 위치"를 헤드폰으로 바꿔 들어 보세요.</p></Card>;
       break;
@@ -252,16 +326,77 @@ function lvOfInput(st, sim, id, i) {
   const c = st.connections.find((x) => x.to.d === id && x.to.p === `in${i + 1}`);
   if (!c) return null;
   const srcs = Object.entries(sim.heard.interface ?? {});
-  // 해당 입력으로 들어오는 소스 찾기 (DI 등 경유 포함)
-  let cur = c.from.d;
+  // 해당 입력으로 들어오는 소스 찾기 (DI·스네이크 등 경유 포함)
+  let cur = c.from.d, outP = c.from.p;
   for (let k = 0; k < 4; k += 1) {
     const hit = srcs.find(([src]) => src === cur);
     if (hit) return hit[1].level;
-    const up = st.connections.find((x) => x.to.d === cur);
+    // 스네이크는 번호 그대로 건너간다: 팬아웃 OUT n ← 박스 IN n, 박스 RET n ← 팬아웃 RET n
+    const t = st.devices[cur]?.type, n = /^(?:out|ret)(\d)$/.exec(outP ?? '')?.[1];
+    const peer = n && (t === 'snake_fanout' || t === 'stage_box') ? snakePeer(st, cur) : null;
+    const up = peer ? st.connections.find((x) => x.to.d === peer && x.to.p === (t === 'snake_fanout' ? `in${n}` : `ret${n}`)) : st.connections.find((x) => x.to.d === cur);
     if (!up) break;
-    cur = up.from.d;
+    cur = up.from.d; outP = up.from.p;
   }
   return null;
+}
+
+/* ---------------------------- 스네이크 (스테이지 박스 ↔ 팬아웃) ---------------------------- */
+// 가닥별 표: 무대 쪽 박스 IN n에 꽂힌 장비 → 팬아웃 OUT n이 꽂힌 믹서 채널. 리턴은 반대로 믹서 AUX → 무대 웨지
+function SnakePanel({ game, id }) {
+  const { st, actual } = game;
+  const isBox = st.devices[id].type === 'stage_box';
+  const peer = snakePeer(st, id);
+  const box = isBox ? id : peer, fan = isBox ? peer : id;
+  const nameOf = (x) => st.devices[x]?.name ?? DEVICE_TYPES[st.devices[x]?.type]?.name ?? x;
+  const into = (d, p) => (d ? st.connections.find((c) => c.to.d === d && c.to.p === p) : null);
+  const outOf = (d, p) => (d ? st.connections.find((c) => c.from.d === d && c.from.p === p) : null);
+  // 팬아웃 꼬리가 꽂힌 믹서 채널 번호 (디지털 믹서는 입력 패치를 따른다)
+  const chOf = (c) => {
+    const t = st.devices[c?.to.d]?.type;
+    if (t === 'analog_mixer') return analogChOfPort(c.to.p);
+    if (t !== 'digital_mixer') return null;
+    const i = mixerStateOf(st, c.to.d).channels.findIndex((ch, k) => (ch.patch ?? `local${k + 1}`) === c.to.p);
+    return i >= 0 ? i + 1 : null;
+  };
+  const lines = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => {
+    const src = into(box, `in${n}`), dst = outOf(fan, `out${n}`);
+    return { n, src, dst, ch: dst ? chOf(dst) : null, lv: fan ? actual.outLevel(fan, `out${n}`) : null };
+  }).filter((x) => x.src || x.dst);
+  const rets = [1, 2].map((n) => ({ n, src: into(fan, `ret${n}`), dst: outOf(box, `ret${n}`), lv: box ? actual.outLevel(box, `ret${n}`) : null })).filter((x) => x.src || x.dst);
+  const end = (c, side) => (c ? `${nameOf(c[side].d)}${side === 'to' && !/^(in|local)\d$/.test(c.to.p) ? ` ${c.to.p}` : ''}` : '—');
+  return (
+    <Card title={isBox ? '스테이지 박스 (무대 쪽)' : '스네이크 팬아웃 (믹서 쪽)'} icon={Boxes}>
+      <div className={`rounded px-2 py-1 text-xs ${peer ? 'bg-emerald-950 text-emerald-200' : 'bg-red-950 text-red-200'}`}>
+        {peer ? `멀티 케이블 연결됨 — ${nameOf(peer)}` : `멀티 케이블 없음 — ${isBox ? '팬아웃' : '스테이지 박스'}까지 멀티 케이블(스네이크)을 이어야 신호가 건너갑니다.`}
+      </div>
+      <div className="text-[10px] font-bold text-slate-500">입력 가닥: 무대 → 믹서 (박스 IN 번호 = 팬아웃 OUT 번호)</div>
+      {lines.length === 0 ? <div className="text-xs text-slate-500">아직 꽂힌 가닥이 없습니다.</div> : (
+        <ul className="space-y-1">
+          {lines.map((x) => (
+            <li key={x.n} className="grid grid-cols-[2.2rem_1fr_4.5rem] items-center gap-1.5 text-[11px] text-slate-200">
+              <span className="font-mono font-bold text-sky-300">{x.n}</span>
+              <span className="truncate">{end(x.src, 'from')} → {x.dst ? (x.ch ? `믹서 CH${x.ch}` : end(x.dst, 'to')) : '—'}
+                {x.ch && x.ch !== x.n && <span className="text-amber-300"> (번호 어긋남)</span>}</span>
+              <Meter thin level={x.lv} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="text-[10px] font-bold text-slate-500">리턴: 믹서 AUX → 무대 (모니터·인이어)</div>
+      {rets.length === 0 ? <div className="text-xs text-slate-500">리턴 없음</div> : (
+        <ul className="space-y-1">
+          {rets.map((x) => (
+            <li key={x.n} className="grid grid-cols-[2.2rem_1fr_4.5rem] items-center gap-1.5 text-[11px] text-slate-200">
+              <span className="font-mono font-bold text-amber-300">R{x.n}</span>
+              <span className="truncate">{x.src ? `${nameOf(x.src.from.d)} ${x.src.from.p.toUpperCase()}` : '—'} → {end(x.dst, 'to')}</span>
+              <Meter thin level={x.lv} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
 }
 
 /* ---------------------------- OBS ---------------------------- */

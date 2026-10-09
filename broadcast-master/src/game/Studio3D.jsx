@@ -12,6 +12,7 @@ import { WedgeModel, PORTS_EXTRA } from './models2.jsx';
 import { ParLedModel, MovingHeadModel, LightingConsoleModel, MediaServerModel, ProjectorModel, ProjectedScreen, LedWallModel, PtzControllerModel, drawPtzLcd, PORTS_LIGHT } from './models3.jsx';
 import { drawComposition } from './scenes.js';
 import { KickMicModel, SnareMicModel, OverheadMicModel, DigitalPianoModel, BassGuitarModel, DrumKitModel, PORTS_INSTR } from './models4.jsx';
+import { StageBoxModel, FanoutModel, PORTS_SNAKE, PowerAmpModel, PassiveSpeakerModel, IemModel, PORTS_AMP } from './models5.jsx';
 
 export { hasWebGL, NoWebGL };
 
@@ -92,9 +93,9 @@ export const FOCUS = {
 // 책상 위 장비는 단자를 가리지 않도록 이름표를 앞쪽에 둔다
 export const FRONT_LABEL = new Set(['analog_mixer', 'digital_mixer', 'atem']);
 // 교육 모드 뷰어에서 단자가 촘촘해 라벨을 위아래로 엇갈리게 둘 장비
-export const STAGGER = new Set(['analog_mixer', 'digital_mixer', 'atem', 'atem_pro', 'audio_interface', 'ptz', 'di_box']);
+export const STAGGER = new Set(['analog_mixer', 'digital_mixer', 'atem', 'atem_pro', 'audio_interface', 'ptz', 'di_box', 'stage_box', 'snake_fanout']);
 // 작은 장비는 단자 표시도 작게
-export const PORT_SCALE = { audio_interface: 0.55, di_box: 0.7, ptz: 0.6, mirrorless: 0.6, headphones: 0.5, atem_pro: 0.8, wireless_mic: 0.8 };
+export const PORT_SCALE = { iem: 0.8, audio_interface: 0.55, di_box: 0.7, ptz: 0.6, mirrorless: 0.6, headphones: 0.5, atem_pro: 0.8, wireless_mic: 0.8 };
 export const SELECT_RADIUS = { dynamic_mic: 0.25, condenser_mic: 0.25, speaker: 0.42, camera: 0.5, analog_mixer: 0.4, digital_mixer: 0.52, atem: 0.27, pc: 0.55 };
 
 /* ---------------------------- 화면 그리기 (Canvas 2D) ---------------------------- */
@@ -863,12 +864,18 @@ export const SHORT_LABEL = {
   'audio_interface:in1': 'IN 1', 'audio_interface:in2': 'IN 2', 'audio_interface:phones': '헤드폰', 'audio_interface:usb': 'USB-C', 'audio_interface:monL': 'MON L', 'audio_interface:monR': 'MON R',
   'ptz:hdmi': 'HDMI', 'ptz:sdi': 'SDI', 'ptz:lan': 'LAN', 'di_box:input': 'IN', 'di_box:thru': 'THRU', 'di_box:out': 'XLR OUT',
   'router:lan1': 'LAN1', 'router:lan2': 'LAN2',
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`stage_box:in${n}`, `IN ${n}`])),
+  'stage_box:ret1': 'RET 1', 'stage_box:ret2': 'RET 2', 'stage_box:multi': 'MULTI',
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`snake_fanout:out${n}`, `OUT ${n}`])),
+  'snake_fanout:ret1': 'RET 1', 'snake_fanout:ret2': 'RET 2', 'snake_fanout:multi': 'MULTI',
+  'power_amp:inA': 'IN A', 'power_amp:inB': 'IN B', 'power_amp:spkA': 'SPK A', 'power_amp:spkB': 'SPK B',
+  'passive_speaker:spk': 'SPEAKON', 'iem:in': 'IN',
 };
 
 // 단자 앞면 크기(반지름) — JackFace 모양과 맞춘다
-export const SOCKET_R = { xlr: 0.0108, combo: 0.0108, dmx: 0.0108, trs: 0.0068, hdmi: 0.0098, sdi: 0.0068, usb: 0.0062, eth: 0.0088, mini: 0.0042 };
+export const SOCKET_R = { xlr: 0.0108, combo: 0.0108, dmx: 0.0108, trs: 0.0068, hdmi: 0.0098, sdi: 0.0068, usb: 0.0062, eth: 0.0088, mini: 0.0042, multi: 0.026, speakon: 0.0125 };
 
-export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, bare, onClick }) {
+export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, bare, hitR, onClick }) {
   const hold = useHoldCamera();
   const q = useMemo(() => quatFromNormal(n), [n]);
   const ring = useRef();
@@ -905,7 +912,7 @@ export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate
           onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'crosshair'; }}
           onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
         >
-          <sphereGeometry args={[bare ? 0.019 : 0.042, 10, 8]} />
+          <sphereGeometry args={[hitR ?? (bare ? 0.019 : 0.042), 10, 8]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       </group>
@@ -977,12 +984,15 @@ const VIEW = {
   media_server: { target: [0.1, DESK_TOP + 0.25, 0], dist: 1.4 }, projector: { target: [0, 1.4, 0], dist: 2.6 }, led_wall: { target: [0, 1.5, 0], dist: 3.6 },
   kick_mic: { target: [0, 0.25, 0], dist: 0.8 }, snare_mic: { target: [0, 0.62, 0.1], dist: 1.1 }, overhead_mic: { target: [0, 1.25, 0.2], dist: 2.2 },
   digital_piano: { target: [0, 0.9, 0], dist: 2.0 }, bass_guitar: { target: [0, 1.0, 0], dist: 2.0 }, drum_kit: { target: [0, 0.7, 0], dist: 2.8 },
+  stage_box: { target: [0, 0.08, 0], dist: 0.85 }, snake_fanout: { target: [0, DESK_TOP + 0.045, 0], dist: 0.6 },
+  power_amp: { target: [0, DESK_TOP + 0.05, 0], dist: 0.95 }, passive_speaker: { target: [0, 1.15, 0], dist: 2.4 }, iem: { target: [0.02, DESK_TOP + 0.06, 0], dist: 0.7 },
 };
 // 책상(받침대) 위에 올려 보여 줄 장비와 받침대 크기 [가로, 세로]
 const PEDESTAL = {
   analog_mixer: [0.85, 0.65], digital_mixer: [1.3, 0.65], atem: [0.6, 0.4], pc: [1.3, 0.65], audio_interface: [0.42, 0.32],
   wireless_mic: [0.55, 0.38], di_box: [0.32, 0.32], headphones: [0.45, 0.35], mirrorless: [0.42, 0.38], ptz: [0.4, 0.4], atem_pro: [0.75, 0.75],
-  ptz_controller: [0.5, 0.35], lighting_console: [1.15, 0.75], media_server: [1.3, 0.65],
+  ptz_controller: [0.5, 0.35], lighting_console: [1.15, 0.75], media_server: [1.3, 0.65], snake_fanout: [0.42, 0.3],
+  power_amp: [0.6, 0.45], iem: [0.55, 0.4],
 };
 // 매달아 보여 줄 장비 (스탠드 높이)
 const HANG_H = { par_led: 1.75, moving_head: 1.8, projector: 1.75 };
@@ -1020,7 +1030,8 @@ function StaticPort({ p, n, port, label, lift = 0, scale = 1 }) {
   );
 }
 
-export function EquipmentViewer({ type, demo, autoRotate = true }) {
+// still: 튜토리얼 카드용 스틸 (단자 이름표 없이, 조금 더 가까이)
+export function EquipmentViewer({ type, demo, autoRotate = true, still = false }) {
   const def = DEVICE_TYPES[type];
   const v = VIEW[type];
   const onDesk = !!PEDESTAL[type];
@@ -1069,6 +1080,13 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   if (type === 'digital_piano') model = <DigitalPianoModel performing />;
   if (type === 'bass_guitar') model = <BassGuitarModel performing />;
   if (type === 'drum_kit') model = <DrumKitModel performing />;
+  // 스네이크: 데모에서는 모든 가닥에 신호 (talking이면) + 멀티 연결됨
+  if (type === 'stage_box') model = <StageBoxModel sig={Array(8).fill(!!demo.talking)} ret={[!!demo.talking, false]} link />;
+  if (type === 'snake_fanout') model = <FanoutModel sig={Array(8).fill(!!demo.talking)} ret={[!!demo.talking, false]} link />;
+  // 파워 앰프·패시브 스피커·인이어: 데모는 켜진 상태, talking이면 신호
+  if (type === 'power_amp') model = <PowerAmpModel power={demo.power} levelA={demo.levelA ?? 75} levelB={demo.levelB ?? 75} sigA={demo.power && demo.talking} sigB={demo.power && demo.talking} clipA={false} clipB={false} />;
+  if (type === 'passive_speaker') model = <PassiveSpeakerModel level={demo.power ? demo.mainLevel : null} feedback={demo.feedback} />;
+  if (type === 'iem') model = <IemModel power={demo.power} txChannel={demo.txChannel ?? 3} rxChannel={demo.rxChannel ?? 3} volume={demo.volume ?? 60} sig={demo.talking} />;
   if (type === 'headphones') model = <HeadphonesModel />;
   if (type === 'mirrorless') model = <MirrorlessModel zoom={demo.zoom} rec={demo.rec} lcdTex={camLcdTex} />;
   if (type === 'ptz') model = <PtzModel pan={demo.pan} tilt={demo.tilt} zoom={demo.zoom} tally={demo.tally} />;
@@ -1082,10 +1100,10 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
   if (type === 'projector') model = <ProjectorModel power={demo.screenOn} on={demo.screenOn} />;
   if (type === 'led_wall') model = <group scale={0.55}><LedWallModel w={4.2} h={2.25} tex={vjTex} on={demo.screenOn} power={demo.screenOn} /></group>;
   if (type === 'ptz_controller') model = <PtzControllerModel selected={demo.joySel ?? 0} tallies={['pgm', 'pvw', null, null]} lcdTex={joyLcd} />;
-  const portMap = PORTS3D[type] ?? PORTS_EXTRA[type] ?? PORTS_LIGHT[type] ?? PORTS_INSTR[type] ?? {};
+  const portMap = PORTS3D[type] ?? PORTS_EXTRA[type] ?? PORTS_LIGHT[type] ?? PORTS_INSTR[type] ?? PORTS_SNAKE[type] ?? PORTS_AMP[type] ?? {};
   const portScale = type === 'led_wall' ? 0.55 : 1;
   // 탈리·하울링·화면 불빛 (라이트 1개를 늘 달아 두고 위치·세기만 바꾼다)
-  const glowKey = type === 'speaker' && demo.feedback ? 'feedback' : type === 'camera' && demo.tally === 'pgm' ? 'tally'
+  const glowKey = (type === 'speaker' || type === 'passive_speaker') && demo.feedback ? 'feedback' : type === 'camera' && demo.tally === 'pgm' ? 'tally'
     : type === 'monitor' && demo.power && demo.wedgeFeedback ? 'wedge' : type === 'pc' && demo.streaming ? 'streaming' : type === 'led_wall' && demo.screenOn ? 'ledWall' : null;
   const glows = glowKey ? [{ ...GLOW[glowKey], pos: [GLOW[glowKey].at[0] * portScale, base + GLOW[glowKey].at[1] * portScale, GLOW[glowKey].at[2] * portScale] }] : [];
 
@@ -1097,7 +1115,7 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
       <directionalLight position={[2, 4, 3]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
       <spotLight position={[-1.5, 3, 2]} angle={0.6} penumbra={0.8} intensity={14} decay={1.4} color="#ffe9d0" />
       <GlowLights glows={glows} count={1} />
-      <ViewerRig target={v.target} dist={v.dist} />
+      <ViewerRig target={v.target} dist={v.dist * (still ? 0.72 : 1)} />
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} autoRotate={autoRotate} autoRotateSpeed={1.2}
         minDistance={v.dist * 0.4} maxDistance={v.dist * 2.2} maxPolarAngle={Math.PI / 2.05} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><circleGeometry args={[3, 64]} /><meshStandardMaterial color="#232b3a" /></mesh>
@@ -1117,7 +1135,7 @@ export function EquipmentViewer({ type, demo, autoRotate = true }) {
       {type === 'projector' && <group position={[0, 1.2, -2.2]}><ProjectedScreen w={2.2} h={1.24} tex={vjTex} on={demo.screenOn} /></group>}
       <group position={[0, base, 0]} rotation={[0, type === 'projector' ? Math.PI : 0, 0]}>
         {model}
-        {Object.entries(portMap).map(([pid, pd], idx) => {
+        {!still && Object.entries(portMap).map(([pid, pd], idx) => {
           const port = [...def.ins, ...def.outs].find((pp) => pp.id === pid);
           if (!port) return null;
           return (
@@ -1225,6 +1243,18 @@ export function ConnectorModel({ kind, color, female = false }) {
           <mesh position={[0, 0.047, -0.0055]} rotation={[0.35, 0, 0]}><boxGeometry args={[0.005, 0.02, 0.0012]} /><meshStandardMaterial color="#dbeafe" transparent opacity={0.7} /></mesh>
         </group>
       );
+    case 'multi':
+      // 하팅형 멀티 커넥터 (스네이크 끝): 사각 금속 후드 + 양쪽 잠금 레버
+      return (
+        <group>
+          <mesh position={[0, 0.035, 0]} castShadow><boxGeometry args={[0.07, 0.07, 0.045]} /><meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.35} /></mesh>
+          <mesh position={[0, 0.078, 0]}><boxGeometry args={[0.06, 0.016, 0.036]} />{metal}</mesh>
+          {female ? Array.from({ length: 24 }, (_, i) => <mesh key={i} position={[-0.021 + (i % 8) * 0.006, 0.0865, -0.006 + Math.floor(i / 8) * 0.006]}><cylinderGeometry args={[0.0014, 0.0014, 0.002, 8]} /><meshStandardMaterial color="#000" /></mesh>)
+            : Array.from({ length: 24 }, (_, i) => <mesh key={i} position={[-0.021 + (i % 8) * 0.006, 0.091, -0.006 + Math.floor(i / 8) * 0.006]}><cylinderGeometry args={[0.0011, 0.0011, 0.012, 6]} />{metal}</mesh>)}
+          {[-1, 1].map((sx) => <mesh key={sx} position={[sx * 0.037, 0.05, 0]}><boxGeometry args={[0.004, 0.05, 0.03]} />{metal}</mesh>)}
+          <mesh position={[0, -0.006, 0]}><cylinderGeometry args={[0.018, 0.018, 0.012, 20]} /><meshStandardMaterial color={color} /></mesh>
+        </group>
+      );
     case 'usb':
     default:
       return (
@@ -1239,7 +1269,7 @@ export function ConnectorModel({ kind, color, female = false }) {
 
 export function CableShowcase({ kind, color: colorProp }) {
   const color = colorProp ?? CABLES[kind]?.stroke ?? '#94a3b8';
-  const thick = { trs: 0.0065, xlr: 0.0065, speakon: 0.008, rca: 0.004, mini: 0.0025, eth: 0.003 }[kind] ?? 0.0045;
+  const thick = { trs: 0.0065, xlr: 0.0065, speakon: 0.008, rca: 0.004, mini: 0.0025, eth: 0.003, multi: 0.016 }[kind] ?? 0.0045;
   const tube = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-0.12, 0.35, 0), new THREE.Vector3(-0.2, 0.18, 0.05), new THREE.Vector3(0, 0.05, 0.12),

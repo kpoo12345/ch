@@ -1,0 +1,38 @@
+/* 튜토리얼 파트 — 형식은 src/game/data/tutorial.js 머리말 참고 */
+export default {
+  id: 'tut-show', venue: 'church', title: '파트 8 · 빛과 화면 (조명 · 미디어 서버 · PTZ)',
+  summary: 'Tiger Touch 조명 콘솔과 DMX, Resolume 레이어, PTZ 조이스틱 프리셋 맛보기.',
+  mission: '조명을 켜고 가사를 띄우고 PTZ 카메라로 설교자를 잡아 봅니다.',
+  devices: [
+    { id: 'desk', type: 'lighting_console', slot: 'foh2', name: '조명 콘솔 (Tiger Touch)' },
+    { id: 'p1', type: 'par_led', slot: 'light_front_l', name: '앞 조명 L', role: 'front' },
+    { id: 'p2', type: 'par_led', slot: 'light_front_r', name: '앞 조명 R', role: 'front' },
+    { id: 'vj', type: 'media_server', slot: 'foh3', name: '미디어 서버 (Resolume)' },
+    { id: 'proj', type: 'projector', slot: 'proj_ceiling', name: '프로젝터' },
+    { id: 'ptz1', type: 'ptz', slot: 'ptz_side', name: 'PTZ 카메라' },
+    { id: 'joy', type: 'ptz_controller', slot: 'foh4', name: 'PTZ 조이스틱' },
+    { id: 'net', type: 'router', slot: 'router_foh', name: '공유기' },
+  ],
+  connections: [{ from: 'ptz1.lan', to: 'net.lan1', cable: 'eth' }, { from: 'joy.lan', to: 'net.lan2', cable: 'eth' }],
+  inventory: { dmx: 2, hdmi: 1 },
+  state: { devices: {
+    p1: { address: 1 }, p2: { address: 9 },
+    desk: { patch: [{ n: 1, label: 'FRONT L', type: 'par_led', address: 1 }, { n: 2, label: 'FRONT R', type: 'par_led', address: 9 }], playbacks: [{ label: '설교 조명', level: 0, cue: { fixtures: [1, 2], intensity: 90, color: '#fff1d6' } }] },
+    vj: { layers: [{ clip: 'worship_bg', opacity: 100 }, { clip: 'lyrics', opacity: 100 }, { clip: null, opacity: 100 }], out1: 'comp' },
+    proj: { power: false }, ptz1: { ip: '192.168.1.21', pan: 0, tilt: 0, zoom: 0.2 },
+  } },
+  objectives: [], talk: 'auto', performing: false,
+  steps: [
+    { say: '큰 행사에선 소리만큼 빛이랑 화면도 신경 써야 해요. 조명, 미디어 서버, PTZ 카메라를 가볍게 한번 훑어볼게요.' },
+    { say: '무대 조명은 조명 콘솔에서 DMX 케이블로 제어해요. 콘솔 DMX 출력을 앞 조명 L 입력에 꽂을게요.', op: 'connect', from: 'desk.dmx1', to: 'p1.dmxIn', cable: 'dmx', practice: 'DMX를 고르고 콘솔 DMX A, 앞 조명 L DMX IN 순서로 눌러 주세요.' },
+    { say: '조명끼리는 OUT에서 다음 조명 IN으로 줄줄이 이어요. 이걸 데이지 체인이라고 해요.', op: 'connect', from: 'p1.dmxOut', to: 'p2.dmxIn', cable: 'dmx', practice: '앞 조명 L DMX OUT과 앞 조명 R DMX IN을 이어 주세요.' },
+    { say: 'DMX 주소도 봐야 해요. 8채널 조명이면 첫 대는 1번에서 8번, 다음 대는 9번부터 읽어요. 콘솔 패치랑 같아야 켜지고요.' },
+    { say: 'Tiger Touch에서 플레이백 페이더를 올릴게요. 저장해 둔 장면, 큐가 켜지죠.', op: 'dev', device: 'desk', key: 'playbacks.0.level', value: 100, practice: '조명 콘솔을 클릭하고 설교 조명 페이더를 올려 주세요.' },
+    { say: '이번엔 화면이에요. 미디어 서버 Resolume Arena는 영상 레이어를 겹쳐서 내보내요. HDMI로 프로젝터에 물릴게요.', op: 'connect', from: 'vj.out1', to: 'proj.hdmi', cable: 'hdmi', practice: 'HDMI로 미디어 서버 HDMI OUT 1과 프로젝터를 이어 주세요.' },
+    { say: '프로젝터를 켜 볼게요. 1번 레이어인 배경 위에 2번 레이어 가사가 겹쳐 보이죠?', op: 'dev', device: 'proj', key: 'power', value: true, practice: '프로젝터를 클릭하고 전원을 ON으로 켜 주세요.' },
+    { say: '마지막은 PTZ 카메라예요. 카메라맨 없이 조이스틱으로 원격 조종하죠. 1번 카메라부터 고를게요.', op: 'ptz', device: 'joy', act: 'select', value: 0 },
+    { say: '조이스틱으로 방향을 돌리고 줌을 당겨서 설교자를 크게 잡을게요.', op: 'ptz', device: 'joy', act: 'aim', pan: 32, tilt: -8, zoom: 0.7 },
+    { say: '이 구도를 STORE로 프리셋 1번에 저장해 둘게요. 다음부턴 버튼 하나로 바로 불러와요.', op: 'ptz', device: 'joy', act: 'store', value: 1 },
+    { say: '튜토리얼은 여기까지예요. 조명 큐 만들기, LED 전광판, 방송 중 카메라 운용은 스토리 모드 6장에서 8장까지 이어져요.' },
+  ],
+};

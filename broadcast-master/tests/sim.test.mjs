@@ -595,3 +595,439 @@ test('studio: a second ATEM switches its own cameras, drives its own tally and c
   assert.ok(sim.stream.obsVideoOk);
   assert.equal(st.atem.program, 1);
 });
+
+/* ---------------- 스네이크 (스테이지 박스 ↔ 팬아웃) ---------------- */
+// 무대 마이크 → 스테이지 박스 → (멀티 케이블) → FOH 팬아웃 → 아날로그 믹서 → 메인 / AUX → 팬아웃 RETURN → 박스 RETURN → 웨지
+const snakeRig = ({ mic = 'dynamic_mic', input = 1, multi = true, extra = [], more = [], state } = {}) => buildRuntime({
+  venue: 'live_stage',
+  devices: [
+    { id: 'mic', type: mic, slot: 'vocal_mic' },
+    { id: 'box', type: 'stage_box', slot: 'stagebox' },
+    { id: 'fan', type: 'snake_fanout', slot: 'fanout' },
+    { id: 'mixer', type: 'analog_mixer', slot: 'foh1' },
+    { id: 'pa', type: 'speaker', slot: 'pa_left' },
+    { id: 'wedge', type: 'monitor', slot: 'wedge_vocal' },
+    ...more,
+  ],
+  connections: [
+    { from: 'mic.out', to: `box.in${input}`, cable: 'xlr' },
+    ...(multi ? [{ from: 'box.multi', to: 'fan.multi', cable: 'multi' }] : []),
+    { from: `fan.out${input}`, to: `mixer.in${input}`, cable: 'xlr' },
+    { from: 'mixer.main', to: 'pa.in', cable: 'xlr' },
+    ...extra,
+  ],
+  state,
+});
+const returnLine = [{ from: 'mixer.aux1', to: 'fan.ret1', cable: 'trs' }, { from: 'box.ret1', to: 'wedge.in', cable: 'xlr' }];
+
+test('snake: mic → stage box IN1 → multi → fan-out OUT1 → mixer CH1 is heard on the main speakers, without hum', () => {
+  const st = snakeRig();
+  const sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('mic', 'main'));
+  assert.equal(sim.levelAt('mic', 'main'), -15, 'passthrough: same level as a direct XLR');
+  assert.equal(sim.hum, false, 'balanced multicore over 20~40m: no hum');
+  assert.equal(channelIndexOf(st, 'mic'), 1);
+  assert.equal(sim.channelOf('mic').index, 1);
+  // 케이블 신호 표시: 멀티 케이블과 팬아웃 꼬리에도 신호가 흐른다
+  assert.equal(sim.outLevel('box', 'multi'), -45);
+  assert.equal(sim.outLevel('fan', 'out1'), -45);
+  assert.equal(sim.outLevel('fan', 'out2'), null);
+});
+
+test('snake: numbers match end to end — stage box IN3 comes out of fan-out OUT3 onto mixer CH3', () => {
+  const st = snakeRig({ input: 3 });
+  const sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('mic', 'main'));
+  assert.equal(channelIndexOf(st, 'mic'), 3);
+  assert.ok(checkObjective({ type: 'onChannel', source: 'mic', ch: 3 }, st, sim));
+  // 번호가 어긋나면(박스 IN3 → 팬아웃 OUT1) 신호가 없다
+  const wrong = buildRuntime({
+    venue: 'live_stage',
+    devices: [{ id: 'mic', type: 'dynamic_mic', slot: 'vocal_mic' }, { id: 'box', type: 'stage_box', slot: 'stagebox' }, { id: 'fan', type: 'snake_fanout', slot: 'fanout' }, { id: 'mixer', type: 'analog_mixer', slot: 'foh1' }],
+    connections: [{ from: 'mic.out', to: 'box.in3', cable: 'xlr' }, { from: 'box.multi', to: 'fan.multi', cable: 'multi' }, { from: 'fan.out1', to: 'mixer.in1', cable: 'xlr' }],
+  });
+  assert.equal(computeSim(wrong).reaches('mic', 'mixer'), false);
+});
+
+test('snake: without the multi link (or with one end unplaced) the stage box is silent at FOH', () => {
+  let st = snakeRig({ multi: false });
+  let sim = computeSim(st, { performing: false });
+  assert.equal(sim.reaches('mic', 'main'), false);
+  assert.equal(sim.reaches('mic', 'mixer'), false);
+  assert.equal(channelIndexOf(st, 'mic'), null);
+  assert.equal(sim.outLevel('fan', 'out1'), null);
+  st = snakeRig();
+  st.devices.box.placed = false;
+  assert.equal(computeSim(st).reaches('mic', 'main'), false);
+});
+
+test('snake: a condenser on the stage box needs +48V from the mixer, which travels up the snake', () => {
+  const st = snakeRig({ mic: 'condenser_mic' });
+  let sim = computeSim(st, { performing: false });
+  assert.equal(sim.reaches('mic', 'main'), false);
+  assert.deepEqual(sim.deadPhantom, ['mic']);
+  assert.equal(channelIndexOf(st, 'mic'), 1, 'path is still found without signal');
+  st.master.phantom = true;
+  sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('mic', 'main'));
+  assert.equal(sim.levelAt('mic', 'main'), -12);
+  assert.equal(sim.deadPhantom.length, 0);
+});
+
+test('snake: a digital mixer sends +48V per channel up the snake (only the channel the fan-out tail lands on)', () => {
+  const rig = (phantomCh) => buildRuntime({
+    venue: 'church',
+    devices: [
+      { id: 'choir', type: 'condenser_mic', slot: 'choir_mic' },
+      { id: 'box', type: 'stage_box', slot: 'stagebox' },
+      { id: 'fan', type: 'snake_fanout', slot: 'fanout' },
+      { id: 'mixer', type: 'digital_mixer', slot: 'foh1' },
+      { id: 'pa', type: 'speaker', slot: 'pa_left' },
+    ],
+    connections: [
+      { from: 'choir.out', to: 'box.in2', cable: 'xlr' },
+      { from: 'box.multi', to: 'fan.multi', cable: 'multi' },
+      { from: 'fan.out2', to: 'mixer.local2', cable: 'xlr' },
+      { from: 'mixer.main', to: 'pa.in', cable: 'xlr' },
+    ],
+    state: { channels: { 1: { patch: 'local2', phantom: phantomCh === 1 }, 2: { patch: 'local1', phantom: phantomCh === 2 } } },
+  });
+  // LOCAL 2는 1번 채널로 패치 → 1번 채널 +48V만 마이크까지 간다
+  let sim = computeSim(rig(1), { performing: false });
+  assert.ok(sim.reaches('choir', 'main'));
+  assert.equal(sim.channelOf('choir').index, 1);
+  sim = computeSim(rig(2), { performing: false });
+  assert.equal(sim.reaches('choir', 'main'), false);
+  assert.deepEqual(sim.deadPhantom, ['choir']);
+});
+
+test('snake: the multi cable shows signal for return-only traffic too (both directions share one multicore)', () => {
+  const st = buildRuntime({
+    venue: 'live_stage',
+    devices: [
+      { id: 'host', type: 'dynamic_mic', slot: 'foh2' },
+      { id: 'box', type: 'stage_box', slot: 'stagebox' },
+      { id: 'fan', type: 'snake_fanout', slot: 'fanout' },
+      { id: 'mixer', type: 'analog_mixer', slot: 'foh1' },
+      { id: 'wedge', type: 'monitor', slot: 'wedge_vocal' },
+    ],
+    connections: [
+      { from: 'host.out', to: 'mixer.in1', cable: 'xlr' },
+      { from: 'box.multi', to: 'fan.multi', cable: 'multi' },
+      { from: 'mixer.aux1', to: 'fan.ret2', cable: 'trs' },
+      { from: 'box.ret2', to: 'wedge.in', cable: 'xlr' },
+    ],
+    state: { channels: { 1: { aux: 75 } } },
+  });
+  const sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('host', 'monitor'));
+  assert.equal(sim.outLevel('box', 'ret1'), null);
+  assert.ok(sim.outLevel('box', 'ret2') != null);
+  assert.equal(sim.outLevel('box', 'multi'), sim.outLevel('box', 'ret2'));
+});
+
+test('snake: mixer AUX 1 → fan-out RETURN 1 → stage box RETURN 1 → wedge is heard on the monitor, without hum', () => {
+  const st = snakeRig({ extra: returnLine, state: { channels: { 1: { aux: 75, fader: 0 } } } });
+  let sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('mic', 'monitor'));
+  assert.equal(sim.reaches('mic', 'main'), false, 'AUX is pre-fader: the wedge does not follow the main fader');
+  assert.equal(sim.hum, false);
+  assert.equal(sim.outLevel('box', 'ret1'), sim.outLevel('mixer', 'aux1'));
+  assert.equal(sim.outLevel('box', 'ret2'), null);
+  // 멀티를 뽑으면 리턴도 끊긴다 (믹서 AUX에는 신호가 있어도)
+  const unlinked = snakeRig({ multi: false, more: [{ id: 'mic2', type: 'dynamic_mic', slot: 'foh2' }], extra: [...returnLine, { from: 'mic2.out', to: 'mixer.in2', cable: 'xlr' }], state: { channels: { 2: { aux: 75 } } } });
+  sim = computeSim(unlinked, { performing: false });
+  assert.ok(sim.outLevel('mixer', 'aux1') != null);
+  assert.equal(sim.outLevel('box', 'ret1'), null);
+  assert.equal(sim.reaches('mic2', 'monitor'), false);
+  // 비교: AUX(TRS)를 웨지까지 바로 길게 끌면 험
+  const direct = snakeRig({ extra: [{ from: 'mixer.aux1', to: 'wedge.in', cable: 'trs' }], state: { channels: { 1: { aux: 75 } } } });
+  sim = computeSim(direct, { performing: false });
+  assert.ok(sim.reaches('mic', 'monitor'));
+  assert.ok(sim.hum);
+});
+
+test('snake: the multi cable only fits stage box MULTI → fan-out MULTI', () => {
+  const st = snakeRig({ multi: false });
+  assert.equal(canConnect(st, { d: 'fan', p: 'multi' }, { d: 'box', p: 'multi' }, 'multi').ok, true); // 어느 쪽을 먼저 눌러도
+  assert.equal(canConnect(st, { d: 'box', p: 'multi' }, { d: 'fan', p: 'multi' }, 'xlr').ok, false);
+  assert.equal(canConnect(st, { d: 'box', p: 'ret2' }, { d: 'wedge', p: 'in' }, 'multi').ok, false);
+  assert.equal(canConnect(st, { d: 'mixer', p: 'aux2' }, { d: 'fan', p: 'ret2' }, 'trs').ok, true); // RETURN IN은 콤보 (AUX TRS)
+  assert.equal(canConnect(st, { d: 'mixer', p: 'main' }, { d: 'fan', p: 'multi' }, 'xlr').ok, false);
+});
+
+test('snake: plugging the return line while the wedge is on pops through the snake', async () => {
+  const { runOps } = await import('../src/game/ops.js');
+  const st = snakeRig({ extra: [{ from: 'box.ret1', to: 'wedge.in', cable: 'xlr' }], state: { channels: { 1: { aux: 75 } } } });
+  const r = runOps(st, [{ op: 'connect', from: 'mixer.aux1', to: 'fan.ret1', cable: 'trs' }]);
+  assert.ok(r.latched.has('pop:wedge'));
+  // 웨지를 끈 채 연결하면 팝 없음
+  st.dev.wedge.power = false;
+  assert.equal(runOps(st, [{ op: 'connect', from: 'mixer.aux1', to: 'fan.ret1', cable: 'trs' }]).latched.has('pop:wedge'), false);
+});
+
+/* ---------------- 파워 앰프 · 패시브 스피커 · 인이어 모니터 ---------------- */
+// 마이크 → 믹서 → (MAIN) → 파워 앰프 INPUT A → SPEAKON A → 패시브 스피커
+const ampRig = ({ venue = 'live_stage', ampSlot = 'amp_rack', spkSlot = 'pa_left', extra = [], more = [], state } = {}) => buildRuntime({
+  venue,
+  devices: [
+    { id: 'mic', type: 'dynamic_mic', slot: venue === 'church' ? 'worship_mic_rx_stage' : 'vocal_mic' },
+    { id: 'mixer', type: 'analog_mixer', slot: 'foh1' },
+    { id: 'amp', type: 'power_amp', slot: ampSlot },
+    { id: 'pspk', type: 'passive_speaker', slot: spkSlot },
+    ...more,
+  ],
+  connections: [
+    { from: 'mic.out', to: 'mixer.in1', cable: 'xlr' },
+    { from: 'mixer.main', to: 'amp.inA', cable: 'xlr' },
+    { from: 'amp.spkA', to: 'pspk.spk', cable: 'speakon' },
+    ...extra,
+  ],
+  state,
+});
+
+test('power amp: mixer → amp INPUT A → SPEAKON A → passive speaker is heard on main at the same level as an active speaker', () => {
+  const st = ampRig();
+  assert.deepEqual(st.dev.amp, { power: true, levelA: 75, levelB: 75 });
+  assert.deepEqual(st.dev.pspk, { position: 'behind' }, 'a passive speaker has no power switch');
+  const sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('mic', 'main'));
+  assert.equal(sim.levelAt('mic', 'main'), -15, 'amp level 75 = 0dB: same as the mixer MAIN output');
+  assert.equal(sim.outLevel('amp', 'spkA'), -15);
+  assert.equal(sim.outLevel('amp', 'spkB'), null, 'channel B has no input');
+  assert.equal(sim.hum, false, 'speakon is not an unbalanced line');
+  // 앰프 레벨 노브 = 볼륨 (100 = +10dB, 0 = 무음)
+  st.dev.amp.levelA = 100;
+  assert.equal(computeSim(st, { performing: false }).levelAt('mic', 'main'), -5);
+  st.dev.amp.levelA = 0;
+  assert.equal(computeSim(st, { performing: false }).reaches('mic', 'main'), false);
+  // 채널 B는 따로: INPUT B → SPEAKON B
+  const two = ampRig({ more: [{ id: 'pspk2', type: 'passive_speaker', slot: 'pa_right' }], extra: [{ from: 'mixer.mainR', to: 'amp.inB', cable: 'xlr' }, { from: 'amp.spkB', to: 'pspk2.spk', cable: 'speakon' }], state: { devices: { amp: { levelA: 0 } } } });
+  const sim2 = computeSim(two, { performing: false });
+  assert.ok(sim2.reaches('mic', 'main'));
+  assert.equal(sim2.outLevel('amp', 'spkA'), null);
+  assert.equal(sim2.inLevel('pspk2', 'spk'), -15);
+});
+
+test('power amp: switched off (or unplaced) the passive speaker is silent', () => {
+  const st = ampRig();
+  st.dev.amp.power = false;
+  let sim = computeSim(st, { performing: false });
+  assert.equal(sim.reaches('mic', 'main'), false);
+  assert.equal(sim.outLevel('amp', 'spkA'), null);
+  assert.ok(sim.reaches('mic', 'mixer'), 'the mixer still hears the mic');
+  const st2 = ampRig();
+  st2.devices.amp.placed = false;
+  sim = computeSim(st2, { performing: false });
+  assert.equal(sim.reaches('mic', 'main'), false);
+});
+
+test('passive speaker: a line/mic signal can never be plugged straight in (helpful Korean reason)', () => {
+  const st = ampRig({ more: [{ id: 'act', type: 'speaker', slot: 'pa_right' }] });
+  st.connections = st.connections.filter((c) => c.to.d !== 'pspk' && c.to.d !== 'amp');
+  const REASON = '패시브 스피커는 앰프가 없어서 파워 앰프의 스피콘 출력으로만 소리가 납니다';
+  for (const cable of ['xlr', 'trs', 'speakon']) {
+    const r = canConnect(st, { d: 'mixer', p: 'main' }, { d: 'pspk', p: 'spk' }, cable);
+    assert.equal(r.ok, false);
+    assert.ok(r.reason.includes(REASON), `${cable}: ${r.reason}`);
+  }
+  assert.ok(canConnect(st, { d: 'pspk', p: 'spk' }, { d: 'mixer', p: 'aux2' }, 'trs').reason.includes(REASON), 'either end clicked first');
+  // 스피콘 출력은 패시브 스피커에만
+  assert.equal(canConnect(st, { d: 'amp', p: 'spkA' }, { d: 'pspk', p: 'spk' }, 'speakon').ok, true);
+  assert.equal(canConnect(st, { d: 'amp', p: 'spkA' }, { d: 'pspk', p: 'spk' }, 'xlr').ok, false);
+  const toActive = canConnect(st, { d: 'amp', p: 'spkB' }, { d: 'act', p: 'in' }, 'speakon');
+  assert.equal(toActive.ok, false);
+  assert.match(toActive.reason, /패시브 스피커에만/);
+  // 앰프 입력은 콤보: 믹서 MAIN(XLR)·AUX(TRS) OK, 스피콘 케이블은 안 맞는다
+  assert.equal(canConnect(st, { d: 'mixer', p: 'main' }, { d: 'amp', p: 'inA' }, 'xlr').ok, true);
+  assert.equal(canConnect(st, { d: 'mixer', p: 'aux1' }, { d: 'amp', p: 'inB' }, 'trs').ok, true);
+  assert.equal(canConnect(st, { d: 'mixer', p: 'main' }, { d: 'amp', p: 'inA' }, 'speakon').ok, false);
+  // 판에 직접 짜 넣어도(검사 우회) 앰프를 거치지 않은 신호는 패시브 스피커에서 나지 않는다
+  const raw = buildRuntime({
+    venue: 'live_stage',
+    devices: [{ id: 'mic', type: 'dynamic_mic', slot: 'vocal_mic' }, { id: 'mixer', type: 'analog_mixer', slot: 'foh1' }, { id: 'pspk', type: 'passive_speaker', slot: 'pa_left' }],
+    connections: [{ from: 'mic.out', to: 'mixer.in1', cable: 'xlr' }, { from: 'mixer.main', to: 'pspk.spk', cable: 'xlr' }],
+  });
+  assert.equal(computeSim(raw, { performing: false }).reaches('mic', 'main'), false);
+});
+
+test('passive speaker: same placement / feedback behaviour as an active speaker', () => {
+  const rig = (type, slot) => buildRuntime({
+    venue: 'seminar',
+    devices: [
+      { id: 'mic', type: 'dynamic_mic', slot: 'presenter_mic' }, { id: 'mixer', type: 'analog_mixer', slot: 'desk1' },
+      { id: 'amp', type: 'power_amp', slot: 'desk2' }, { id: 'pa', type, slot },
+    ],
+    connections: [
+      { from: 'mic.out', to: 'mixer.in1', cable: 'xlr' },
+      ...(type === 'speaker' ? [{ from: 'mixer.main', to: 'pa.in', cable: 'xlr' }] : [{ from: 'mixer.main', to: 'amp.inA', cable: 'xlr' }, { from: 'amp.spkA', to: 'pa.spk', cable: 'speakon' }]),
+    ],
+    state: { channels: { 1: { gain: 40 } } },
+  });
+  for (const slot of ['pa_main', 'pa_alt']) {
+    const a = rig('speaker', slot), p = rig('passive_speaker', slot);
+    assert.equal(p.dev.pa.position, a.dev.pa.position);
+    const sa = computeSim(a, { performing: false }), sp = computeSim(p, { performing: false });
+    assert.equal(sp.worstLoop, sa.worstLoop, slot);
+    assert.equal(sp.feedback, sa.feedback, slot);
+    assert.ok(sp.loops.some((l) => l.spk === 'pa'));
+  }
+  assert.equal(rig('passive_speaker', 'pa_alt').dev.pa.position, 'front');
+  assert.ok(computeSim(rig('passive_speaker', 'pa_alt'), { performing: false }).feedback, 'aimed at the mic → howl');
+});
+
+test('power amp: switch it on LAST and off FIRST — touching its signal path while it is on pops (attributed to the amp)', async () => {
+  const { runOps } = await import('../src/game/ops.js');
+  // 앰프가 켜진 채로 스피커 케이블을 꽂으면 퍽
+  let st = ampRig();
+  st.connections = st.connections.filter((c) => c.to.d !== 'pspk');
+  let r = runOps(st, [{ op: 'connect', from: 'amp.spkA', to: 'pspk.spk', cable: 'speakon' }]);
+  assert.ok(r.latched.has('pop:amp'));
+  assert.equal(checkObjective({ type: 'noPop', device: 'amp' }, r.st, computeSim(r.st), { latched: [...r.latched] }), false);
+  // 믹서 → 앰프 입력, 마이크 → 믹서, +48V도 앰프가 켜져 있으면 퍽
+  st = ampRig();
+  st.connections = st.connections.filter((c) => c.to.d !== 'amp');
+  assert.ok(runOps(st, [{ op: 'connect', from: 'mixer.main', to: 'amp.inA', cable: 'xlr' }]).latched.has('pop:amp'));
+  st = ampRig();
+  assert.ok(runOps(st, [{ op: 'disconnect', from: 'mic.out', to: 'mixer.in1' }]).latched.has('pop:amp'));
+  assert.ok(runOps(ampRig(), [{ op: 'master', key: 'phantom', value: true }]).latched.has('pop:amp'));
+  // INPUT B 쪽 경로도 앰프가 따라간다
+  st = ampRig({ more: [{ id: 'mixer2', type: 'analog_mixer', slot: 'foh2' }] });
+  assert.ok(runOps(st, [{ op: 'connect', from: 'mixer2.main', to: 'amp.inB', cable: 'xlr' }]).latched.has('pop:amp'));
+  // 올바른 순서: 앰프를 끄고 → 연결 → 마지막에 켠다 → 팝 없음, noPop(power) 통과
+  st = ampRig();
+  st.connections = [];
+  st.unlimited = true; // 케이블 가방 무제한
+  r = runOps(st, [
+    { op: 'dev', device: 'amp', key: 'power', value: false },
+    { op: 'connect', from: 'mic.out', to: 'mixer.in1', cable: 'xlr' },
+    { op: 'connect', from: 'mixer.main', to: 'amp.inA', cable: 'xlr' },
+    { op: 'connect', from: 'amp.spkA', to: 'pspk.spk', cable: 'speakon' },
+    { op: 'master', key: 'phantom', value: true },
+    { op: 'dev', device: 'amp', key: 'power', value: true },
+  ]);
+  assert.equal(r.latched.has('pop:amp'), false);
+  assert.ok(checkObjective({ type: 'noPop', device: 'amp', power: true }, r.st, computeSim(r.st), { latched: [...r.latched] }));
+  assert.ok(computeSim(r.st, { performing: false }).reaches('mic', 'main'));
+  // 끄면 팝 기록이 지워진다 (먼저 끄고 다시 순서대로)
+  st = ampRig();
+  st.connections = st.connections.filter((c) => c.to.d !== 'pspk');
+  r = runOps(st, [{ op: 'connect', from: 'amp.spkA', to: 'pspk.spk', cable: 'speakon' }, { op: 'dev', device: 'amp', key: 'power', value: false }]);
+  assert.equal(r.latched.has('pop:amp'), false);
+});
+
+test('power amp faults: amp off / level knob at 0 are reported and fixed', () => {
+  const st = buildRuntime({
+    venue: 'live_stage',
+    devices: [{ id: 'mic', type: 'dynamic_mic', slot: 'vocal_mic' }, { id: 'mixer', type: 'analog_mixer', slot: 'foh1' }, { id: 'amp', type: 'power_amp', slot: 'amp_rack' }, { id: 'pspk', type: 'passive_speaker', slot: 'pa_left' }],
+    connections: [{ from: 'mic.out', to: 'mixer.in1', cable: 'xlr' }, { from: 'mixer.main', to: 'amp.inA', cable: 'xlr' }, { from: 'amp.spkA', to: 'pspk.spk', cable: 'speakon' }],
+    faults: [{ type: 'ampOff', device: 'amp' }, { type: 'ampLevelZero', device: 'amp', channel: 'A' }],
+  });
+  assert.equal(st.dev.amp.power, false);
+  assert.equal(st.dev.amp.levelA, 0);
+  assert.equal(computeSim(st).reaches('mic', 'main'), false);
+  st.dev.amp.power = true;
+  st.dev.amp.levelA = 75;
+  const sim = computeSim(st, { performing: false });
+  assert.ok(st.faults.every((f) => faultFixed(f, st, sim)));
+  assert.ok(sim.reaches('mic', 'main'));
+});
+
+// 마이크 → 믹서 AUX 1 → 인이어 송신기
+const iemRig = ({ venue = 'live_stage', state, extra = [], more = [], aux = true } = {}) => buildRuntime({
+  venue,
+  devices: [
+    { id: 'mic', type: 'dynamic_mic', slot: venue === 'church' ? 'worship_mic_rx_stage' : 'vocal_mic' },
+    { id: 'mixer', type: 'analog_mixer', slot: 'foh1' },
+    { id: 'iem', type: 'iem', slot: 'iem_rack' },
+    ...more,
+  ],
+  connections: [
+    { from: 'mic.out', to: 'mixer.in1', cable: 'xlr' },
+    ...(aux ? [{ from: 'mixer.aux1', to: 'iem.in', cable: 'trs' }] : []),
+    ...extra,
+  ],
+  state: { channels: { 1: { aux: 75 } }, ...(state ?? {}) },
+});
+
+test('IEM: heard on the monitor only when powered and the transmitter/beltpack channels match', () => {
+  const st = iemRig();
+  assert.deepEqual(st.dev.iem, { power: true, txChannel: 1, rxChannel: 1, volume: 75 });
+  let sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('mic', 'monitor'));
+  assert.equal(sim.levelAt('mic', 'monitor'), sim.outLevel('mixer', 'aux1'), 'volume 75 = 0dB');
+  assert.equal(sim.reaches('mic', 'main'), false);
+  assert.ok(checkObjective({ type: 'iem', device: 'iem' }, st, sim));
+  st.dev.iem.rxChannel = 3;
+  sim = computeSim(st, { performing: false });
+  assert.equal(sim.reaches('mic', 'monitor'), false);
+  assert.equal(checkObjective({ type: 'iem', device: 'iem' }, st, sim), false);
+  st.dev.iem.txChannel = 3;
+  assert.ok(computeSim(st, { performing: false }).reaches('mic', 'monitor'));
+  st.dev.iem.power = false;
+  assert.equal(computeSim(st, { performing: false }).reaches('mic', 'monitor'), false);
+  st.dev.iem.power = true;
+  st.dev.iem.volume = 0;
+  assert.equal(computeSim(st, { performing: false }).reaches('mic', 'monitor'), false);
+  st.dev.iem.volume = 100;
+  assert.equal(computeSim(st, { performing: false }).levelAt('mic', 'monitor'), sim.outLevel('mixer', 'aux1') + 10);
+});
+
+test('IEM: a monitor mix loud enough to howl through a wedge never feeds back in the ears', () => {
+  const hot = { channels: { 1: { aux: 100, gain: 40 } }, master: { auxMaster: 100 } };
+  const wedge = buildRuntime({
+    venue: 'live_stage',
+    devices: [{ id: 'mic', type: 'dynamic_mic', slot: 'vocal_mic' }, { id: 'mixer', type: 'analog_mixer', slot: 'foh1' }, { id: 'w', type: 'monitor', slot: 'wedge_vocal' }],
+    connections: [{ from: 'mic.out', to: 'mixer.in1', cable: 'xlr' }, { from: 'mixer.aux1', to: 'w.in', cable: 'trs' }],
+    state: hot,
+  });
+  assert.ok(computeSim(wedge, { performing: false }).feedback, 'control: the wedge howls');
+  const st = iemRig({ state: hot });
+  const sim = computeSim(st, { performing: false });
+  assert.ok(sim.reaches('mic', 'monitor'));
+  assert.equal(sim.feedback, false);
+  assert.equal(sim.loops.length, 0);
+});
+
+test('IEM: channel fault, and the snake return keeps the stage-side transmitter hum-free', () => {
+  const st = buildRuntime({
+    venue: 'church',
+    devices: [{ id: 'mic', type: 'dynamic_mic', slot: 'worship_mic_rx_stage' }, { id: 'mixer', type: 'analog_mixer', slot: 'foh1' }, { id: 'iem', type: 'iem', slot: 'iem_rack' }],
+    connections: [{ from: 'mic.out', to: 'mixer.in1', cable: 'xlr' }, { from: 'mixer.aux1', to: 'iem.in', cable: 'trs' }],
+    state: { channels: { 1: { aux: 75 } } },
+    faults: [{ type: 'iemChannel', device: 'iem' }],
+  });
+  assert.notEqual(st.dev.iem.rxChannel, st.dev.iem.txChannel);
+  let sim = computeSim(st, { performing: false });
+  assert.equal(sim.reaches('mic', 'monitor'), false);
+  st.dev.iem.rxChannel = st.dev.iem.txChannel;
+  sim = computeSim(st, { performing: false });
+  assert.ok(faultFixed(st.faults[0], st, sim));
+  assert.ok(sim.reaches('mic', 'monitor'));
+  assert.ok(sim.hum, 'AUX (TRS, unbalanced) dragged from the booth to the stage hums');
+  // 스네이크 리턴으로 보내면 험 없음: AUX → 팬아웃 RETURN 1 → (멀티) → 박스 RETURN 1 → IEM
+  const snake = iemRig({
+    venue: 'church', aux: false,
+    more: [{ id: 'box', type: 'stage_box', slot: 'stagebox' }, { id: 'fan', type: 'snake_fanout', slot: 'fanout' }],
+    extra: [{ from: 'box.multi', to: 'fan.multi', cable: 'multi' }, { from: 'mixer.aux1', to: 'fan.ret1', cable: 'trs' }, { from: 'box.ret1', to: 'iem.in', cable: 'xlr' }],
+  });
+  sim = computeSim(snake, { performing: false });
+  assert.ok(sim.reaches('mic', 'monitor'));
+  assert.equal(sim.hum, false);
+});
+
+test('venues: amp_rack and iem_rack slots exist in live_stage and church with the expected zones', async () => {
+  const { VENUES } = await import('../src/game/venues.js');
+  const { zoneOf } = await import('../src/game/sim.js');
+  for (const v of ['live_stage', 'church']) {
+    assert.ok(VENUES[v].slots.amp_rack, `${v} amp_rack`);
+    assert.ok(VENUES[v].slots.iem_rack, `${v} iem_rack`);
+    assert.equal(zoneOf(v, 'iem_rack'), 'stage');
+  }
+  assert.equal(zoneOf('live_stage', 'amp_rack'), 'stage', 'live stage: amps at the side of the stage');
+  assert.equal(zoneOf('church', 'amp_rack'), 'foh', 'church: amp rack in the booth');
+  // 방송실 앰프 → 긴 스피커 케이블로 무대 옆 스피커까지: 스피콘은 험이 없다
+  const sim = computeSim(ampRig({ venue: 'church' }), { performing: false });
+  assert.ok(sim.reaches('mic', 'main'));
+  assert.equal(sim.hum, false);
+});

@@ -62,8 +62,37 @@ for (const spec of stages) {
   });
 }
 
-const { TUTORIAL } = await import('../src/game/data/tutorial.js');
+const { TUTORIAL, CONCEPT_KEYS, LABS, STRIP_PARTS } = await import('../src/game/data/tutorial.js');
+const { PHOTOS } = await import('../src/game/data/photos.js');
+const checkCard = (c, where) => {
+  const n = ['photo', 'model', 'connector', 'concept'].filter((k) => c[k] != null).length;
+  assert.equal(n, 1, `${where}: card needs exactly one of photo/model/connector/concept`);
+  if (c.photo) assert.ok(PHOTOS[c.photo], `${where}: photo ${c.photo}`);
+  if (c.model) assert.ok(DEVICE_TYPES[c.model], `${where}: model ${c.model}`);
+  if (c.connector) assert.ok(CABLES[c.connector], `${where}: connector ${c.connector}`);
+  if (c.concept) assert.ok(CONCEPT_KEYS.includes(c.concept), `${where}: concept ${c.concept}`);
+  if (c.focus) assert.ok(c.concept === 'strip' && STRIP_PARTS.includes(c.focus), `${where}: strip focus ${c.focus}`);
+};
 for (const part of TUTORIAL) {
+  test(`tutorial ${part.id}: scene fields are valid`, () => {
+    const ids = new Set(part.devices.map((d) => d.id));
+    part.steps.forEach((s, i) => {
+      const w = `${part.id} step ${i}`;
+      if (s.who) assert.ok(['senior', 'junior'].includes(s.who), `${w}: who ${s.who}`);
+      if (s.say) assert.ok(s.say.length <= 140, `${w}: line too long (${s.say.length})`);
+      if (s.practice) assert.ok(s.op, `${w}: practice without op`);
+      if (s.focus) assert.ok(ids.has(s.focus), `${w}: focus ${s.focus}`);
+      if (s.show) { if (s.show.items) { assert.ok(s.show.items.length >= 2 && s.show.items.length <= 3, `${w}: 2~3 items`); s.show.items.forEach((c) => checkCard(c, w)); } else checkCard(s.show, w); }
+      if (s.quiz) {
+        assert.ok(s.quiz.q && Array.isArray(s.quiz.options) && s.quiz.options.length >= 2, `${w}: quiz shape`);
+        assert.ok(Number.isInteger(s.quiz.answer) && s.quiz.answer >= 0 && s.quiz.answer < s.quiz.options.length, `${w}: quiz answer`);
+        assert.ok(s.quiz.explain, `${w}: quiz explain`);
+        assert.ok(!s.op, `${w}: quiz and op in one scene`);
+      }
+      if (s.lab) assert.ok(LABS.includes(s.lab.lab), `${w}: lab ${s.lab.lab}`);
+      assert.ok(s.say || s.op || s.quiz || s.lab, `${w}: empty scene`);
+    });
+  });
   test(`tutorial ${part.id}: every step applies cleanly`, () => {
     assert.ok(VENUES[part.venue]);
     part.devices.forEach((d) => assert.ok(VENUES[part.venue].slots[d.slot], `slot ${d.slot}`));
