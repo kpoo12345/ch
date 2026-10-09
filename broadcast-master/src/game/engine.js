@@ -15,7 +15,7 @@ export const CABLES = {
   mini: { name: '3.5mm 변환 케이블', short: '3.5mm', desc: '3.5mm ↔ 3.5mm/6.3mm(TRS)/XLR 변환 · 노트북·ATEM MIC', stroke: '#f472b6', dot: 'bg-pink-400' },
   eth: { name: '랜선 (이더넷)', short: 'LAN', desc: 'RJ45 · 인터넷 송출·네트워크 제어', stroke: '#2dd4bf', dot: 'bg-teal-400' },
   dmx: { name: 'DMX 케이블 (5핀)', short: 'DMX', desc: '110Ω 조명 제어 신호 · 조명끼리 줄줄이(데이지 체인) 연결', stroke: '#a3e635', dot: 'bg-lime-400' },
-  speakon: { name: '스피커 케이블 (스피콘)', short: 'SPK', desc: '앰프가 키운 큰 전력 신호(스피커 레벨) · 파워 앰프 출력 → 패시브 스피커 입력 전용 (돌려서 잠그는 NL4 커넥터)', stroke: '#ef4444', dot: 'bg-red-500' },
+  speakon: { name: '스피커 케이블 (스피콘)', short: 'SPK', desc: '앰프가 키운 큰 전력 신호(스피커 레벨) · 파워 앰프 출력 → 패시브 스피커 입력 전용 (돌려서 잠그는 NL4 커넥터)', stroke: '#2563eb', dot: 'bg-blue-600' },
   multi: { name: '멀티 케이블 (스네이크)', short: 'MULTI', desc: '밸런스드 마이크 선 여러 가닥을 한 피복에 묶은 굵은 케이블 · 스테이지 박스 ↔ 팬아웃 전용', stroke: '#fb7185', dot: 'bg-rose-400' },
 };
 
@@ -31,7 +31,7 @@ export const PORT_KIND_LABEL = {
   multi: '멀티핀 단자 (스네이크)', speakon: '스피콘 단자 (NL4)',
 };
 export const PORT_COLOR = {
-  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80', eth: '#2dd4bf', mini: '#f472b6', dmx: '#a3e635', multi: '#fb7185',
+  xlr: '#60a5fa', trs: '#fbbf24', combo: '#94a3b8', hdmi: '#c084fc', sdi: '#fb923c', usb: '#4ade80', eth: '#2dd4bf', mini: '#f472b6', dmx: '#a3e635', multi: '#fb7185', speakon: '#2563eb',
 };
 export const MISMATCH_TIP = {
   xlr: 'XLR 단자는 3핀 캐논 커넥터라서 XLR 케이블만 들어갑니다.',
