@@ -68,8 +68,9 @@ function utter(text, { rate = 1.05, volume = 1, pitch = 1 } = {}) {
 // onError: 목소리가 없거나 합성이 실패했을 때 (이때는 onEnd를 부르지 않는다 — 부르는 쪽이 시간으로 대신 끝낸다)
 // onStart: 실제로 소리가 나기 시작할 때 (글자 표시 시간을 여기서부터 잰다)
 // onProgress(frac): 녹음 재생 위치 (0~1) — 글자 표시를 소리에 정확히 맞춘다
-export function narrate(text, { who = 'senior', rate = 1, onEnd, onBoundary, onError, onStart, onProgress } = {}) {
-  const e = text ? clipEntry(who, text) : null;
+// noClip: 녹음을 쓰지 않고 합성 음성으로만 (녹음을 못 틀어 다시 읽을 때)
+export function narrate(text, { who = 'senior', rate = 1, onEnd, onBoundary, onError, onStart, onProgress, noClip = false } = {}) {
+  const e = text && !noClip && decodeFails < 2 ? clipEntry(who, text) : null;
   if (e) { stopClip(); if (speechOk()) { state.current = null; window.speechSynthesis.cancel(); } clearTimeout(state.talkTimer); clearTimeout(state.narrTimer); playClip(e, { rate, onEnd, onStart, onProgress, onError }); return; }
   stopClip();
   if (!speechOk() || !text) { onEnd?.(); return; }

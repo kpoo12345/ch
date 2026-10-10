@@ -784,7 +784,9 @@ export default function Venue3D({
     if (c) setCue({ ...c, key: action.key, speed: action.speed });
     // 플레이어가 직접 확대한 장비를 직접 조작할 때는 따라가기가 시점을 빼지 않는다 (대본·유령 손 동작은 action.speed가 있다)
     const userOnFocused = action.speed == null && lastFocus.current?.id === action.device && action.ctl?.kind !== 'cable';
-    if (follow && action.device && devices[action.device]?.placed && !userOnFocused) {
+    // 아직 놓을 장비가 남았으면 놓을 때 확대하지 않는다 (남은 "+ 배치" 단추가 화면 밖으로 밀려나지 않게)
+    const morePlaces = act.ctl?.kind === 'place' && Object.values(devices).some((d) => !d.placed && d.slot);
+    if (follow && action.device && devices[action.device]?.placed && !userOnFocused && !morePlaces) {
       // 조작 따라가기: 장소 기본 시점 방향을 유지한 채 조작 지점으로 다가간다 (화면이 휙 돌지 않게)
       const kind = act.ctl?.kind;
       let tgt = action.device;

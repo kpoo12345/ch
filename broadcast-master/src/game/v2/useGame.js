@@ -358,7 +358,7 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     setNarration((n) => (n && n.text === text ? { ...n, ms, offset: from, t0, pos: from, audio: false } : n));
     if (voiceRef.current && speechOk()) {
       narrate(part, {
-        who,
+        who, noClip: true,
         rate: Math.max(0.6, Math.min(2, speed)),
         onEnd: endIfCurrent,
         // 소리가 실제로 나기 시작한 때부터 글자·위치를 잰다
@@ -522,7 +522,9 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   useEffect(() => {
     // 대사가 없는 연결 단계(말하기 시작·잠깐 기다리기)는 수동 모드에서도 저절로 넘어간다
     // 퀴즈도 대사처럼 "다음"을 기다린다. 실습실이 열려 있는 동안은 자동으로 넘기지 않는다
-    if (!script?.ready || !script.playing || hold || (!script.auto && (script.steps[script.i]?.say || script.steps[script.i]?.quiz))) return undefined;
+    // 실습실 장면은 자동 넘김이어도 멈춰 기다린다 (열기 단추를 누를 시간)
+    const stp = script?.steps[script?.i];
+    if (!script?.ready || !script.playing || hold || stp?.lab || (!script.auto && (stp?.say || stp?.quiz))) return undefined;
     const i = script.i;
     const t = setTimeout(() => { if (scriptRef.current?.i === i && scriptRef.current.ready && idx.current === i) { idx.current = i + 1; setScript((x) => ({ ...x, i: i + 1, ready: false })); } }, (praised ? 1100 : 700) / script.speed);
     return () => clearTimeout(t);
