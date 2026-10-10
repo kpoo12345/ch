@@ -42,7 +42,7 @@ export const EDU_ITEMS = [
     quiz: { q: '신호의 올바른 방향은?', options: ['입력 → 출력', '출력 → 입력', '방향은 상관없다'], answer: 1, explain: '한 장비의 출력(OUT)이 다음 장비의 입력(IN)으로 들어갑니다.' },
   },
   {
-    id: 'levels', cat: '소리 기초', kind: 'concept', concept: 'levels', part: 0, stage: 'seminar-2',
+    id: 'levels', cat: '소리 기초', kind: 'concept', concept: 'levels', part: 3, stage: 'seminar-2',
     title: '신호 레벨', subtitle: '마이크 · 악기 · 라인 · 스피커 레벨',
     aka: ['마이크 레벨', '라인 레벨', '악기 레벨', '스피커 레벨', 'dBu', '레벨'],
     def: '장비가 내보내는 신호 크기. 마이크 < 악기 < 라인 < 스피커 순으로 크다.',
@@ -75,7 +75,7 @@ export const EDU_ITEMS = [
     mistakes: ['클리핑을 페이더로 해결하려 하기 (이미 찌그러진 소리는 복구 불가)'],
     about: '각 단계에서 신호를 너무 작지도 크지도 않게 유지하는 기술. 깨끗한 소리의 출발점입니다.',
     how: [
-      '입력 GAIN은 말할 때 미터가 -18 dB 부근(녹색 위쪽)에 오도록 맞춥니다.',
+      '입력 GAIN은 말할 때 미터가 흰 칸(-20 ~ -6 dB) 안에 오도록 맞춥니다. 노브 숫자는 믹서마다 달라서 미터를 기준으로 봅니다.',
       '너무 작으면 나중에 키울 때 잡음도 함께 커지고, 너무 크면 0 dB를 넘어 소리가 찌그러집니다(클리핑).',
       'GAIN으로 레벨을, 페이더로 음량 균형을 맞춥니다.',
     ],
@@ -83,22 +83,22 @@ export const EDU_ITEMS = [
     quiz: { q: '입력 미터가 빨간색(0 dB 초과)까지 올라갑니다. 무엇을 조절해야 할까요?', options: ['채널 페이더를 내린다', 'GAIN을 내린다', 'EQ HIGH를 올린다'], answer: 1, explain: '클리핑은 입력단에서 생기므로 GAIN을 낮춰야 합니다.' },
   },
   {
-    id: 'feedback', cat: '소리 기초', kind: 'concept', concept: 'feedback', part: 0, stage: 'seminar-3',
+    id: 'feedback', cat: '소리 기초', kind: 'concept', concept: 'feedback', part: 3, stage: 'seminar-3',
     title: '하울링 (음향 피드백)', subtitle: 'Acoustic Feedback',
     aka: ['하울링', '피드백', '삐— 소리', 'feedback', '음향 피드백'],
     def: '스피커 소리가 마이크로 다시 들어가 끝없이 커지며 "삐—" 하는 현상.',
     use: ['리허설에서 마이크 볼륨을 올릴 때', '무선 마이크를 든 사람이 스피커 앞을 지나갈 때'],
-    key: ['스피커는 마이크보다 앞(객석 쪽)에, 마이크 뒤를 향하게', '나면 즉시 그 채널 페이더나 메인을 내린다', '마이크 그릴을 감싸 쥐지 않는다 · 모니터 AUX를 과하게 올리지 않는다'],
-    tips: ['하울링이 나면 먼저 메인 페이더를 빠르게 내려 귀와 장비를 보호하세요.'],
+    key: ['스피커는 마이크보다 객석 쪽에 두고 객석을 보게 — 마이크의 둔감한 뒤쪽이 스피커를 향하게', '급하면 그 채널 ON(뮤트)이나 페이더부터 내려 소리를 멈추고, 어느 채널인지 모르면 STEREO(메인) 페이더부터', '그다음 GAIN·EQ·스피커 위치로 원인을 정리한다', '마이크 그릴을 감싸 쥐지 않는다 · 모니터 AUX를 과하게 올리지 않는다'],
+    tips: ['하울링이 나면 먼저 그 채널 ON을 끄거나(뮤트) 페이더를 내려 소리부터 멈추세요. 어느 채널인지 모르면 STEREO(메인) 페이더부터 내리세요. 원인(GAIN·EQ·스피커 위치)은 그다음에 정리합니다.'],
     mistakes: ['스피커를 마이크 정면에 두기', '무선 마이크를 든 채 스피커 앞으로 걸어가기'],
     about: '스피커 소리가 마이크로 다시 들어가 무한히 증폭되며 "삐이이—" 소리가 나는 현상입니다.',
     how: [
       '마이크 → 믹서 → 스피커 → 공기 → 다시 마이크로 이어지는 고리(루프)가 생깁니다.',
       '이 고리를 한 바퀴 돌 때 소리가 원래보다 커지면 하울링이 시작됩니다.',
-      '해결: 게인/볼륨 줄이기, 문제 주파수 EQ 컷, 스피커를 마이크보다 앞쪽으로 옮기기, 마이크에 가까이 말하기.',
+      '해결: 급하면 그 채널 ON을 끄거나(뮤트) 페이더를 내리고, 어느 채널인지 모르면 STEREO(메인) 페이더부터 내려 소리를 멈춥니다. 그다음 GAIN 줄이기, 문제 주파수 EQ 컷, 스피커를 마이크보다 객석 쪽에 두고 객석을 보게 하기, 마이크에 가까이 말하기로 원인을 정리합니다.',
     ],
     related: ['speaker', 'monitor', 'dynamic_mic', 'channelstrip', 'iem'],
-    quiz: { q: '하울링을 줄이는 방법이 아닌 것은?', options: ['스피커를 마이크 뒤쪽(앞을 향하게)으로 옮긴다', '문제 주파수를 EQ로 깎는다', '마이크를 스피커 쪽으로 돌린다'], answer: 2, explain: '마이크가 스피커를 향하면 피드백 루프가 더 강해집니다.' },
+    quiz: { q: '하울링을 줄이는 방법이 아닌 것은?', options: ['스피커를 마이크보다 객석 쪽에 두고 객석을 보게 한다', '문제 주파수를 EQ로 깎는다', '마이크를 스피커 쪽으로 돌린다'], answer: 2, explain: '마이크가 스피커를 향하면 피드백 루프가 더 강해집니다.' },
   },
   /* ---------------------------- 마이크 ---------------------------- */
   {
@@ -118,7 +118,7 @@ export const EDU_ITEMS = [
     about: '전원 없이 동작하는 튼튼한 마이크. 공연·행사·강연에서 가장 많이 쓰는 표준 보컬 마이크입니다.',
     how: [
       '소리가 진동판을 흔들면 진동판에 붙은 코일이 자석 사이에서 움직이며 전기가 생깁니다(전자기 유도). 발전기와 같은 원리라서 별도 전원이 필요 없습니다.',
-      '출력 신호가 매우 작은 "마이크 레벨"(약 -50 dBu)이라, 믹서의 프리앰프(GAIN)로 40~60 dB 정도 크게 증폭해야 합니다.',
+      '출력 신호가 매우 작은 "마이크 레벨"(약 -50 dBu)이라, 믹서의 프리앰프(GAIN)로 크게 증폭합니다. 필요한 양은 믹서·마이크마다 달라서 눈금 숫자보다 미터(-20 ~ -6 dB)를 보고 맞춥니다.',
       '정면 소리만 잘 받는 단일지향성(카디오이드) 패턴이라 옆과 뒤에서 오는 스피커 소리를 덜 받아 하울링에 강합니다.',
     ],
     related: ['condenser_mic', 'wireless_mic', 'cable_xlr', 'gain', 'mic_types'],
@@ -132,7 +132,7 @@ export const EDU_ITEMS = [
     use: ['녹음·내레이션·팟캐스트', '조용한 강대상, 방송 진행', '합창·어쿠스틱 악기'],
     connect: ['XLR 케이블 → 믹서·인터페이스 MIC 입력', '그 채널(또는 믹서 전체)의 +48V를 켜야 소리가 난다'],
     tips: ['팬텀 전원은 케이블을 모두 연결하고 페이더를 내린 뒤 켜세요.', '팝 필터로 "ㅍ, ㅂ" 파열음을 줄입니다.', '쇼크 마운트로 바닥 진동을 차단합니다.'],
-    mistakes: ['팬텀 전원을 안 켜고 "마이크가 고장 났다"고 판단하기', '리본 마이크 등 팬텀에 약한 장비에 48V 보내기'],
+    mistakes: ['팬텀 전원을 안 켜고 "마이크가 고장 났다"고 판단하기', '리본 마이크 등 팬텀에 약한 장비에 +48V 보내기'],
     specs: [['전원', '+48V 팬텀 전원 필요'], ['지향성', '카디오이드 등 (기종별)'], ['출력 단자', 'XLR 3핀 (수)'], ['감도', '높음 · 섬세함']],
     about: '섬세하고 넓은 대역을 담는 고감도 마이크. 녹음실, 내레이션, 방송 진행에 많이 씁니다.',
     how: [
@@ -199,10 +199,10 @@ export const EDU_ITEMS = [
     aka: ['킥 마이크', '베이스 드럼 마이크', 'Beta 52', 'Beta52', '킥'],
     def: '킥 드럼의 큰 저음을 받는 대형 다이나믹 마이크.',
     use: ['밴드 드럼 마이킹', '방송·녹음용 드럼'],
-    connect: ['XLR → 믹서 MIC 입력 (스네이크라면 박스 INPUT)', 'GAIN은 보컬보다 훨씬 낮게 (15~20 dB 안팎)'],
+    connect: ['XLR → 믹서 MIC 입력 (스네이크라면 박스 INPUT)', 'GAIN은 보컬보다 훨씬 낮게 — 킥을 세게 밟을 때도 미터가 빨간불에 닿지 않게'],
     tips: ['LOW CUT은 끕니다. 대신 EQ로 300~500Hz의 "상자 소리"를 조금 깎으면 깔끔해집니다.'],
     mistakes: ['LOW CUT을 켜서 킥의 저음이 사라짐'],
-    specs: [['방식', '다이나믹 (전원 불필요)'], ['연결', 'XLR → 믹서 MIC 단자'], ['권장 GAIN', '15~20dB 안팎']],
+    specs: [['방식', '다이나믹 (전원 불필요)'], ['연결', 'XLR → 믹서 MIC 단자'], ['권장 GAIN', '보컬보다 훨씬 낮게 (미터 기준)']],
     about: '베이스 드럼의 아주 큰 저음을 찌그러짐 없이 받는 대형 다이나믹 마이크입니다.',
     how: [
       '진동판이 크고 저음이 강조되도록 만들어져 "쿵" 소리의 무게감과 "탁" 하는 어택을 함께 잡습니다.',
@@ -220,7 +220,7 @@ export const EDU_ITEMS = [
     connect: ['XLR → 믹서 MIC 입력', '드럼 채널은 GAIN 낮게, LOW CUT 켜기'],
     tips: ['하이햇 쪽을 마이크 뒤(둔감한 쪽)로 향하게 두면 하이햇 소리가 덜 섞입니다.'],
     mistakes: ['마이크를 너무 높이 둬서 드러머 스틱에 맞음'],
-    specs: [['방식', '다이나믹 (전원 불필요)'], ['연결', 'XLR → 믹서 MIC 단자'], ['권장 GAIN', '15~25dB 안팎']],
+    specs: [['방식', '다이나믹 (전원 불필요)'], ['연결', 'XLR → 믹서 MIC 단자'], ['권장 GAIN', '보컬보다 훨씬 낮게 (미터 기준)']],
     about: '스네어·탐·기타 앰프처럼 가까이에서 아주 큰 소리를 잡는 악기용 다이나믹 마이크. 현장에서 가장 많이 쓰는 마이크 중 하나입니다.',
     how: [
       '지향성이 좁아(카디오이드) 옆 악기 소리를 덜 받습니다.',
@@ -326,6 +326,7 @@ export const EDU_ITEMS = [
       '헤드폰 출력에는 TRS(스테레오) 잭을 씁니다.',
       '앰프가 켜진 상태에서 악기 잭을 뽑으면 "퍽" 하는 큰 잡음이 나니 볼륨을 먼저 내립니다.',
       '고리 개수를 눈으로 확인하는 습관을 들이세요.',
+      '게임의 케이블 가방에선 TS(악기)와 TRS(헤드폰·라인) 모두 "6.3mm" 케이블로 고르고, 언밸런스드로 다룹니다.',
     ],
     mistakes: ['XLR 단자에 잭을 억지로 꽂으려 하기', 'TS 케이블을 20m 이상 사용해 잡음과 고음 손실 발생', '밸런스드 라인에 TS 케이블을 써서 잡음 상쇄가 안 됨'],
     specs: [
@@ -364,7 +365,7 @@ export const EDU_ITEMS = [
     quiz: { q: '고리가 3개인 3.5mm 플러그(TRRS)의 쓰임은?', options: ['스테레오 + 마이크 (스마트폰 이어폰)', 'SDI 영상', '스피커 레벨'], answer: 0, explain: 'TRRS는 왼쪽·오른쪽·접지에 마이크 접점이 하나 더 있습니다.' },
   },
   {
-    id: 'cable_rca', cat: '케이블·스네이크', kind: 'cable', cable: 'rca', color: '#ef4444', part: 2,
+    id: 'cable_rca', cat: '케이블·스네이크', kind: 'cable', cable: 'rca', color: '#ef4444', part: null,
     title: 'RCA 케이블', subtitle: '포노 단자 · 빨강/흰색',
     aka: ['RCA', '포노', '빨강 흰색', 'AV 케이블', '핀 케이블'],
     def: '가정용 오디오·DJ 장비의 언밸런스드 단자. 빨강 = 오른쪽(R), 흰색 = 왼쪽(L).',
@@ -433,7 +434,7 @@ export const EDU_ITEMS = [
     quiz: { q: 'HDMI의 약점으로 맞는 것은?', options: ['오디오를 보낼 수 없다', '장거리에 약하고 잠금장치가 없다', '아날로그 신호다'], answer: 1, explain: 'HDMI는 10m 이상에서 불안정하고 잠금이 없어 쉽게 빠집니다.' },
   },
   {
-    id: 'cable_sdi', cat: '케이블·스네이크', kind: 'cable', cable: 'sdi', part: 6,
+    id: 'cable_sdi', cat: '케이블·스네이크', kind: 'cable', cable: 'sdi', part: null,
     title: 'SDI 케이블', subtitle: 'Serial Digital Interface · BNC 커넥터',
     aka: ['SDI', 'BNC', '동축', 'HD-SDI', '3G-SDI', '12G-SDI'],
     def: '방송국·중계용 75Ω 동축 영상 케이블. 길고 튼튼하며 BNC로 돌려 잠근다.',
@@ -488,7 +489,7 @@ export const EDU_ITEMS = [
     quiz: { q: 'ATEM Mini를 USB로 PC에 연결하면 PC는 이것을 무엇으로 인식할까요?', options: ['웹캠', '프린터', '키보드'], answer: 0, explain: 'ATEM Mini의 USB 출력은 표준 웹캠(UVC)으로 인식됩니다.' },
   },
   {
-    id: 'cable_eth', cat: '케이블·스네이크', kind: 'cable', cable: 'eth', color: '#2dd4bf', part: 6, stage: 'church-4',
+    id: 'cable_eth', cat: '케이블·스네이크', kind: 'cable', cable: 'eth', color: '#2dd4bf', part: 7, stage: 'church-4',
     title: '이더넷 (랜선 · RJ45)', subtitle: 'Cat5e / Cat6 · Dante · NDI · AES50',
     aka: ['랜선', 'LAN', '이더넷', 'RJ45', 'Cat6', 'Cat5e', 'Dante', 'NDI', 'AES50', 'etherCON'],
     def: '랜선. 한 가닥으로 수십 채널 오디오·영상·장비 제어를 보내는 요즘의 "멀티 케이블".',
@@ -679,7 +680,7 @@ export const EDU_ITEMS = [
     quiz: { q: '노트북(3.5mm) BGM을 12채널 아날로그 믹서에 넣을 때 가장 알맞은 단자는?', options: ['CH1 MIC(XLR) 단자', '스테레오 채널의 LINE L/MONO·R 단자', 'INSERT 단자'], answer: 1, explain: '노트북은 라인 레벨 스테레오 신호입니다. 3.5mm → 6.3mm 2갈래(Y) 케이블로 스테레오 채널 LINE L·R에 넣는 것이 정석입니다. INSERT는 외부 장비를 끼워 넣는 단자입니다.' },
   },
   {
-    id: 'digital_mixer', cat: '믹서', kind: 'device', type: 'digital_mixer', part: 3, stage: ['church-1', 'lecture-1'], photo: 'mixer_digital',
+    id: 'digital_mixer', cat: '믹서', kind: 'device', type: 'digital_mixer', part: 6, stage: ['church-1', 'lecture-1'], photo: 'mixer_digital',
     title: '디지털 믹서', subtitle: 'Digital Console · 예: Behringer X32 / Midas M32',
     aka: ['디지털 콘솔', 'X32', 'M32', '디지털 믹서', '패치', '라우팅', '씬', 'Scene'],
     def: '소리를 디지털로 처리하는 믹서. 장면 저장·USB 다채널이 되지만 "패치"를 알아야 소리가 난다.',
@@ -703,7 +704,7 @@ export const EDU_ITEMS = [
     quiz: { q: 'X32의 Local In 1에 마이크를 꽂았는데 CH01에 신호가 없습니다. 원인으로 가장 알맞은 것은?', options: ['CH01 입력 패치가 다른 입력으로 지정됨', '스피커 전원이 꺼짐', 'HDMI 케이블 불량'], answer: 0, explain: '디지털 믹서는 입력 패치로 "Local In 1 → CH01"을 지정해야 신호가 채널로 들어옵니다.' },
   },
   {
-    id: 'mixer_sizes', cat: '믹서', kind: 'mixersizes', part: 3,
+    id: 'mixer_sizes', cat: '믹서', kind: 'mixersizes', part: null,
     title: '믹서 종류 (소형·중형·대형)', subtitle: '채널 수와 쓰임새로 고르기',
     aka: ['믹서 크기', '믹서 고르기', '채널 수', '소형 믹서', '대형 콘솔', '믹서 종류'],
     def: '믹서는 받을 수 있는 채널 수에 따라 소형 · 중형 · 대형으로 나눈다.',
@@ -745,13 +746,13 @@ export const EDU_ITEMS = [
       'GAIN: 마이크의 작은 신호를 적정 레벨로 키웁니다. 가장 먼저 맞추는 노브입니다.',
       'LOW CUT(하이패스 필터): 80~100Hz 아래를 깎아 웅웅거림, 바람, 손 잡음, "ㅍ" 파열음을 줄입니다. 말소리 채널은 거의 항상 켭니다.',
       'EQ: HIGH(약 5kHz 이상)는 선명함, MID(250Hz~4kHz)는 목소리의 몸통과 명료도, LOW(200Hz 이하)는 두께와 무게감입니다. 많은 믹서는 MID 주파수를 직접 고를 수 있습니다.',
-      'EQ는 "좋게 만들기"보다 "문제를 빼기"에 먼저 씁니다. 답답하면 300~500Hz를 깎고, 날카로우면 3~5kHz를 깎습니다.',
+      'EQ는 "좋게 만들기"보다 "문제를 빼기"에 먼저 씁니다. 먹먹하고 웅웅거리면 200~500Hz, 코 막힌 콧소리면 1kHz 근처, 날카로우면 3~5kHz를 깎습니다.',
     ],
     related: ['gain', 'effects', 'analog_mixer', 'fade'],
     quiz: { q: '강연자 마이크에 "웅웅" 하는 저음 잡음과 바람 소리가 섞입니다. 가장 먼저 켤 것은?', options: ['LOW CUT', 'HIGH 부스트', '리버브'], answer: 0, explain: 'LOW CUT(하이패스)이 100Hz 아래 저음 잡음을 깎아 줍니다.' },
   },
   {
-    id: 'effects', cat: '믹서', kind: 'audiolab', lab: 'fx', part: 3, stage: 'live-3',
+    id: 'effects', cat: '믹서', kind: 'audiolab', lab: 'fx', part: null, stage: 'live-3',
     title: '이펙트: 리버브 · 에코 · 컴프레서', subtitle: 'FX 보내기(Send)와 돌려받기(Return)',
     aka: ['이펙트', '리버브', '에코', '딜레이', '컴프레서', '컴프', 'FX', 'reverb', 'delay', 'compressor'],
     def: '공간감(리버브)·메아리(딜레이)·일정한 크기(컴프레서)를 더하는 소리 처리.',
@@ -780,7 +781,7 @@ export const EDU_ITEMS = [
     quiz: { q: '"안녕—안녕—안녕" 하고 메아리처럼 반복되게 만드는 이펙트는?', options: ['리버브', '딜레이(에코)', '컴프레서'], answer: 1, explain: '딜레이는 소리를 일정한 간격으로 반복해 메아리를 만듭니다.' },
   },
   {
-    id: 'fade', cat: '믹서', kind: 'fadelab', part: 0, stage: 'seminar-4',
+    id: 'fade', cat: '믹서', kind: 'fadelab', part: 3, stage: 'seminar-4',
     title: '페이드: 페이드 인·아웃 · 크로스페이드', subtitle: 'Fade In / Fade Out / Crossfade · 페이더와 페이드의 차이',
     aka: ['페이드', '페이드 인', '페이드 아웃', '크로스페이드', 'fade', '디졸브'],
     def: '소리·영상·조명을 몇 초에 걸쳐 서서히 바꾸는 동작. 한 번에 바꾸는 CUT의 반대.',
@@ -810,7 +811,7 @@ export const EDU_ITEMS = [
     quiz: { q: '강연자가 무대로 걸어 나올 때 BGM을 끄는 가장 좋은 방법은?', options: ['MUTE를 눌러 바로 끈다', '페이더를 3~5초에 걸쳐 천천히 내린다(페이드 아웃)', '노트북을 닫는다'], answer: 1, explain: '페이드 아웃으로 서서히 줄이면 듣는 사람이 자연스럽게 느끼고, 강연자의 첫마디와 음악이 겹치지 않습니다.' },
   },
   {
-    id: 'audio_interface', cat: '믹서', kind: 'device', type: 'audio_interface', part: 6, stage: 'youtube-1',
+    id: 'audio_interface', cat: '믹서', kind: 'device', type: 'audio_interface', part: null, stage: 'youtube-1',
     title: '오디오 인터페이스', subtitle: 'Audio Interface · 예: Focusrite Scarlett 2i2',
     aka: ['인터페이스', '오디오 카드', '사운드카드', 'Scarlett', '스칼렛', '2i2', 'audio interface'],
     def: '마이크·악기를 PC에 연결해 주는 외장 사운드카드. 1인 방송의 핵심.',
@@ -821,7 +822,7 @@ export const EDU_ITEMS = [
       '"다이렉트 모니터"를 켜면 PC를 거치지 않고 내 목소리를 지연 없이 들을 수 있습니다.',
       'OBS·DAW에서 입력 장치를 인터페이스로 선택해야 합니다.',
     ],
-    mistakes: ['콘덴서 마이크를 연결하고 48V를 켜지 않음', '기타를 연결하고 INST를 켜지 않아 소리가 작고 탁함', 'PC 내장 사운드로 출력 장치를 둬서 헤드폰에 소리가 안 나옴'],
+    mistakes: ['콘덴서 마이크를 연결하고 +48V를 켜지 않음', '기타를 연결하고 INST를 켜지 않아 소리가 작고 탁함', 'PC 내장 사운드로 출력 장치를 둬서 헤드폰에 소리가 안 나옴'],
     specs: [
       ['입력', 'XLR/TRS 콤보 ×2 (마이크/라인/악기)'],
       ['출력', 'USB-C, MONITOR L/R, 헤드폰'],
@@ -835,7 +836,7 @@ export const EDU_ITEMS = [
       'GAIN 노브 주변의 링(헤일로)이 초록이면 적당, 주황이면 큼, 빨강이면 클리핑입니다. 콘덴서 마이크용 +48V, 기타용 INST 버튼이 있습니다.',
     ],
     related: ['condenser_mic', 'pc', 'cable_usb', 'headphones', 'e_guitar'],
-    quiz: { q: '오디오 인터페이스의 GAIN 링이 빨갛게 켜집니다. 어떻게 해야 할까요?', options: ['GAIN을 낮춘다', '48V를 켠다', '모니터 볼륨을 올린다'], answer: 0, explain: '빨강은 입력이 너무 커서 찌그러진다는 뜻입니다. GAIN을 낮춰 초록~주황으로 맞춥니다.' },
+    quiz: { q: '오디오 인터페이스의 GAIN 링이 빨갛게 켜집니다. 어떻게 해야 할까요?', options: ['GAIN을 낮춘다', '+48V를 켠다', '모니터 볼륨을 올린다'], answer: 0, explain: '빨강은 입력이 너무 커서 찌그러진다는 뜻입니다. GAIN을 낮춰 초록~주황으로 맞춥니다.' },
   },
   /* ---------------------------- 스피커·모니터 ---------------------------- */
   {
@@ -844,15 +845,15 @@ export const EDU_ITEMS = [
     aka: ['액티브 스피커', '파워드 스피커', 'PA 스피커', '메인 스피커', '스피커', 'powered speaker'],
     def: '앰프가 들어 있는 스피커. 믹서의 라인 신호를 바로 받아 큰 소리로 낸다.',
     use: ['강당·행사장·교실의 메인 스피커', '작은 공연 무대'],
-    connect: ['믹서 STEREO OUT (XLR) → 스피커 INPUT', '전원은 가장 마지막에 켜고 가장 먼저 끈다', '마이크보다 앞(객석 쪽)에 둔다'],
+    connect: ['믹서 STEREO OUT (XLR) → 스피커 INPUT', '전원은 가장 마지막에 켜고 가장 먼저 끈다', '마이크보다 객석 쪽에 두고 객석을 보게 (마이크의 둔감한 뒤쪽이 스피커를 향하게)'],
     tips: ['켤 때: 소스 → 믹서 → 스피커 순서. 끌 때는 반대.', '스탠드에 올려 귀 높이보다 약간 위에서 청중을 향하게 합니다.'],
-    mistakes: ['페이더를 올린 채 스피커 전원 켜기 → 팝 노이즈', '스피커를 마이크 뒤가 아니라 마이크 정면에 두기'],
+    mistakes: ['페이더를 올린 채 스피커 전원 켜기 → 팝 노이즈', '스피커를 마이크 정면(마이크가 스피커를 마주 보는 자리)에 두기'],
     specs: [['입력', 'XLR/TRS 콤보'], ['앰프', '내장 (별도 파워앰프 불필요)'], ['구성', '우퍼 + 혼 트위터'], ['전원 규칙', '켤 때 마지막, 끌 때 처음']],
     about: '앰프가 내장된 스피커. 믹서의 라인 레벨 신호를 받아 큰 소리로 바꿔 청중에게 들려줍니다.',
     how: [
       '내장 앰프가 신호를 키우고, 큰 우퍼(저음)와 혼 트위터(고음)가 공기를 밀어 소리를 만듭니다.',
       '입력은 XLR과 6.3mm를 모두 받는 콤보 단자가 일반적입니다.',
-      '스피커 소리가 다시 마이크로 들어가 계속 커지면 하울링이 생깁니다. 스피커는 마이크보다 앞에서 청중을 향하게 둡니다.',
+      '스피커 소리가 다시 마이크로 들어가 계속 커지면 하울링이 생깁니다. 스피커는 마이크보다 객석 쪽에 두고 객석을 보게 합니다. 그러면 마이크의 둔감한 뒤쪽이 스피커를 향합니다.',
     ],
     related: ['passive_speaker', 'power_amp', 'monitor', 'feedback', 'analog_mixer'],
     quiz: { q: '스피커 전원을 켜는 올바른 순서는?', options: ['스피커를 가장 먼저 켠다', '스피커를 가장 마지막에 켠다', '순서는 상관없다'], answer: 1, explain: '다른 장비가 켜질 때 나는 "펑" 소리가 스피커로 가지 않도록 스피커는 마지막에 켜고 처음에 끕니다.' },
@@ -870,7 +871,7 @@ export const EDU_ITEMS = [
       '앰프는 맨 마지막에 켜고 맨 먼저 끕니다.',
     ],
     mistakes: [
-      '믹서 출력을 패시브 스피커에 바로 꽂고 "고장"이라고 판단',
+      '믹서 출력을 패시브 스피커에 바로 꽂고, 소리가 거의 안 나자 "고장"이라고 판단',
       '스피커 케이블 대신 6.3mm 악기 케이블을 써서 선이 뜨거워지고 소리가 약해짐',
       '스피커 여러 대를 한 채널에 병렬로 물려 임피던스가 너무 낮아짐 → 앰프 보호 동작',
     ],
@@ -1004,7 +1005,7 @@ export const EDU_ITEMS = [
     specs: [
       ['출력', '없음 (마이크로 받음)'],
       ['최소 마이킹', '킥 · 스네어 · 오버헤드'],
-      ['드럼 마이크 GAIN', '보컬보다 훨씬 낮게 (15~25dB 안팎)'],
+      ['드럼 마이크 GAIN', '보컬보다 훨씬 낮게 (가장 세게 칠 때 미터 기준)'],
       ['팬텀 전원', '오버헤드(콘덴서)만 필요'],
     ],
     about: '드럼은 전기 출력이 없는 어쿠스틱 악기입니다. 작은 공연장에서는 생소리만으로도 크게 들리지만, 방송·녹음·큰 공연장에서는 부분마다 마이크를 세워 믹서로 받아야 합니다.',
@@ -1126,7 +1127,7 @@ export const EDU_ITEMS = [
     quiz: { q: '카메라의 빨간 탈리 램프가 켜졌다는 뜻은?', options: ['녹화 메모리가 가득 참', '이 카메라 화면이 지금 송출 중(PGM)', '배터리 부족'], answer: 1, explain: '빨강은 PGM(송출 중), 초록은 PVW(대기 중)입니다.' },
   },
   {
-    id: 'mirrorless', cat: '카메라', kind: 'device', type: 'mirrorless', part: 6, stage: 'youtube-3',
+    id: 'mirrorless', cat: '카메라', kind: 'device', type: 'mirrorless', part: null, stage: 'youtube-3',
     title: '미러리스 카메라', subtitle: 'Mirrorless Camera · 렌즈 교환식',
     aka: ['미러리스', 'DSLR', '렌즈 교환식', '클린 HDMI', 'mirrorless'],
     def: '큰 센서와 교환 렌즈로 배경이 흐려지는 고화질 영상을 만드는 카메라.',
@@ -1199,7 +1200,7 @@ export const EDU_ITEMS = [
     quiz: { q: '조이스틱 CAM 2 버튼에 빨간 불이 켜져 있습니다. 어떻게 해야 할까요?', options: ['바로 프리셋을 불러 구도를 바꾼다', 'CAM 2는 방송 중이니 움직이지 않는다', '조이스틱 전원을 끈다'], answer: 1, explain: '빨간 탈리는 방송(PGM) 중이라는 뜻입니다. 다른 카메라로 전환한 뒤 움직이세요.' },
   },
   {
-    id: 'camsettings', cat: '카메라', kind: 'concept', concept: 'camsettings', part: 6,
+    id: 'camsettings', cat: '카메라', kind: 'concept', concept: 'camsettings', part: null,
     title: '노출과 화이트밸런스', subtitle: '조리개 · 셔터 · ISO · 색온도',
     aka: ['노출', '화이트밸런스', 'WB', '조리개', '셔터', 'ISO', '색온도', '켈빈'],
     def: '조리개·셔터·ISO(밝기)와 색온도(색)를 정하는 네 가지 설정.',
@@ -1237,7 +1238,7 @@ export const EDU_ITEMS = [
     quiz: { q: '실제로 시청자에게 나가는 화면을 뜻하는 것은?', options: ['PVW', 'PGM', 'AUX'], answer: 1, explain: 'PGM(프로그램)이 송출 화면, PVW(프리뷰)는 다음 화면을 준비하는 곳입니다.' },
   },
   {
-    id: 'atem_pro', cat: '스위처·송출', kind: 'device', type: 'atem_pro', part: 6, stage: ['lecture-2', 'church-4'],
+    id: 'atem_pro', cat: '스위처·송출', kind: 'device', type: 'atem_pro', part: null, stage: ['lecture-2', 'church-4'],
     title: 'ATEM Mini Pro', subtitle: 'Blackmagic Design · 스트리밍·녹화 내장',
     aka: ['ATEM Mini Pro', '에이템 프로', '스트리밍 스위처', 'RTMP'],
     def: 'PC 없이 유튜브로 바로 송출하고 녹화하는 스위처. HDMI OUT에 멀티뷰를 띄운다.',
@@ -1284,7 +1285,7 @@ export const EDU_ITEMS = [
     quiz: { q: 'AUTO 버튼의 역할은?', options: ['PGM과 PVW를 효과와 함께 맞바꾼다', '녹화를 시작한다', '오디오를 음소거한다'], answer: 0, explain: 'AUTO는 디졸브 등 전환 효과로 PVW 화면을 PGM으로 보냅니다.' },
   },
   {
-    id: 'multiview', cat: '스위처·송출', kind: 'concept', concept: 'multiview', part: 6, stage: 'lecture-2',
+    id: 'multiview', cat: '스위처·송출', kind: 'concept', concept: 'multiview', part: null, stage: 'lecture-2',
     title: '멀티뷰', subtitle: 'Multiview Monitoring',
     aka: ['멀티뷰', 'multiview', '모니터 분할'],
     def: '모든 입력과 PVW·PGM을 한 화면에 모아 보는 스위처 운영자의 계기판.',
@@ -1408,7 +1409,7 @@ export const EDU_ITEMS = [
     quiz: { q: '8채널 LED 파 두 대를 쓸 때 두 번째 조명의 주소로 알맞은 것은?', options: ['1번', '8번', '9번'], answer: 2, explain: '첫 조명이 1~8번을 쓰므로 두 번째는 9번부터 시작해야 겹치지 않습니다.' },
   },
   {
-    id: 'moving_head', cat: '조명', kind: 'device', type: 'moving_head', part: 7, stage: 'light-2', photo: 'moving_head',
+    id: 'moving_head', cat: '조명', kind: 'device', type: 'moving_head', part: null, stage: 'light-2', photo: 'moving_head',
     title: '무빙 헤드', subtitle: 'Moving Head Spot / Beam',
     aka: ['무빙', '무빙 라이트', '무빙 헤드', 'moving head', '스팟', '빔'],
     def: '머리가 PAN·TILT로 움직여 빛을 원하는 곳으로 보내는 조명. 색·고보도 바꾼다.',
@@ -1520,7 +1521,7 @@ export const EDU_ITEMS = [
     aka: ['레이어', '출력 계획', '컴포지션', '현장 화면', '방송 화면', '알파'],
     def: '현장 LED와 방송 화면은 목적이 다르다. 무엇을 어디로 보낼지 먼저 정한다.',
     use: ['미디어 서버 출력을 나눌 때', '방송 화면에 가사만 얹을 때'],
-    key: ['레이어 1이 맨 아래, 위 레이어가 덮는다', '현장: 배경 + 가사 · 방송: 카메라 + 가사', '투명도(Opacity)로 섞는다'],
+    key: ['레이어 1이 맨 아래, 위 레이어가 덮는다', '현장: 배경 + 가사 · 방송: 카메라 + 가사', '불투명도(Opacity)로 섞는다'],
     tips: ['송출 화면에서 LED 배경이 너무 밝으면 카메라 노출과 LED 밝기를 함께 조정하세요.'],
     mistakes: ['현장용 큰 가사 화면을 방송에 그대로 보내 시청자 화면이 글자로 가득 참'],
     about: '같은 영상 소스라도 현장 LED·프로젝터와 방송 화면은 목적이 다릅니다. 무엇을 어디로 보낼지 출력 계획을 먼저 세웁니다.',

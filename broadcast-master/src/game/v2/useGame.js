@@ -16,7 +16,9 @@ import { STOCK } from '../data/tutorial.js';
 const VOICE_TYPES = new Set(['dynamic_mic', 'condenser_mic', 'wireless_mic']);
 const kindLabel = { voice: '목소리', inst: '악기', line: '라인' };
 
-export function useGame(spec, { onClear } = {}) {
+// popMode: 'all' = 스피커가 켜진 채 케이블·+48V를 건드리면 늘 "퍽" (스토리·자유 모드, 정답 보기의 유령 손은 제외)
+//          'optIn' = 대본이 pop:true로 일부러 보여 줄 때만 (튜토리얼 — 선배가 차려 둔 상태 때문에 엉뚱하게 혼나지 않게)
+export function useGame(spec, { onClear, popMode = 'all' } = {}) {
   const [st, setSt] = useState(() => buildRuntime(spec));
   const stRef = useRef(st);
   stRef.current = st;
@@ -132,7 +134,8 @@ export function useGame(spec, { onClear } = {}) {
     const lat = new Set();
     // 팝 노이즈: 켜진 스피커 경로를 건드리면 기록, 스피커를 끄면 다시 할 수 있게 지운다
     const popSet = new Set(latchedRef.current);
-    const popped = notePop(cur, op, popSet);
+    const popsOn = popMode === 'optIn' ? !!op.pop : !quiet || !!op.pop;
+    const popped = popsOn ? notePop(cur, op, popSet) : null;
     if (op.op === 'dev' && op.key === 'power' && op.value === false && latchedRef.current.has(`pop:${op.device}`)) setLatched((s0) => { const n = new Set(s0); n.delete(`pop:${op.device}`); return n; });
     if (popped) {
       setLatched((s0) => new Set([...s0, ...popped.map((id) => `pop:${id}`)]));

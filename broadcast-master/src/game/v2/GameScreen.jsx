@@ -48,7 +48,7 @@ export default function GameScreen({
   spec, mode = 'story', heading, onExit, onNext, onRestart, tutorial, sandbox, restore, initialAuto = false,
 }) {
   const [cleared, setCleared] = useState(false);
-  const game = useGame(spec, { onClear: () => setCleared(true) });
+  const game = useGame(spec, { onClear: () => setCleared(true), popMode: mode === 'tutorial' ? 'optIn' : 'all' });
   const { st, nominal, actual, talking } = game;
   const [voiceOn, setVoiceOn] = useState(true);
   const player = useScriptPlayer(game, { voiceOn });

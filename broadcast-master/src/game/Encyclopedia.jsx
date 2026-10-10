@@ -118,7 +118,7 @@ function DemoControls({ type, demo, set }) {
           <div className="flex flex-wrap gap-2">
             {talk}
             <ToggleBtn on={demo.mixer.chMute} onClick={() => mix('chMute', !demo.mixer.chMute)}>MUTE</ToggleBtn>
-            <ToggleBtn on={demo.mixer.phantom} color="amber" onClick={() => mix('phantom', !demo.mixer.phantom)}>48V</ToggleBtn>
+            <ToggleBtn on={demo.mixer.phantom} color="amber" onClick={() => mix('phantom', !demo.mixer.phantom)}>+48V</ToggleBtn>
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             <Slider id="edu-gain" label="GAIN" value={demo.mixer.gain} min={0} max={60} onChange={(v) => mix('gain', v)} display={`+${demo.mixer.gain} dB`} accent="accent-red-400" />
@@ -133,7 +133,7 @@ function DemoControls({ type, demo, set }) {
                 </label>
               )}
             <Slider id="edu-chf" label="채널 페이더" value={demo.mixer.chFader} min={0} max={100} onChange={(v) => mix('chFader', v)} display={fmtDb(faderDb(demo.mixer.chFader))} />
-            <Slider id="edu-mainf" label="메인 페이더" value={demo.mixer.mainFader} min={0} max={100} onChange={(v) => mix('mainFader', v)} display={fmtDb(faderDb(demo.mixer.mainFader))} />
+            <Slider id="edu-mainf" label={type === 'analog_mixer' ? 'STEREO 페이더' : 'MAIN 페이더'} value={demo.mixer.mainFader} min={0} max={100} onChange={(v) => mix('mainFader', v)} display={fmtDb(faderDb(demo.mixer.mainFader))} />
           </div>
           <p className="text-xs text-slate-400">슬라이더를 움직이면 3D 믹서의 노브와 페이더, LED 미터가 함께 움직입니다.</p>
         </div>
@@ -344,11 +344,11 @@ function DemoControls({ type, demo, set }) {
               <span className="text-[11px] font-bold text-rose-300 w-14">Layer {li + 1}</span>
               {Object.keys(CLIPS).map((c) => <button key={c} type="button" onClick={() => set({ ...demo, vj: { ...vj, layers: vj.layers.map((l, j) => (j === li ? { ...l, clip: l.clip === c ? null : c } : l)) } })}
                 className={`px-1.5 py-0.5 rounded text-[10px] ${vj.layers[li].clip === c ? 'bg-rose-500 text-white' : 'bg-slate-700 text-slate-300'}`}>{CLIPS[c].name}</button>)}
-              <input type="range" min={0} max={100} value={vj.layers[li].opacity} aria-label={`레이어 ${li + 1} 투명도`} onChange={(e) => set({ ...demo, vj: { ...vj, layers: vj.layers.map((l, j) => (j === li ? { ...l, opacity: Number(e.target.value) } : l)) } })} className="w-24 accent-rose-500" />
+              <input type="range" min={0} max={100} value={vj.layers[li].opacity} aria-label={`레이어 ${li + 1} 불투명도`} onChange={(e) => set({ ...demo, vj: { ...vj, layers: vj.layers.map((l, j) => (j === li ? { ...l, opacity: Number(e.target.value) } : l)) } })} className="w-24 accent-rose-500" />
             </div>
           ))}
           {type !== 'media_server' && <ToggleBtn on={demo.screenOn} color="green" onClick={() => set({ ...demo, screenOn: !demo.screenOn })}>전원 {demo.screenOn ? 'ON' : 'OFF'}</ToggleBtn>}
-          <p className="text-xs text-slate-400">레이어 1이 맨 아래, 3이 맨 위입니다. 가사(Layer 2)의 투명도를 올려 보세요.</p>
+          <p className="text-xs text-slate-400">레이어 1이 맨 아래, 3이 맨 위입니다. 가사(Layer 2)의 불투명도를 올려 보세요.</p>
         </div>
       );
     }

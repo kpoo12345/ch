@@ -65,12 +65,12 @@ export default function ListenCompare({ st, sim, listen, setListen, onClose }) {
       <div className="grid grid-cols-2 gap-1.5 mb-2">
         <button type="button" onClick={() => setListen('main')}
           className={`rounded-lg px-2 py-1.5 text-left border ${listen === 'main' ? 'border-amber-300 bg-amber-500/20' : 'border-slate-700 bg-slate-900 hover:bg-slate-800'}`}>
-          <div className="text-[10px] font-black text-amber-300">A · 키보드 A</div>
+          <div className="text-[10px] font-black text-amber-300">A<span className="hidden sm:inline font-bold text-amber-300/70"> · 단축키 A</span></div>
           <div className="text-sm font-bold flex items-center gap-1"><Users size={14} /> 현장 (객석)</div>
         </button>
         <button type="button" onClick={() => hasStream && setListen('stream')} disabled={!hasStream}
           className={`rounded-lg px-2 py-1.5 text-left border disabled:opacity-40 ${listen === 'stream' ? 'border-red-300 bg-red-500/20' : 'border-slate-700 bg-slate-900 hover:bg-slate-800'}`}>
-          <div className="text-[10px] font-black text-red-300">B · 키보드 B</div>
+          <div className="text-[10px] font-black text-red-300">B<span className="hidden sm:inline font-bold text-red-300/70"> · 단축키 B</span></div>
           <div className="text-sm font-bold flex items-center gap-1"><Radio size={14} /> 방송 (시청자)</div>
         </button>
       </div>

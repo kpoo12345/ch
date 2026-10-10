@@ -6,7 +6,7 @@
  * 시작 상태: 마이크·스피커는 미리 연결, CH1 GAIN·페이더는 0 (페이더를 닫아 둔 채 PFL로 먼저 듣는다).
  * 클리핑은 페이더가 닫힌 상태에서 일으켜 하울링 없이 헤드폰으로만 들리게 한다.
  * 하울링: pa_alt + GAIN 40이면 울리고(고리 > 0), GAIN 30이면 멎고, pa_main에선 GAIN 36도 넉넉하다 (sim.js 피드백 계산).
- * MID(-4)와 GAIN(30)은 tol 1로 좁게 받는다. 최악 MID -3 · GAIN 31이면 고리 -4.5라 ON을 다시 켜도 조용하다.
+ * MID(-4)와 GAIN(30)은 tol 1로 좁게 받는다. 최악 MID -3 · GAIN 31 · 페이더 75면 고리 -4.5라 ON을 다시 켜도 조용하다.
  * ON을 다시 켜는 단계는 until:'noFeedback' — 페이더를 높게 둬서 아직 울리면 GAIN을 더 내려야 넘어간다.
  * GAIN 숫자는 이 게임 믹서 눈금일 뿐이라 대사에선 dB로 말하지 않고 미터 흰 칸으로 안내한다. */
 export default {
@@ -50,7 +50,7 @@ export default {
     { who: 'junior', say: '이제 잘 들려요. 근데 GAIN을 아예 끝까지 올리면 더 또렷하지 않을까요?' },
     { say: '궁금하면 들어 봐야죠. 헤드폰에 귀 기울여 봐요, 제가 GAIN을 확 올려 볼게요.', op: 'ch', ch: 1, key: 'gain', value: 52 },
     { who: 'junior', say: '으, 지글지글 깨져요. 미터 꼭대기에 빨간불도 켜졌고요.' },
-    { say: '그게 클리핑이에요. 몇에서 깨지는지는 믹서마다 달라요. GAIN은 얼른 흰 칸 자리로 돌려놔요.', op: 'ch', ch: 1, key: 'gain', value: 30 },
+    { say: '그게 클리핑이에요. 몇에서 깨지는지는 마이크랑 믹서마다 달라요. GAIN은 얼른 흰 칸 자리로 돌려놔요.', op: 'ch', ch: 1, key: 'gain', value: 30 },
     { quiz: { q: '말할 때마다 채널 미터 꼭대기에 빨간불이 들어와요. 어떻게 할까요?', options: ['GAIN을 내린다', '그 채널 페이더를 내린다', 'STEREO 페이더를 내린다'], answer: 0, explain: '빨간불은 입구에서 이미 넘쳤다는 뜻이에요. 뒤에 있는 페이더를 내리면 깨진 소리가 작아질 뿐이죠.' } },
 
     // 말소리엔 LOW CUT
@@ -83,7 +83,7 @@ export default {
     // 노트북 BGM: LINE, 스테레오 채널, GAIN은 낮게
     { who: 'junior', say: '쉬는 시간엔 음악을 깔아 달래요. 노트북은 어디에 꽂아요?', op: 'talk', on: false },
     { say: '노트북 소리는 마이크보다 훨씬 커요. 그래서 MIC 구멍 말고, 큰 소리를 받는 LINE 쪽 9/10 스테레오 채널로 받아요.', show: { items: [{ concept: 'levels', label: '마이크 소리와 라인 소리' }, { model: 'laptop', label: 'BGM 노트북' }] }, op: 'place', device: 'lap' },
-    { say: '정석은 Y 케이블로 L, R에 둘 다 꽂는 거예요. 오늘은 3.5mm 변환 케이블 하나로 노트북과 9/10 L/MONO만 이어요.', show: { photo: 'conn_mini' }, op: 'connect', from: 'lap.out', to: 'mixer.st9L', cable: 'mini', practice: '3.5mm 케이블로 노트북과 믹서 9/10 L/MONO를 이어 보세요.' },
+    { say: '정석은 Y 케이블로 L, R에 둘 다 꽂는 거예요. 오늘은 3.5mm 변환 케이블 하나뿐이라 노트북을 9/10 L/MONO에만 이어요.', show: { photo: 'conn_mini' }, op: 'connect', from: 'lap.out', to: 'mixer.st9L', cable: 'mini', practice: '3.5mm 케이블로 노트북과 믹서 9/10 L/MONO를 이어 보세요.' },
     { say: 'L/MONO 하나만 꽂으면 왼쪽 소리가 양쪽 스피커로 같이 나가요. 오른쪽에만 있는 소리는 빠지고요.' },
     { say: 'GAIN은 마이크만큼 안 올려도 돼요. 20쯤만 돼도 미터가 흰 칸에 들어오죠?', op: 'ch', ch: 9, key: 'gain', value: 20, practice: '9/10 채널 GAIN을 20 근처로 맞춰 보세요.' },
     { say: '아, 노트북 알림은 꼭 꺼 두세요. 지난달 행사에선 메신저 알림음이 객석 전체에 울려 퍼졌거든요.' },
@@ -101,8 +101,8 @@ export default {
     { who: 'junior', say: '삐이익! 귀 아파요. 마이크 파트 때 들은 그 하울링이죠?' },
     { say: '맞아요, 스피커 소리가 마이크로 다시 들어가 돌고 돌며 커지는 거죠. 급할 땐 그 채널 ON부터 꺼요!', show: { concept: 'feedback' }, op: 'ch', ch: 1, key: 'mute', value: true, practice: 'CH 1의 ON 버튼을 눌러 얼른 불을 꺼 보세요.' },
     { who: 'junior', say: '휴, 멎었어요. 근데 몇 번 채널인지 모를 땐요?' },
-    { say: '그땐 STEREO 페이더부터 내려요. 일단 소리부터 멈추고, 원인은 그다음에 찾는 거예요.' },
-    { say: '이번 원인 하나는 방금 올린 GAIN이에요. 꺼 둔 채로 30 근처까지 다시 내려 둬요.', op: 'ch', ch: 1, key: 'gain', value: 30, tol: 1, until: 'noFeedback', practice: 'CH 1 GAIN을 30 근처로 내려 보세요.' },
+    { say: '그땐 STEREO 페이더부터 내려요. 일단 소리를 멈추고, 원인은 그다음에 찾는 거예요.' },
+    { say: '원인 하나는 방금 올린 GAIN이에요. 꺼 둔 채로 30 근처까지 다시 내려 둬요.', op: 'ch', ch: 1, key: 'gain', value: 30, tol: 1, until: 'noFeedback', practice: 'CH 1 GAIN을 30 근처로 내려 보세요.' },
     { say: '이제 ON을 다시 켜 볼까요? 이번엔 삐 소리가 안 나죠?', op: 'ch', ch: 1, key: 'mute', value: false, until: 'noFeedback', practice: 'CH 1의 ON 버튼을 다시 켜 보세요. 그래도 울리면 GAIN을 조금 더 내려요.' },
     { say: '조용해졌지만 목소리도 작아졌죠? 진짜 해결은 스피커를 마이크보다 객석 쪽에 두고 객석을 보게 하는 거예요.', focus: 'pa', op: 'move', device: 'pa', slot: 'pa_main', practice: '스피커를 클릭하고 메인 스피커 자리로 옮겨 보세요.' },
     { say: '마이크의 둔감한 뒤쪽이 스피커를 향하니까 GAIN을 36까지 올려도 조용하죠? 강연자님 귀엔 발밑 모니터로 들려 드려요.', show: { photo: 'monitor_wedge' }, focus: 'mixer', op: 'ch', ch: 1, key: 'gain', value: 36 },
