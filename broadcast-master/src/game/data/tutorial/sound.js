@@ -37,7 +37,7 @@ export default {
 
     // GAIN
     { say: '맨 위 빨간 손잡이가 GAIN이에요. 마이크 소리는 워낙 작아서, 여기서 처음 키워 줘야 하거든요.', show: { concept: 'strip', focus: 'gain' } },
-    { say: 'GAIN 바로 밑 가는 막대가 미터예요. 강연자가 말할 때 올려 봐요. 막대 끝이 흰 칸 안에서 놀면 딱 좋아요.', op: 'ch', ch: 1, key: 'gain', value: 30, practice: '믹서 콘솔에서 CH 1 GAIN을 30 근처로 올려 보세요.' },
+    { say: 'GAIN 바로 밑 가느다란 막대가 미터예요. 강연자가 말할 때 올려 봐요. 막대 끝이 흰 칸 안에서 놀면 딱 좋아요.', op: 'ch', ch: 1, key: 'gain', value: 30, practice: '믹서 콘솔에서 CH 1 GAIN을 30 근처로 올려 보세요.' },
     { who: 'junior', say: '미터는 움직이는데요, 소리는 아직 안 나와요.' },
 
     // FADER
