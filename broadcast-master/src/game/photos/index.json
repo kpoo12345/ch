@@ -1,1 +1,307 @@
-{}
+{
+ "mic_dynamic": {
+  "file": "mic_dynamic.jpg",
+  "title": "File:Microphone (Shure SM58) (4900485245).jpg",
+  "author": "Marcel Grieder from Switzerland",
+  "license": "CC BY 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Microphone_(Shure_SM58)_(4900485245).jpg"
+ },
+ "mic_condenser": {
+  "file": "mic_condenser.jpg",
+  "title": "File:罗德大振膜麦克风,large-diaphragm studio condenser microphones.jpg",
+  "author": "Dufu770",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:%E7%BD%97%E5%BE%B7%E5%A4%A7%E6%8C%AF%E8%86%9C%E9%BA%A6%E5%85%8B%E9%A3%8E,large-diaphragm_studio_condenser_microphones.jpg"
+ },
+ "mic_pencil": {
+  "file": "mic_pencil.jpg",
+  "title": "File:AKG C451B.jpg",
+  "author": "Harumphy at en.wikipedia",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AAKG_C451B.jpg"
+ },
+ "mic_wireless": {
+  "file": "mic_wireless.jpg",
+  "title": "File:Live streaming audio setup for Sobra-tankar - Yamaha MG124cx audio mixer, Sennheiser ew100G3 wireless set, Shure PGW24-PG58 wireless set.jpg",
+  "author": "Christian Dahlqvist",
+  "license": "CC BY-SA 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Live_streaming_audio_setup_for_Sobra-tankar_-_Yamaha_MG124cx_audio_mixer,_Sennheiser_ew100G3_wireless_set,_Shure_PGW24-PG58_wireless_set.jpg",
+  "crop": [
+   0.45,
+   0.38,
+   1,
+   1
+  ]
+ },
+ "mic_headset": {
+  "file": "mic_headset.jpg",
+  "title": "File:Headphones with Microphone.jpg",
+  "author": "Zephyris at English Wikipedia",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Headphones_with_Microphone.jpg"
+ },
+ "mic_lavalier": {
+  "file": "mic_lavalier.jpg",
+  "title": "File:GA100 Mic.png",
+  "author": "多多123",
+  "license": "CC BY 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:GA100_Mic.png"
+ },
+ "mic_gooseneck": {
+  "file": "mic_gooseneck.jpg",
+  "title": "File:Snjezana Kordic keynote presentation Japan.jpg",
+  "author": "Mozel W.",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Snjezana_Kordic_keynote_presentation_Japan.jpg",
+  "crop": [
+   0,
+   0.47,
+   0.42,
+   0.97
+  ]
+ },
+ "conn_xlr_male": {
+  "file": "conn_xlr_male.jpg",
+  "title": "File:Conector XLR.jpg",
+  "author": "Mariofergo",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AConector_XLR.jpg"
+ },
+ "conn_xlr_female": {
+  "file": "conn_xlr_female.jpg",
+  "title": "File:Xlr-connectors.jpg",
+  "author": "Mxp assumed (based on copyright claims).",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AXlr-connectors.jpg"
+ },
+ "conn_trs": {
+  "file": "conn_trs.jpg",
+  "title": "File:Audio jack comparison.jpg",
+  "author": "Benlisquare",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AAudio_jack_comparison.jpg"
+ },
+ "conn_ts": {
+  "file": "conn_ts.jpg",
+  "title": "File:2-conductor male TS connectors.jpg",
+  "author": "Andrewa at English Wikipedia",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3A2-conductor_male_TS_connectors.jpg"
+ },
+ "conn_mini": {
+  "file": "conn_mini.jpg",
+  "title": "File:Audio-TRS-Mini-Plug.jpg",
+  "author": "Evan-Amos",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File%3AAudio-TRS-Mini-Plug.jpg"
+ },
+ "conn_speakon": {
+  "file": "conn_speakon.jpg",
+  "title": "File:Neutrik Speakon.jpg",
+  "author": "Staycoolandbegood",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ANeutrik_Speakon.jpg"
+ },
+ "adapter_xlr_trs": {
+  "file": "adapter_xlr_trs.jpg",
+  "title": "File:XLR Cable.png",
+  "author": "BRONSKIARCHIVE",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AXLR_Cable.png"
+ },
+ "snake_stagebox": {
+  "file": "snake_stagebox.jpg",
+  "title": "File:Audio multicore cable with XLR connectors and stage box.JPG",
+  "author": "VK1LW",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AAudio_multicore_cable_with_XLR_connectors_and_stage_box.JPG"
+ },
+ "snake_fanout": {
+  "file": "snake_fanout.jpg",
+  "title": "File:Audio multicore cable with XLR connectors and stage box.JPG",
+  "author": "VK1LW",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AAudio_multicore_cable_with_XLR_connectors_and_stage_box.JPG",
+  "crop": [
+   0.5,
+   0.15,
+   1,
+   1
+  ]
+ },
+ "mixer_analog": {
+  "file": "mixer_analog.jpg",
+  "title": "File:Yamaha mg102 front.jpg",
+  "author": "Charon ME",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File%3AYamaha_mg102_front.jpg"
+ },
+ "mixer_digital": {
+  "file": "mixer_digital.jpg",
+  "title": "File:Behringer X32 Digital Mixer in operation - angled (2017-07-21 17.23.52 @pxhere 174508).jpg",
+  "author": "Unknown author Unknown author",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ABehringer_X32_Digital_Mixer_in_operation_-_angled_(2017-07-21_17.23.52_%40pxhere_174508).jpg"
+ },
+ "power_amp": {
+  "file": "power_amp.jpg",
+  "title": "File:PA Power Amplifier QSC PLX2402 2400 Watt.jpg",
+  "author": "Pittigrilli",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3APA_Power_Amplifier_QSC_PLX2402_2400_Watt.jpg"
+ },
+ "iem": {
+  "file": "iem.jpg",
+  "title": "File:Planar Magnetische IEM 1.jpg",
+  "author": "DYVER",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3APlanar_Magnetische_IEM_1.jpg"
+ },
+ "headphones": {
+  "file": "headphones.jpg",
+  "title": "File:Sony MDR-7506 7615.jpg",
+  "author": "Ashley Pomeroy",
+  "license": "CC BY 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ASony_MDR-7506_7615.jpg"
+ },
+ "drum_kit": {
+  "file": "drum_kit.jpg",
+  "title": "File:Drum kit overview.JPG",
+  "author": "Drummer070 at English Wikipedia",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADrum_kit_overview.JPG"
+ },
+ "drum_kick_mic": {
+  "file": "drum_kick_mic.jpg",
+  "title": "File:Kick drum - 1093 Studios, Athens, Georgia (2010-06-20 20.39.03 by John Tuggle).jpg",
+  "author": "John Tuggle from Decatur, Ga, USA",
+  "license": "CC BY 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AKick_drum_-_1093_Studios%2C_Athens%2C_Georgia_(2010-06-20_20.39.03_by_John_Tuggle).jpg"
+ },
+ "bass_guitar": {
+  "file": "bass_guitar.jpg",
+  "title": "File:Davison Electric Bass Guitar.jpg",
+  "author": "Melissa Ursula Dawn Goldsmith",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADavison_Electric_Bass_Guitar.jpg"
+ },
+ "snake_reel": {
+  "file": "snake_reel.jpg",
+  "title": "File:Snake cable (audio multicore cable).jpg",
+  "author": "Rudolf Schuba",
+  "license": "CC BY 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ASnake_cable_(audio_multicore_cable).jpg"
+ },
+ "cable_reel": {
+  "file": "cable_reel.jpg",
+  "title": "File:Xlrcables.jpg",
+  "author": "Heyyouoverthere",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AXlrcables.jpg"
+ },
+ "mixer_phantom": {
+  "file": "mixer_phantom.jpg",
+  "title": "File:Phantom power supply button.jpg",
+  "author": "Jud McCranie",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3APhantom_power_supply_button.jpg"
+ },
+ "speaker_active": {
+  "file": "speaker_active.jpg",
+  "title": "File:ION Audio Total PA Apex Speaker.jpg",
+  "author": "TaurusEmerald",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AION_Audio_Total_PA_Apex_Speaker.jpg"
+ },
+ "speaker_passive": {
+  "file": "speaker_passive.jpg",
+  "title": "File:Large loudspeaker box (h=1.8 m) with bass reflex system and a mid-high horn loudspeaker, photographed in Tokyo 2005.jpg",
+  "author": "File:Sound Park Dyna (DVD soft shop) with large loudspeakers indicating open the shop, Kanda-myōjin Street, Sotokanda 1,",
+  "license": "CC BY 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ALarge_loudspeaker_box_(h%3D1.8_m)_with_bass_reflex_system_and_a_mid-high_horn_loudspeaker%2C_photographed_in_Tokyo_2005.jpg"
+ },
+ "monitor_wedge": {
+  "file": "monitor_wedge.jpg",
+  "title": "File:Stage monitors, Peace in the Park, UK, 2010.jpg",
+  "author": "Mark Mozaz Wallis",
+  "license": "CC BY-SA 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AStage_monitors%2C_Peace_in_the_Park%2C_UK%2C_2010.jpg"
+ },
+ "drum_snare_mic": {
+  "file": "drum_snare_mic.jpg",
+  "title": "File:Drums in a home music studio (cropped) SM57 recording snare.jpg",
+  "author": "Shixart1985",
+  "license": "CC BY 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADrums_in_a_home_music_studio_(cropped)_SM57_recording_snare.jpg"
+ },
+ "e_guitar": {
+  "file": "e_guitar.jpg",
+  "title": "File:Fender Highway 1 Stratocaster.jpg",
+  "author": "Martin Taylor",
+  "license": "CC BY-SA 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AFender_Highway_1_Stratocaster.jpg"
+ },
+ "guitar_amp": {
+  "file": "guitar_amp.jpg",
+  "title": "File:DlxReverbFront.jpg",
+  "author": "Diego at English Wikipedia",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADlxReverbFront.jpg"
+ },
+ "digital_piano": {
+  "file": "digital_piano.jpg",
+  "title": "File:Yamaha P-115.jpg",
+  "author": "Semmendinger",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AYamaha_P-115.jpg"
+ },
+ "camcorder": {
+  "file": "camcorder.jpg",
+  "title": "File:Sony PXW-FX9V left side 20221013.jpg",
+  "author": "Solomon203",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ASony_PXW-FX9V_left_side_20221013.jpg"
+ },
+ "ptz_camera": {
+  "file": "ptz_camera.jpg",
+  "title": "File:Panasonic AW-HE40S of Black Rabbit 20201101.jpg",
+  "author": "Solomon203",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3APanasonic_AW-HE40S_of_Black_Rabbit_20201101.jpg"
+ },
+ "lighting_console": {
+  "file": "lighting_console.jpg",
+  "title": "File:Avolites Tiger Touch.JPG",
+  "author": "SheffGruff",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AAvolites_Tiger_Touch.JPG"
+ },
+ "par_led": {
+  "file": "par_led.jpg",
+  "title": "File:LED par.JPG",
+  "author": "vampshow",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File%3ALED_par.JPG"
+ },
+ "moving_head": {
+  "file": "moving_head.jpg",
+  "title": "File:Vl2c varilite.jpg",
+  "author": "aoudin",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AVl2c_varilite.jpg"
+ },
+ "projector": {
+  "file": "projector.jpg",
+  "title": "File:BenQ DLP projector MP515 20101213.jpg",
+  "author": "Aivar Luist",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File%3ABenQ_DLP_projector_MP515_20101213.jpg"
+ },
+ "led_wall": {
+  "file": "led_wall.jpg",
+  "title": "File:SZLAMP LED Wall.jpg",
+  "author": "CLI",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ASZLAMP_LED_Wall.jpg"
+ }
+}

@@ -1,0 +1,72 @@
+{
+ "mic_dynamic": 3,
+ "mic_condenser": 2,
+ "mic_pencil": 0,
+ "mic_wireless": {
+  "n": 0,
+  "crop": [
+   0.45,
+   0.38,
+   1,
+   1
+  ]
+ },
+ "mic_wireless_rx": null,
+ "mic_headset": 2,
+ "mic_lavalier": 0,
+ "mic_gooseneck": {
+  "n": 1,
+  "crop": [
+   0,
+   0.47,
+   0.42,
+   0.97
+  ]
+ },
+ "conn_xlr_male": 1,
+ "conn_xlr_female": 0,
+ "conn_trs": 1,
+ "conn_ts": 0,
+ "conn_mini": 0,
+ "conn_speakon": 0,
+ "adapter_xlr_trs": 0,
+ "snake_stagebox": 0,
+ "snake_fanout": {
+  "n": 1,
+  "crop": [
+   0.5,
+   0.15,
+   1,
+   1
+  ]
+ },
+ "mixer_analog": 1,
+ "mixer_digital": 0,
+ "di_box": null,
+ "power_amp": 0,
+ "iem": 1,
+ "headphones": 0,
+ "drum_kit": 0,
+ "drum_kick_mic": 1,
+ "drum_overheads": null,
+ "bass_guitar": 0,
+ "snake_reel": 0,
+ "adapter_y": null,
+ "cable_reel": 0,
+ "mixer_phantom": 0,
+ "speaker_active": 0,
+ "speaker_passive": 3,
+ "monitor_wedge": 0,
+ "drum_snare_mic": 0,
+ "e_guitar": 2,
+ "guitar_amp": 2,
+ "digital_piano": 0,
+ "camcorder": 1,
+ "ptz_camera": 0,
+ "atem_mini": null,
+ "lighting_console": 0,
+ "par_led": 0,
+ "moving_head": 0,
+ "projector": 0,
+ "led_wall": 1
+}

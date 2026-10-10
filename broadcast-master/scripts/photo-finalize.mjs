@@ -1,6 +1,7 @@
 // 고른 사진 내려받아 게임에 넣기
 //  NODE_USE_ENV_PROXY=1 node scripts/photo-finalize.mjs <후보 폴더>
-//  <후보 폴더>/candidates.json (photo-candidates.mjs) + scripts/photo-picks.json ({ id: 후보 번호 | null })
+//  <후보 폴더>/candidates.json (photo-candidates.mjs) + scripts/photo-picks.json ({ id: 후보 번호 | { n, crop: [x0, y0, x1, y1] } | null })
+//  crop은 0~1 비율 — 사람보다 장비가 크게 보이도록 잘라 낼 때 쓴다
 //  결과: src/game/photos/<id>.jpg (가로 640px) + src/game/photos/index.json + index.js (data URL + 출처 표기)
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -25,16 +26,19 @@ async function get(url) {
 
 const indexFile = new URL('index.json', dir);
 const index = existsSync(indexFile) ? JSON.parse(readFileSync(indexFile, 'utf8')) : {};
-for (const [id, n] of Object.entries(picks)) {
+for (const [id, pick] of Object.entries(picks)) {
+  const n = typeof pick === 'object' && pick ? pick.n : pick;
+  const crop = typeof pick === 'object' && pick ? pick.crop ?? null : null;
   const c = n == null ? null : cands[id]?.[n];
   if (!c) { delete index[id]; continue; }
-  if (index[id]?.title === c.title && existsSync(new URL(`${id}.jpg`, dir))) continue;
+  if (index[id]?.title === c.title && JSON.stringify(index[id]?.crop ?? null) === JSON.stringify(crop) && existsSync(new URL(`${id}.jpg`, dir))) continue;
   try {
     const raw = new URL(`${id}.src`, dir), out = new URL(`${id}.jpg`, dir);
     writeFileSync(raw, await get(c.thumb.replace(/\/640px-/, '/500px-')));
-    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', raw.pathname, '-vf', "scale='min(640,iw)':-2", '-q:v', '6', out.pathname]);
+    const cut = crop ? `crop=iw*${crop[2] - crop[0]}:ih*${crop[3] - crop[1]}:iw*${crop[0]}:ih*${crop[1]},` : '';
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', raw.pathname, '-vf', `${cut}scale='min(640,iw)':-2`, '-q:v', '6', out.pathname]);
     unlinkSync(raw);
-    index[id] = { file: `${id}.jpg`, title: c.title, author: c.author, license: c.license, url: c.page };
+    index[id] = { file: `${id}.jpg`, title: c.title, author: c.author, license: c.license, url: c.page, ...(crop ? { crop } : {}) };
     console.log(`+ ${id}: ${c.title} (${c.license})`);
   } catch (e) { console.log(`! ${id}: ${e.message}`); }
   await sleep(1200);

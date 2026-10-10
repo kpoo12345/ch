@@ -1,7 +1,7 @@
 /* =====================================================================
  * 실물 사진 목록 — 튜토리얼 카드와 백과사전에서 쓰는 장비 사진
  *  id → { alt, file?, credit? }. file이 없으면 사진 대신 3D 모델/커넥터 그림을 보여 준다.
- *  사진 파일은 scripts/fetch-photos.mjs가 위키미디어 공용(자유 라이선스)에서 받아 src/game/photos/에 넣는다.
+ *  사진은 위키미디어 공용(자유 라이선스)에서 고른다: scripts/photo-queries → photo-candidates → photo-verify → photo-picks.json → photo-finalize.mjs
  * ===================================================================== */
 import { PHOTO_FILES } from '../photos/index.js';
 
@@ -23,7 +23,7 @@ export const PHOTOS = {
   conn_mini: { alt: '3.5mm 미니 잭', connector: 'mini' },
   conn_speakon: { alt: '스피콘 커넥터', connector: 'speakon' },
   adapter_y: { alt: '3.5mm → 6.3mm 두 갈래 (Y) 케이블', connector: 'mini' },
-  adapter_xlr_trs: { alt: 'XLR ↔ 6.3mm 변환 젠더', connector: 'xlr' },
+  adapter_xlr_trs: { alt: 'XLR ↔ 6.3mm 변환 케이블', connector: 'xlr' },
   cable_reel: { alt: '케이블 8자 감기 (오버언더)' },
   // 스네이크
   snake_stagebox: { alt: '스테이지 박스 (멀티 케이블 무대 쪽)', model: 'stage_box' },

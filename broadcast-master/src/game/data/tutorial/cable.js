@@ -51,7 +51,7 @@ export default {
 
     // 3.5mm와 변환 젠더 · Y 케이블
     { who: 'junior', say: '노트북에 꽂는 작은 잭은요? 믹서엔 그렇게 작은 구멍이 없던데요.' },
-    { say: '그럴 땐 변환 젠더나 Y 케이블을 써요. Y 케이블은 3.5mm 하나를 6.3mm 두 개로 갈라 주죠.', show: { items: [{ photo: 'conn_mini', label: '3.5mm' }, { photo: 'adapter_y', label: 'Y 케이블' }, { photo: 'adapter_xlr_trs', label: '변환 젠더' }] } },
+    { say: '그럴 땐 변환 젠더나 Y 케이블을 써요. Y 케이블은 3.5mm 하나를 6.3mm 두 개로 갈라 주죠.', show: { items: [{ photo: 'conn_mini', label: '3.5mm' }, { photo: 'adapter_y', label: 'Y 케이블' }, { photo: 'adapter_xlr_trs', label: 'XLR↔6.3mm 변환' }] } },
     { who: 'junior', say: '오, 그럼 젠더만 챙기면 뭐든 다 연결되겠네요!' },
     { say: '모양만 바뀌는 거예요. 속은 그대로 언밸런스드라 길게 끌면 잡음이 나고, 소리 크기도 그대로고요.' },
     { say: '게다가 잘 헐거워져요. 지난주 결혼식에선 젠더가 쏙 빠져서 입장곡이 뚝 끊겼다니까요.' },
