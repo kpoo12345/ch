@@ -84,11 +84,15 @@ export default function BetaFeedback() {
       const user = await capability('user');
       let uid = null;
       try { uid = (await user?.id?.()) ?? null; } catch { uid = null; }
-      await db.collection('feedback').add({
+      if (!uid) { setState('nodb'); return; }
+      // 의견은 보낸 사람 자기 칸(feedback/<id>)에만 쓴다 — 다른 테스터는 못 보고, 게임 주인만 모두 읽는다
+      const at = new Date().toISOString();
+      const item = JSON.parse(JSON.stringify({
         kind, text: body.slice(0, MAX), where: where(ctx), context: ctx, version: BETA_VERSION,
-        at: new Date().toISOString(), viewport: `${window.innerWidth}x${window.innerHeight}`,
-        device: device(), uid, ...envInfo(),
-      });
+        at, viewport: `${window.innerWidth}x${window.innerHeight}`, device: device(), ...envInfo(),
+      }));
+      await db.collection(`feedback/${uid}/items`).add(item);
+      await db.doc(`feedback/${uid}`).set({ lastAt: at, lastKind: kind });
       setState('sent'); setText('');
     } catch (e) {
       // 권한 없음(보기·댓글 전용 공유) 등은 댓글로 안내
