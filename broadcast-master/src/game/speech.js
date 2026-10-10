@@ -15,19 +15,31 @@ export const speechOk = () => typeof window !== 'undefined' && 'speechSynthesis'
  *  2순위: Web Audio로 직접 재생(빠르기는 WSOLA로 늘이고 줄인다)
  *  둘 다 안 되면 브라우저 음성 합성 */
 const clipEntry = (who, text) => VOICE_PACK[lineKey(who, text)] ?? null;
-export const hasClip = (who, text) => !!clipEntry(who, text);
+let decodeFails = 0; // 녹음을 풀지 못한 횟수 — 두 번 실패하면 이 브라우저는 합성 음성으로만 읽는다
+export const hasClip = (who, text) => decodeFails < 2 && !!clipEntry(who, text);
 let elementOk = null; // <audio>로 재생이 되는지 (한 번 실패하면 Web Audio로)
+// 지금 내레이션이 어떤 길로 나오는지 (베타 의견에 함께 보낸다)
+export const audioPath = () => (decodeFails >= 2 ? '합성 음성' : elementOk === true ? 'audio 요소' : elementOk === false ? 'Web Audio' : '아직 안 틂');
+// claude.ai 안처럼 blob: 소리를 막아 둔 곳이면 처음부터 Web Audio로 (첫 대사가 두 번 나오지 않게)
+if (typeof document !== 'undefined') {
+  document.addEventListener('securitypolicyviolation', (ev) => { if (/^blob/.test(ev.blockedURI ?? '') || /media-src/.test(ev.effectiveDirective ?? ev.violatedDirective ?? '')) elementOk = false; });
+}
 const blobUrls = new Map();
 const bytesOf = (b64) => { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i += 1) u8[i] = bin.charCodeAt(i); return u8; };
 const urlOf = (e) => { let u = blobUrls.get(e); if (!u) { u = URL.createObjectURL(new Blob([bytesOf(e[0])], { type: VOICE_MIME.split(';')[0] })); blobUrls.set(e, u); } return u; };
-const decoded = new Map(); // e → Promise<{ data: Float32Array, sr }>
+// 푼 녹음은 최근 몇 개만 들고 있는다 (한 파트를 다 들으면 수십 MB라 휴대폰에서 탭이 꺼질 수 있다)
+const DECODED_KEEP = 4;
+const decoded = new Map(); // e → Promise<{ data: Float32Array, sr }> (오래 안 쓴 것부터 버린다)
 const decodeClip = (e) => {
-  if (!decoded.has(e)) {
-    const au = getAudio(); au.unlock?.();
-    const ctx = au.ctx;
-    decoded.set(e, ctx ? ctx.decodeAudioData(bytesOf(e[0]).buffer).then((b) => ({ data: b.getChannelData(0), sr: b.sampleRate })) : Promise.reject(new Error('no audio context')));
-  }
-  return decoded.get(e);
+  let p = decoded.get(e);
+  if (p) { decoded.delete(e); decoded.set(e, p); return p; }
+  const au = getAudio(); au.unlock?.();
+  const ctx = au.ctx;
+  p = ctx ? ctx.decodeAudioData(bytesOf(e[0]).buffer).then((b) => ({ data: b.getChannelData(0), sr: b.sampleRate })) : Promise.reject(new Error('no audio context'));
+  p.catch(() => { decoded.delete(e); });
+  decoded.set(e, p);
+  while (decoded.size > DECODED_KEEP) decoded.delete(decoded.keys().next().value);
+  return p;
 };
 
 let voice = null;
@@ -100,8 +112,13 @@ function playClip(e, { rate, onEnd, onStart, onProgress, onError }) {
   clip.finish = finish;
   const tickEl = () => { if (state.clip !== clip) return; const d = clip.el.duration; if (d > 0) onProgress?.(Math.min(1, clip.el.currentTime / d)); clip.raf = requestAnimationFrame(tickEl); };
   const viaWebAudio = () => {
+    // <audio> 오류와 play() 거절이 둘 다 오면 두 번 불린다 — 한 번만 (같은 대사가 겹쳐 나오지 않게)
+    if (clip.wa) return;
+    clip.wa = true;
     elementOk = false;
+    if (clip.el) { const el = clip.el; el.onended = null; el.onerror = null; el.onplaying = null; try { el.pause(); } catch { /* 이미 멈춤 */ } clip.el = null; }
     decodeClip(e).then((b) => { if (state.clip !== clip) return; clip.buf = b; startNode(clip, 0); onStart?.(); }).catch(() => {
+      decodeFails += 1;
       if (state.clip !== clip) return;
       state.clip = null; state.narrating = false; duck(false);
       if (onError) onError(); else onEnd?.();

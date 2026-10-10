@@ -20,3 +20,6 @@ body {
 @keyframes bm-pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
 .bm-pop { animation: bm-pop .25s ease-out; }
 @media (prefers-reduced-motion: reduce) { .bm-pop { animation: none; } }
+/* 연습에서 만져야 할 손잡이 표시 */
+@keyframes bm-target { 0%, 100% { box-shadow: 0 0 0 2px rgba(251, 191, 36, .95); } 50% { box-shadow: 0 0 0 5px rgba(251, 191, 36, .35); } }
+.bm-target { animation: bm-target 1s ease-in-out infinite; }

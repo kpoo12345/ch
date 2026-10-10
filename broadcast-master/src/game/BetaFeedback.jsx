@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MessageSquarePlus, X, Send, CheckCircle2, Copy } from 'lucide-react';
-import { getBetaContext, BETA_VERSION } from './betaContext.js';
+import { getBetaContext, BETA_VERSION, subscribeBeta, setFeedbackOpen, getLastError } from './betaContext.js';
+import { audioPath } from './speech.js';
 
 /* =====================================================================
  * 베타 의견 보내기 — 어느 화면에서든 왼쪽 가장자리 탭으로 연다
@@ -12,10 +13,19 @@ const KINDS = [['bug', '버그·오류'], ['hard', '어려워요'], ['idea', '�
 const MAX = 1000;
 const ISSUE_URL = 'https://github.com/kpoo12345/ch/issues/new';
 const ISSUE_TEXT_MAX = 600; // 주소 길이 제한 때문에 GitHub로는 앞부분만 넘긴다
-const device = () => (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? '모바일' : '데스크톱');
+// 아이패드는 맥처럼 보이므로 터치 지점 수로 가린다
+const device = () => (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) ? '모바일·태블릿' : '데스크톱');
+const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } };
+// 문제를 따라가는 데 필요한 환경 정보 (이름·이메일 같은 개인 정보는 넣지 않는다)
+const envInfo = () => ({
+  ua: navigator.userAgent.slice(0, 200), dpr: window.devicePixelRatio ?? 1, touch: navigator.maxTouchPoints ?? 0,
+  webgl: webgl(), audio: audioPath(), error: getLastError(),
+});
 const kindLabel = (k) => KINDS.find((x) => x[0] === k)?.[1] ?? k;
 function issueHref(kind, text, ctx) {
-  const body = [`**종류**: ${kindLabel(kind)}`, `**위치**: ${where(ctx)}`, `**버전**: ${BETA_VERSION} · ${device()} · ${window.innerWidth}x${window.innerHeight}`, '', text.slice(0, ISSUE_TEXT_MAX)].join('\n');
+  const env = envInfo();
+  const body = [`**종류**: ${kindLabel(kind)}`, `**위치**: ${where(ctx)}`, `**버전**: ${BETA_VERSION} · ${device()} · ${window.innerWidth}x${window.innerHeight}`,
+    `**환경**: 3D ${env.webgl ? '가능' : '불가'} · 소리 ${env.audio}${env.error ? ` · 마지막 오류: ${env.error.slice(0, 120)}` : ''}`, '', text.slice(0, ISSUE_TEXT_MAX)].join('\n');
   const title = `[베타] ${kindLabel(kind)} · ${where(ctx)}`.slice(0, 120);
   return `${ISSUE_URL}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=beta-feedback`;
 }
@@ -38,7 +48,15 @@ export default function BetaFeedback() {
   const [text, setText] = useState('');
   const [state, setState] = useState('idle'); // idle | sending | sent | nodb | error
   const [canComment, setCanComment] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(null); // null | 'ok' | 'fail'
+  const [inGame, setInGame] = useState(false);
+  // 게임 화면 머리말의 "의견" 단추로 열기 · 게임 화면에서는 가장자리 탭 숨기기
+  const lastReq = useRef(0);
+  useEffect(() => subscribeBeta((u) => {
+    setInGame(u.inGame > 0);
+    if (u.request !== lastReq.current) { lastReq.current = u.request; if (u.request > 0) { setOpen(true); setState('idle'); } }
+  }), []);
+  useEffect(() => { setFeedbackOpen(open); }, [open]);
   const [ctx, setCtx] = useState(getBetaContext());
   const rootRef = useRef(null);
   const taRef = useRef(null);
@@ -46,7 +64,7 @@ export default function BetaFeedback() {
     if (!open) return;
     setCtx(getBetaContext()); setTimeout(() => taRef.current?.focus(), 50);
     // 의견을 저장할 수 없는 공유(보기·댓글 전용)라면 처음부터 댓글 안내를 보여 준다
-    setCopied(false);
+    setCopied(null);
     (async () => {
       const [user, db, comments] = await Promise.all([capability('user'), capability('db'), capability('comments')]);
       setCanComment(!!comments);
@@ -69,7 +87,7 @@ export default function BetaFeedback() {
       await db.collection('feedback').add({
         kind, text: body.slice(0, MAX), where: where(ctx), context: ctx, version: BETA_VERSION,
         at: new Date().toISOString(), viewport: `${window.innerWidth}x${window.innerHeight}`,
-        device: device(), uid,
+        device: device(), uid, ...envInfo(),
       });
       setState('sent'); setText('');
     } catch (e) {
@@ -83,19 +101,19 @@ export default function BetaFeedback() {
     try { await c.openComposer({ element: rootRef.current ?? document.body }); } catch { setCanComment(false); }
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(`[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION})\n${text}`); setCopied(true); } catch { taRef.current?.select(); }
+    try { await navigator.clipboard.writeText(`[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION})\n${text}`); setCopied('ok'); } catch { taRef.current?.focus(); taRef.current?.select(); setCopied('fail'); }
   };
 
   return (
     <>
-      <button type="button" onClick={() => { setOpen(true); setState('idle'); }}
+      {!inGame && <button type="button" onClick={() => { setOpen(true); setState('idle'); }}
         className="fixed left-0 top-[38%] z-[70] flex items-center gap-1 rounded-r-lg border border-l-0 border-amber-300/70 bg-amber-400 px-1.5 py-2 text-[11px] font-black text-slate-900 shadow-lg [writing-mode:vertical-rl] hover:bg-amber-300"
         aria-label="베타 의견 보내기" title="불편한 점이나 아이디어를 개발자에게 보내요">
         <MessageSquarePlus size={14} className="rotate-90" /> 의견 보내기
-      </button>
+      </button>}
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-2 sm:p-4" onClick={() => setOpen(false)}>
-          <div ref={rootRef} className="w-full max-w-md rounded-2xl border border-amber-300/50 bg-slate-950 p-4 text-slate-100 shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="베타 의견 보내기">
+          <div ref={rootRef} className="w-full max-w-md rounded-2xl border border-amber-300/50 bg-slate-950 p-4 text-slate-100 shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="베타 의견 보내기">
             <div className="flex items-center gap-2">
               <MessageSquarePlus size={18} className="text-amber-300" />
               <b className="text-base">베타 의견 보내기</b>
@@ -127,19 +145,19 @@ export default function BetaFeedback() {
                     placeholder="예) 파트 3에서 스테이지 박스 단자를 어디에 꽂는지 모르겠어요." />
                 </label>
                 <div className="text-[11px] text-slate-500">함께 보내는 위치: {where(ctx)} · {text.length}/{MAX}자</div>
-                {state === 'nodb' && (
+                {(state === 'nodb' || state === 'error') && (
                   <div className="rounded-lg border border-sky-500/50 bg-sky-950/40 p-2 text-sm text-sky-100 space-y-2">
-                    <p>이 링크로는 의견을 게임에 바로 저장할 수 없어요. 편한 방법으로 보내 주세요.</p>
+                    <p>{state === 'error' ? '방금은 저장하지 못했어요. 잠시 뒤 다시 보내거나, 아래 방법으로 보내 주세요.' : '이 링크로는 의견을 게임에 바로 저장할 수 없어요. 편한 방법으로 보내 주세요.'}</p>
                     <div className="flex flex-wrap gap-2">
                       {canComment && <button type="button" onClick={openComments} className="rounded-md bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white">댓글로 남기기</button>}
                       <a href={issueHref(kind, text, ctx)} target="_blank" rel="noopener noreferrer"
                         className={`rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-900 ${text.trim() ? '' : 'pointer-events-none opacity-40'}`} aria-disabled={!text.trim()}>GitHub로 보내기</a>
-                      <button type="button" onClick={copy} disabled={!text.trim()} className="flex items-center gap-1 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"><Copy size={12} /> {copied ? '복사됐어요' : '글 복사'}</button>
+                      <button type="button" onClick={copy} disabled={!text.trim()} className="flex items-center gap-1 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"><Copy size={12} /> {copied === 'ok' ? '복사됐어요' : '글 복사'}</button>
                     </div>
+                    {copied === 'fail' && <p className="text-[11px] text-amber-200">자동 복사가 안 돼요. 글이 선택돼 있으니 길게 눌러(또는 Ctrl+C) 복사해 주세요.</p>}
                     <p className="text-[11px] text-sky-200/70">GitHub는 계정이 있으면 바로 올라가요. 계정이 없으면 글을 복사해서 링크를 보내 준 사람에게 전해 주세요.</p>
                   </div>
                 )}
-                {state === 'error' && <p className="text-sm text-red-300">보내지 못했어요. 잠시 뒤 다시 눌러 주세요.</p>}
                 {state !== 'nodb' && <button type="button" onClick={send} disabled={!text.trim() || state === 'sending'}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-400 py-2 font-black text-slate-900 disabled:opacity-40">
                   <Send size={16} /> {state === 'sending' ? '보내는 중…' : '보내기'}

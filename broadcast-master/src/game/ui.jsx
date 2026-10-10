@@ -173,8 +173,16 @@ export function Scene({ src, label = true, fade }) {
 }
 
 // 진도 저장 (브라우저 저장소, 실패해도 게임은 정상 동작)
+// 저장된 값이 기본값과 다른 모양(예: 객체 자리에 null)이면 기본값을 쓴다 — 망가진 저장 때문에 화면이 비지 않게
+const sameShape = (v, fallback) => {
+  if (v === null || v === undefined) return false;
+  if (fallback === null || fallback === undefined) return true;
+  if (Array.isArray(fallback)) return Array.isArray(v);
+  if (typeof fallback === 'object') return typeof v === 'object' && !Array.isArray(v);
+  return typeof v === typeof fallback;
+};
 export const loadProgress = (key, fallback) => {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+  try { const raw = localStorage.getItem(key); if (!raw) return fallback; const v = JSON.parse(raw); return sameShape(v, fallback) ? v : fallback; } catch { return fallback; }
 };
 export const saveProgress = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* 무시 */ } };
 
@@ -229,7 +237,7 @@ export function useVoice({ enabled, active, volume, phrases, rate = 1.05 }) {
 
 /* ---------------------------- 세로 페이더 / 세로 미터 ---------------------------- */
 const FADER_TICKS = [[100, '+10'], [75, '0'], [50, '-20'], [25, '-40'], [0, '-∞']];
-export function VFader({ label, value, onChange, onCommit, display, cap = '#e5e7eb', height = 140 }) {
+export function VFader({ label, value, onChange, onCommit, display, cap = '#e5e7eb', height = 140, ctl, ariaLabel }) {
   const ref = useRef(null);
   const startRef = useRef(null);
   const CAP_H = 22;
@@ -239,7 +247,7 @@ export function VFader({ label, value, onChange, onCommit, display, cap = '#e5e7
     onChange(clamp(v, 0, 100));
   };
   return (
-    <div className="flex flex-col items-center gap-1 select-none">
+    <div className="flex flex-col items-center gap-1 select-none rounded-md" data-ctl={ctl}>
       <span className="text-[10px] font-mono text-slate-200 tabular-nums h-3.5">{display}</span>
       <div className="flex items-stretch gap-1" style={{ height }}>
         <div className="relative w-5 text-[8px] text-slate-500 font-mono">
@@ -248,7 +256,7 @@ export function VFader({ label, value, onChange, onCommit, display, cap = '#e5e7
           ))}
         </div>
         <div
-          ref={ref} role="slider" tabIndex={0} aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-valuetext={display}
+          ref={ref} role="slider" tabIndex={0} aria-label={ariaLabel ?? label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-valuetext={display}
           onPointerDown={(e) => { e.preventDefault(); startRef.current = value; e.currentTarget.setPointerCapture?.(e.pointerId); setFrom(e.clientY); }}
           onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture?.(e.pointerId)) setFrom(e.clientY); }}
           onPointerUp={() => { if (startRef.current != null) { onCommit?.(startRef.current, value); startRef.current = null; } }}

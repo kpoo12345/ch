@@ -4,7 +4,7 @@ import { OrbitControls, RoundedBox, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { CABLES, DEVICE_TYPES } from './engine.js';
 import {
-  DESK_TOP, faceTo, noRaycast, rotY, CanvasShell, Label, Lamp, useCanvasTexture, FONT, AfterFirstFrame, useHoldCamera, PLUG_LEN, CABLE_R,
+  DESK_TOP, faceTo, noRaycast, rotY, CanvasShell, Label, Lamp, useCanvasTexture, FONT, AfterFirstFrame, useHoldCamera, PLUG_LEN, CABLE_R, LOW_END,
 } from './kit3d.jsx';
 import {
   MicModel, SpeakerModel, CameraModel, AtemModel, WirelessMicModel, DiBoxModel, HeadphonesModel, MirrorlessModel, PtzModel, PcModel,
@@ -1094,8 +1094,8 @@ export default function Venue3D({
   return (
     <CanvasShell
       fallback={fallback}
-      shadows
-      dpr={[1, 1.75]}
+      shadows={!LOW_END}
+      dpr={LOW_END ? [1, 1.25] : [1, 1.75]}
       camera={{ fov: 40, position: venue.camera.pos, near: 0.05, far: 80 }}
       onPointerMissed={() => onCancelPending?.()}
       style={{ touchAction: 'none' }}
@@ -1106,15 +1106,15 @@ export default function Venue3D({
       <hemisphereLight args={['#d6e2f5', '#2a2622', venue.dark ? 0.6 : 1.0]} />
       <directionalLight
         position={[3.5, 7, 5]} intensity={venue.dark ? 1.4 : 2.3} castShadow
-        shadow-mapSize={[2048, 2048]} shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={7} shadow-camera-bottom={-7}
+        shadow-mapSize={LOW_END ? [1024, 1024] : [2048, 2048]} shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={7} shadow-camera-bottom={-7}
         shadow-bias={-0.0004}
       />
       <spotLight position={[-2.5, 4.5, 2.5]} angle={0.6} penumbra={0.7} intensity={30} decay={1.4} color="#ffe4c4" />
       <spotLight position={[1.5, 4, 3.5]} angle={0.6} penumbra={0.8} intensity={24} decay={1.4} color="#f1f5ff" />
       {/* 라이트 개수 고정: 조명기 스포트라이트 6개 + 장비 불빛 4개를 처음부터 달아 두고 위치·세기만 바꾼다
           (개수가 바뀌면 모든 재질 셰이더가 다시 컴파일되어 화면이 멈칫한다) */}
-      <BeamLightPool pool={beamPool} size={6} />
-      <GlowLights glows={glows} count={4} />
+      <BeamLightPool pool={beamPool} size={LOW_END ? 3 : 6} />
+      <GlowLights glows={glows} count={LOW_END ? 2 : 4} />
 
       <CameraRig venue={venue} resetKey={resetKey} focus={focus} portWorld={portWorld} />
       <OrbitControls

@@ -17,7 +17,13 @@ for (const tag of ['<meta charset="UTF-8" />', '<meta name="viewport" content="w
   if (!head.includes(tag)) throw new Error(`메타 태그를 찾을 수 없습니다: ${tag}`);
   head = head.replace(tag, '');
 }
-const out = `${head.trim()}\n${body.trim()}\n`;
+// 큰 스크립트(13MB)는 맨 뒤로: 받는 동안 "불러오는 중" 화면과 스타일이 먼저 보이게
+const si = head.indexOf('<script type="module"');
+if (si < 0) throw new Error('모듈 스크립트를 찾을 수 없습니다');
+const se = head.indexOf('</script>', si) + '</script>'.length;
+const script = head.slice(si, se);
+head = head.slice(0, si) + head.slice(se);
+const out = `${head.trim()}\n${body.trim()}\n${script}\n`;
 if (!out.includes('#include <metalnessmap_fragment>')) throw new Error('셰이더 코드가 손상되었습니다');
 if (out.indexOf('<title>') > 8000) throw new Error('<title>이 앞쪽 8KB 안에 없습니다');
 writeFileSync(output, out);

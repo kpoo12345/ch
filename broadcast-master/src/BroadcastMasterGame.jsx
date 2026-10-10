@@ -17,10 +17,39 @@ import StoryMode from './game/v2/StoryMode.jsx';
 import Sandbox from './game/v2/Sandbox.jsx';
 import { getAudio } from './game/audio.js';
 import BetaFeedback from './game/BetaFeedback.jsx';
-import { setBetaContext } from './game/betaContext.js';
+import { setBetaContext, patchBetaContext, noteError, openFeedback } from './game/betaContext.js';
 
 export default function BroadcastMasterGame() {
-  return <><Screens /><BetaFeedback /></>;
+  // 화면에서 오류가 나도 의견 보내기는 살아 있게 (경계 밖에 둔다)
+  const [crashKey, setCrashKey] = useState(0);
+  return <><CrashGuard key={crashKey} onReset={() => setCrashKey((k) => k + 1)}><Screens /></CrashGuard><BetaFeedback /></>;
+}
+
+/* 화면 오류 경계 — 빈 화면 대신 "메뉴로 돌아가기"와 "의견 보내기" */
+class CrashGuard extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) {
+    noteError(error);
+    patchBetaContext({ crash: `${String(error?.message ?? error).slice(0, 200)}${info?.componentStack ? ` @${info.componentStack.trim().split('\n')[0].trim().slice(0, 80)}` : ''}` });
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const home = () => { try { window.history.replaceState(null, '', window.location.pathname); } catch { /* 주소 못 바꿈 */ } patchBetaContext({ crash: undefined }); this.props.onReset(); };
+    return (
+      <div className="min-h-[100dvh] grid place-items-center bg-[#0b1220] p-6 text-slate-100">
+        <div className="max-w-sm space-y-3 text-center">
+          <p className="text-lg font-black">앗, 화면에 문제가 생겼어요</p>
+          <p className="text-sm text-slate-300">메뉴로 돌아가서 다시 해 볼 수 있어요. 어디서 그랬는지 의견으로 알려 주시면 바로 고칠게요.</p>
+          <p className="break-all rounded bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-500">{String(this.state.error?.message ?? this.state.error).slice(0, 160)}</p>
+          <div className="flex justify-center gap-2">
+            <button type="button" onClick={home} className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-bold">메뉴로 돌아가기</button>
+            <button type="button" onClick={openFeedback} className="rounded-lg bg-amber-400 px-3 py-1.5 text-sm font-bold text-slate-900">의견 보내기</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
 
 function Screens() {

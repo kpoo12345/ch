@@ -8,7 +8,7 @@ import { Mic, Speaker, Monitor, Settings, Video, SlidersHorizontal, Tv, AudioLin
 /* ---------------------------- 케이블 / 단자 ---------------------------- */
 export const CABLES = {
   xlr: { name: 'XLR 케이블', short: 'XLR', desc: '3핀 밸런스드 · 마이크/라인 신호', stroke: '#60a5fa', dot: 'bg-blue-400' },
-  trs: { name: 'TS/TRS 케이블', short: 'TRS', desc: '6.3mm(55) 잭 · 악기/라인 신호', stroke: '#fbbf24', dot: 'bg-amber-400' },
+  trs: { name: '6.3mm(55) 케이블', short: '6.3mm', desc: '6.3mm(55) 잭 · 악기(TS)·라인·헤드폰(TRS) 신호. 이 게임에선 언밸런스드로 다룹니다', stroke: '#fbbf24', dot: 'bg-amber-400' },
   hdmi: { name: 'HDMI 케이블', short: 'HDMI', desc: '디지털 영상+음성 · 단거리용', stroke: '#c084fc', dot: 'bg-purple-400' },
   sdi: { name: 'SDI 케이블', short: 'SDI', desc: 'BNC 커넥터 · 방송용 장거리 영상', stroke: '#fb923c', dot: 'bg-orange-400' },
   usb: { name: 'USB-C 케이블', short: 'USB', desc: '데이터 · 오디오 인터페이스/웹캠 신호', stroke: '#4ade80', dot: 'bg-green-400' },

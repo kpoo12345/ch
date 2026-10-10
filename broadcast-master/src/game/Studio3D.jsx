@@ -917,9 +917,11 @@ export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate
         </mesh>
       </group>
       {(labels || hover || isPending || candidate) && (
-        <Label position={labelPos} center zIndexRange={[20, 0]} wrapperClass="bm-noevents">
-          <div className={`whitespace-nowrap rounded px-1 py-[1px] font-mono text-[10px] leading-tight ${isPending ? 'bg-white text-slate-900' : candidate ? 'bg-sky-500 text-white' : 'bg-black/75 text-slate-100'} ${used ? 'opacity-70' : ''}`}
-            style={{ borderLeft: `3px solid ${color}` }}>
+        // 이름표도 누를 수 있다 (초보자는 작은 단자보다 이름표를 누른다). 고를 수 있는 단자만
+        <Label position={labelPos} center zIndexRange={[20, 0]} wrapperClass={candidate || hover ? '' : 'bm-noevents'}>
+          <div className={`whitespace-nowrap rounded px-1 py-[1px] font-mono text-[10px] leading-tight ${isPending ? 'bg-white text-slate-900' : candidate ? 'bg-sky-500 text-white cursor-pointer' : 'bg-black/75 text-slate-100'} ${used ? 'opacity-70' : ''}`}
+            style={{ borderLeft: `3px solid ${color}`, pointerEvents: candidate || hover ? 'auto' : 'none' }}
+            onClick={candidate || hover ? (e) => { e.stopPropagation(); onClick(); } : undefined}>
             {isPending || hover || candidate ? port.label : label}
           </div>
         </Label>

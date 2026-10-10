@@ -86,6 +86,11 @@ export function useGame(spec, { onClear } = {}) {
     if (fresh.length) setLatched((s0) => { const n0 = new Set([...s0, ...fresh]); if (fresh.includes(`fadeOut:${key}`)) n0.delete(`cutOut:${key}`); return n0; });
   };
   const applyRef = useRef(null);
+  // 진행 중인 페이드 타이머 — 이전·다시·나가기 때 멈춘다 (되돌린 상태를 덮어쓰지 않게)
+  const fadeTimers = useRef([]);
+  const cancelFades = useCallback(() => { fadeTimers.current.forEach(clearTimeout); fadeTimers.current = []; }, []);
+  useEffect(() => cancelFades, [cancelFades]);
+  const lastClick = useRef(0);
   const apply = useCallback((op, { visual = true, prev, speed, quiet } = {}) => {
     const cur = stRef.current;
     if (op.op === 'fade') {
@@ -99,22 +104,31 @@ export function useGame(spec, { onClear } = {}) {
       if (visual) {
         actKey.current += 1;
         const a = opToAction(cur, step(n), actKey.current);
-        if (a) { if (a.ctl) a.ctl.prev = from; a.speed = speed; a.durMs = ms; setAction(a); }
+        if (a) { if (a.ctl) a.ctl.prev = from; a.speed = speed; a.durMs = ms; a.byScript = true; setAction(a); }
       }
-      for (let k = 1; k <= n; k += 1) setTimeout(() => applyRef.current?.(step(k), { visual: false, quiet: true }), (ms * k) / n);
+      for (let k = 1; k <= n; k += 1) fadeTimers.current.push(setTimeout(() => applyRef.current?.(step(k), { visual: false, quiet: true }), (ms * k) / n));
       // 대본의 페이드는 화면이 느려 단계 사이가 벌어져도 페이드로 인정 (끝난 뒤 기록)
       const fk = (!op.mixer || op.mixer === cur.mixerId) ? (op.ch ? `ch${op.ch}` : 'main') : null;
       if (fk && ms >= 1500) {
-        setTimeout(() => {
+        fadeTimers.current.push(setTimeout(() => {
           const tag = from >= 35 && op.to <= 3 ? `fadeOut:${fk}` : from <= 3 && op.to >= 50 ? `fadeIn:${fk}` : null;
           if (tag) setLatched((s0) => { const n0 = new Set(s0); n0.add(tag); n0.delete(`cutOut:${fk}`); return n0; });
-        }, ms + 80);
+        }, ms + 80));
       }
       return true;
     }
     if (op.op === 'talk') { setScriptTalk(op.on ? true : null); return true; }
     if (op.op === 'perform') { setPerforming(!!op.on); return true; }
     if (op.op === 'wait' || op.op === 'say') return true;
+    const next = applyOp(cur, op);
+    if (next.lastError) {
+      const e = next.lastError;
+      const text = e.reason ?? `${MISMATCH_TIP[e.mismatch] ?? '이 단자에는 맞지 않는 케이블입니다.'}`;
+      notify('err', text);
+      getAudio().error();
+      return false;
+    }
+    // 실제로 바뀐 조작만 판정한다 (거절된 연결은 퍽 소리도, 방송 사고도 아니다)
     const lat = new Set();
     // 팝 노이즈: 켜진 스피커 경로를 건드리면 기록, 스피커를 끄면 다시 할 수 있게 지운다
     const popSet = new Set(latchedRef.current);
@@ -132,14 +146,6 @@ export function useGame(spec, { onClear } = {}) {
       setLatched((s) => new Set([...s, ...lat]));
       if (fresh) notify('err', '방송 중(PGM, 빨간 탈리)인 카메라를 움직였습니다! 시청자에게 흔들리는 화면이 나갔어요.');
     }
-    const next = applyOp(cur, op);
-    if (next.lastError) {
-      const e = next.lastError;
-      const text = e.reason ?? `${MISMATCH_TIP[e.mismatch] ?? '이 단자에는 맞지 않는 케이블입니다.'}`;
-      notify('err', text);
-      getAudio().error();
-      return false;
-    }
     const primary = !op.mixer || op.mixer === cur.mixerId;
     if (primary && op.op === 'ch' && op.key === 'fader') noteFader(`ch${op.ch}`, cur.channels[op.ch - 1]?.fader ?? 0, op.value);
     if (primary && op.op === 'master' && op.key === 'mainFader') noteFader('main', cur.master.mainFader, op.value);
@@ -153,6 +159,7 @@ export function useGame(spec, { onClear } = {}) {
       if (a) {
         if (prev != null && a.ctl) a.ctl.prev = prev;
         a.speed = speed;
+        a.byScript = !!quiet; // 대본(유령 손)이 한 동작인지 — 플레이어가 직접 한 연결로 탭이 바뀌지 않게
         setAction(a);
       }
     }
@@ -160,7 +167,11 @@ export function useGame(spec, { onClear } = {}) {
     if (op.op === 'connect') { au.plug(); if (!quiet) notify('ok', `${CABLES[op.cable]?.name ?? op.cable} 연결: ${label(cur, op.from)} → ${label(cur, op.to)}`); }
     else if (op.op === 'disconnect') { au.click(); if (!quiet) notify('info', `케이블 분리: ${label(cur, op.from)} ↔ ${label(cur, op.to)}`); }
     else if (op.op === 'place') { au.click(); if (!quiet) notify('ok', `${cur.devices[op.device]?.name ?? DEVICE_TYPES[cur.devices[op.device]?.type]?.name} 배치`); }
-    else au.click();
+    else if (visual || !quiet) {
+      // 페이드처럼 화면 없이 이어지는 단계는 조용히, 노브·페이더 드래그는 딸깍을 띄엄띄엄
+      const now = Date.now();
+      if (typeof op.value !== 'number' || now - lastClick.current > 180) { lastClick.current = now; au.click(); }
+    }
     return true;
   }, [notify]);
   applyRef.current = apply;
@@ -218,12 +229,13 @@ export function useGame(spec, { onClear } = {}) {
 
   const reset = useCallback(() => {
     const s0 = buildRuntime(spec);
+    cancelFades();
     stRef.current = s0; setSt(s0); setLatched(new Set()); clearedRef.current = false; setPending(null); setScriptTalk(null);
-  }, [spec]);
+  }, [spec, cancelFades]);
 
   return {
     st, setSt, stRef, nominal, actual, talking, ptt, setPtt, autoTalk, setAutoTalk, performing, setPerforming, setScriptTalk,
-    latched, objectives, allDone, action, setAction, toast, setToast, log, notify, apply, pending, setPending, cable, setCable,
+    latched, setLatched, cancelFades, objectives, allDone, action, setAction, toast, setToast, log, notify, apply, pending, setPending, cable, setCable,
     clickPort, disconnect, selected, setSelected, selCh, setSelCh, reset, show, load,
   };
 }
@@ -270,6 +282,11 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   const cur = useRef({ i: -1, speech: true, action: true }); // 지금 단계의 진행 상황
   const applied = useRef(new Set()); // 동작을 이미 적용한 단계 (같은 동작이 두 번 적용되지 않게)
   const snaps = useRef({}); // 단계를 시작하기 직전의 상태 (이전 단계로 되돌리기)
+  const idx = useRef(0); // 지금(또는 막 넘어가기로 한) 단계 번호 — 빠르게 두 번 눌러도 단계를 건너뛰지 않게 바로 바뀐다
+  const metaSnaps = useRef({}); // 같은 때의 판정 기록·연주 여부 (이전으로 가면 함께 되돌린다)
+  const [hold, setHoldState] = useState(false); // 실습실처럼 화면을 쓰는 동안 자동 넘김을 멈춘다
+  const holdRef = useRef(false);
+  const setHold = useCallback((h) => { holdRef.current = !!h; setHoldState(!!h); }, []);
   const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   const later = (fn, ms) => { timers.current.push(setTimeout(fn, ms)); };
   const hasOp = (step) => !!step?.op && step.op !== 'say';
@@ -277,13 +294,24 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
 
   const start = useCallback((steps, opts = {}) => {
     clear(); stopNarration();
-    applied.current = new Set(); snaps.current = {}; cur.current = { i: -1, speech: true, action: true };
+    applied.current = new Set(); snaps.current = {}; metaSnaps.current = {}; cur.current = { i: -1, speech: true, action: true }; idx.current = 0;
+    holdRef.current = false; setHoldState(false);
     setWaiting(null); setPraised(false); setNarration(null);
-    setScript({ steps, i: 0, playing: true, speed: opts.speed ?? 1, practice: !!opts.practice, auto: opts.auto ?? true, done: false, ready: false, restart: 0, onDone: opts.onDone, onStep: opts.onStep });
+    // 이어 보기: 앞 장면들의 동작을 조용히 한꺼번에 적용하고 그 장면부터
+    const from = Math.max(0, Math.min(steps.length - 1, opts.from ?? 0));
+    for (let k = 0; k < from; k += 1) {
+      const st0 = steps[k];
+      if (!hasOp(st0) || st0.op === 'wait') continue;
+      const op = st0.op === 'fade' ? (st0.ch ? { op: 'ch', ch: st0.ch, key: 'fader', value: st0.to, ...(st0.mixer ? { mixer: st0.mixer } : {}) } : { op: 'master', key: 'mainFader', value: st0.to, ...(st0.mixer ? { mixer: st0.mixer } : {}) }) : st0;
+      game.apply(op, { visual: false, quiet: true });
+      applied.current.add(k);
+    }
+    idx.current = from;
+    setScript({ steps, i: from, playing: true, speed: opts.speed ?? 1, practice: !!opts.practice, auto: opts.auto ?? true, done: false, ready: false, restart: 0, onDone: opts.onDone, onStep: opts.onStep });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // 읽던 대사 정리 (끝 타이머까지) — 일시정지·건너뛰기·멈춤 뒤에 옛 대사가 단계를 끝내지 않게
   const dropSpeech = () => { if (speech.current?.timer) clearTimeout(speech.current.timer); speech.current = null; };
-  const stop = useCallback(() => { clear(); dropSpeech(); cur.current = { i: -1 }; setScript(null); setNarration(null); setWaiting(null); setSpeaking(false); game.setScriptTalk(null); stopNarration(); }, [game]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stop = useCallback(() => { clear(); dropSpeech(); game.cancelFades?.(); cur.current = { i: -1 }; setScript(null); setNarration(null); setWaiting(null); setSpeaking(false); game.setScriptTalk(null); stopNarration(); }, [game]); // eslint-disable-line react-hooks/exhaustive-deps
   const pause = useCallback(() => { clear(); dropSpeech(); stopNarration(); setSpeaking(false); setScript((s) => (s ? { ...s, playing: false } : s)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const resume = useCallback(() => setScript((s) => (s ? { ...s, playing: true, restart: s.restart + 1 } : s)), []); // eslint-disable-line react-hooks/exhaustive-deps
   // 지금 읽는 대사: 속도를 바꾸면 읽던 곳부터 새 속도로 이어 읽는다
@@ -310,11 +338,23 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
         onEnd: endIfCurrent,
         onStart: () => { if (speech.current !== s1) return; s1.t0 = Date.now(); },
         onProgress: (f) => { if (speech.current === s1) { progress.current = f; s1.pos = Math.floor(f * text.length); s1.bound = true; } },
-        onError: () => { if (speech.current !== s1) return; s1.audio = false; setNarration((n) => (n && n.text === text ? { ...n, audio: false, t0: Date.now() } : n)); clearTimeout(s1.timer); s1.timer = setTimeout(endIfCurrent, ms); },
+        // 녹음을 못 틀면 같은 대사를 합성 음성으로 (그것도 안 되면 글자 속도대로)
+        onError: () => {
+          if (speech.current !== s1) return;
+          clearTimeout(s1.timer);
+          speakSynth(s1, part, ms, endIfCurrent);
+        },
       });
       s1.timer = setTimeout(endIfCurrent, ms * 2.2 + 4000); // 끝 신호가 안 올 때 대비
       return;
     }
+    speakSynth(s1, part, ms, endIfCurrent);
+  };
+  // 합성 음성(또는 소리 없이 글자 속도대로)으로 읽기
+  const speakSynth = (s1, part, ms, endIfCurrent) => {
+    const { text, from, who, speed } = s1;
+    s1.audio = false; s1.t0 = Date.now();
+    const t0 = s1.t0;
     setNarration((n) => (n && n.text === text ? { ...n, ms, offset: from, t0, pos: from, audio: false } : n));
     if (voiceRef.current && speechOk()) {
       narrate(part, {
@@ -378,15 +418,25 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const s = scriptRef.current;
     if (!s) return;
     clear(); dropSpeech(); stopNarration(); setWaiting(null); setPraised(false); setSpeaking(false); setQuiz(null);
+    const from = idx.current;
     if (delta > 0) {
-      if (s.i < s.steps.length) ghostDo(s.i, false);
-      setScript((x) => (x ? { ...x, i: Math.min(x.steps.length, x.i + 1), playing: true, ready: false, restart: x.restart + 1 } : x));
+      // 건너뛴 단계의 동작은 적용하고 한 칸만 (두 번 눌러도 동작 없이 두 칸 넘어가지 않게, 번호는 절댓값으로)
+      if (from < s.steps.length) ghostDo(from, false);
+      const to = Math.min(s.steps.length, from + 1);
+      idx.current = to;
+      setScript((x) => (x ? { ...x, i: to, playing: true, ready: false, restart: x.restart + 1 } : x));
       return;
     }
-    const target = Math.max(0, s.i - 1);
+    const target = Math.max(0, from - 1);
+    idx.current = target;
+    game.cancelFades?.();
     if (snaps.current[target]) { const s1 = clone(snaps.current[target]); game.stRef.current = s1; game.setSt(s1); }
+    const meta = metaSnaps.current[target];
+    if (meta) { game.setLatched?.(new Set(meta.latched)); game.setPerforming(meta.performing); }
     [...applied.current].forEach((k) => { if (k >= target) applied.current.delete(k); });
-    game.setScriptTalk(null);
+    // 그 단계 앞까지의 마지막 "말하기" 지시를 다시 적용 (이전을 눌러도 강연자가 계속 말한다)
+    const talkOp = s.steps.slice(0, target).reverse().find((x) => x.op === 'talk');
+    game.setScriptTalk(talkOp?.on ? true : null);
     setScript((x) => (x ? { ...x, i: target, playing: true, ready: false, done: false, restart: x.restart + 1 } : x));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const next = useCallback(() => jump(1), [jump]);
@@ -413,13 +463,14 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const sc = scriptRef.current;
     if (!sc || !sc.playing) return undefined;
     const { steps, i, speed } = sc;
+    idx.current = i;
     if (i >= steps.length) {
       setNarration(null); setWaiting(null);
       if (!sc.done) { setScript((x) => ({ ...x, done: true, playing: false })); sc.onDone?.(); }
       return undefined;
     }
     const step = steps[i];
-    if (!snaps.current[i]) snaps.current[i] = clone(game.stRef.current);
+    if (!snaps.current[i]) { snaps.current[i] = clone(game.stRef.current); metaSnaps.current[i] = { latched: [...game.latched], performing: game.performing }; }
     sc.onStep?.(step, i);
     const text = step.say ?? step.quiz?.q ?? null;
     const who = step.quiz ? 'senior' : step.who ?? 'senior';
@@ -442,6 +493,8 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     if (!c.action) {
       if (sc.practice && step.practice) setWaiting({ ...step, index: i });
       else if (step.op === 'wait') later(() => { if (cur.current === c) { applied.current.add(i); c.action = true; bump(); } }, (step.ms ?? 1000) / (scriptRef.current?.speed ?? speed));
+      // 퀴즈: 플레이어가 고를 때까지 기다린다 (자동 넘김일 때만 speechEnd가 잠시 뒤 답을 보여 준다)
+      else if (step.quiz) setWaiting(null);
       else {
         setWaiting(null);
         // 설명을 어느 정도 들은 뒤(약 40%) 손이 움직이기 시작
@@ -468,11 +521,12 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   // 자동 진행이면 잠깐 쉬고 다음 단계로
   useEffect(() => {
     // 대사가 없는 연결 단계(말하기 시작·잠깐 기다리기)는 수동 모드에서도 저절로 넘어간다
-    if (!script?.ready || !script.playing || (!script.auto && script.steps[script.i]?.say)) return undefined;
+    // 퀴즈도 대사처럼 "다음"을 기다린다. 실습실이 열려 있는 동안은 자동으로 넘기지 않는다
+    if (!script?.ready || !script.playing || hold || (!script.auto && (script.steps[script.i]?.say || script.steps[script.i]?.quiz))) return undefined;
     const i = script.i;
-    const t = setTimeout(() => { if (scriptRef.current?.i === i && scriptRef.current.ready) setScript((x) => ({ ...x, i: i + 1, ready: false })); }, (praised ? 1100 : 700) / script.speed);
+    const t = setTimeout(() => { if (scriptRef.current?.i === i && scriptRef.current.ready && idx.current === i) { idx.current = i + 1; setScript((x) => ({ ...x, i: i + 1, ready: false })); } }, (praised ? 1100 : 700) / script.speed);
     return () => clearTimeout(t);
-  }, [script?.ready, script?.auto, script?.i, script?.playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [script?.ready, script?.auto, script?.i, script?.playing, hold]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 짧은 한마디 (칭찬·아쉬움) — 단계 진행을 막지 않는다
   const quip = (list) => {
@@ -488,6 +542,8 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const step = s?.steps[c.i];
     if (!step?.quiz || c.action) return;
     const q = step.quiz;
+    // 이미 고른 오답을 또 누른 건 한 번으로 친다
+    if (k !== q.answer && quizRef.current?.wrong?.includes(k)) return;
     if (k !== q.answer) {
       getAudio().error();
       setQuiz((x) => (x && x.i === c.i ? { ...x, wrong: [...new Set([...x.wrong, k])] } : x));
@@ -526,12 +582,15 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   }, [game.st, game.talking, game.latched, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { clear(); stopNarration(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return { script, narration, waiting, speaking, praised, quiz, pick, progress, start, stop, pause, resume, setSpeed, setPractice, setAuto, jump, next, showMe };
+  return { script, narration, waiting, speaking, praised, quiz, pick, progress, start, stop, pause, resume, setSpeed, setPractice, setAuto, jump, next, showMe, hold, setHold };
 }
 
 // 연습 단계: 플레이어가 그 조작을 했는지 (수치는 근처면 인정)
 export function opSatisfied(st, op, game, before) {
-  const near = (a, b, tol) => (typeof b === 'number' ? Math.abs((a ?? -999) - b) <= tol : a === b);
+  // until: 'noFeedback' — 값만 맞추는 게 아니라 하울링이 실제로 멎어야 인정 (계산은 말하는 중 기준)
+  if (op.until === 'noFeedback' && game?.nominal && (game.nominal.feedback || game.nominal.ringing)) return false;
+  // tol: 단계마다 허용 오차를 정할 수 있다 (기본은 아래 손잡이별 값)
+  const near = (a, b, tol) => (typeof b === 'number' ? Math.abs((a ?? -999) - b) <= (op.tol ?? tol) : a === b);
   switch (op.op) {
     case 'place': return !!st.devices[op.device]?.placed;
     case 'move': return st.devices[op.device]?.slot === op.slot;

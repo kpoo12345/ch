@@ -12,7 +12,7 @@ export default {
     { id: 'pa', type: 'speaker', slot: 'pa_main', placed: false, name: '메인 스피커' },
   ],
   connections: [], inventory: { xlr: 2 },
-  state: { channels: { 1: { gain: 0, fader: 0 } }, master: { mainFader: 0 } },
+  state: { channels: { 1: { gain: 0, fader: 0 } }, master: { mainFader: 0 }, devices: { pa: { power: false } } },
   objectives: [], talk: 'ptt', performing: false,
   steps: [
     // 인사와 오늘 할 일
@@ -28,6 +28,7 @@ export default {
     // 선 잇기
     { say: '마이크 선은 XLR이에요. 소리는 늘 OUT에서 나와 IN으로 들어가니까, 마이크 OUT에서 믹서 1번 MIC 단자로요.', op: 'connect', from: 'mic.out', to: 'mixer.in1', cable: 'xlr', practice: 'XLR을 고르고 마이크 OUT, 믹서 CH1 MIC 단자를 차례로 눌러 보세요.' },
     { say: '나가는 길도 마찬가지예요. 믹서 STEREO OUT L에서 스피커 INPUT으로 이어 볼까요?', op: 'connect', from: 'mixer.main', to: 'pa.in', cable: 'xlr', practice: 'XLR로 믹서 STEREO OUT L과 스피커 INPUT을 이어 보세요.' },
+    { say: '선을 다 꽂았으니 이제 스피커 전원을 켜요. 켜 놓고 선을 꽂으면 퍽 하고 스피커가 상할 수 있어서, 전원은 늘 맨 마지막이에요.', focus: 'pa', op: 'dev', device: 'pa', key: 'power', value: true, practice: '스피커를 클릭하고 전원을 ON으로 켜 보세요.' },
 
     // 첫 소리… 가 안 난다
     { say: '강연자님, 마이크 테스트 한번 부탁드려요!', focus: 'mic', op: 'talk', on: true },

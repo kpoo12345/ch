@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Hand, ChevronLeft, ChevronRight, Pause, Play, X, Headphones, Wand2, CheckCircle2, FastForward, Sprout, FlaskConical, XCircle } from 'lucide-react';
+import { Hand, ChevronLeft, ChevronRight, Pause, Play, X, Headphones, Wand2, CheckCircle2, FastForward, Sprout, FlaskConical, XCircle, Image as ImageIcon } from 'lucide-react';
 import { Seg, Toggle } from './controls.jsx';
 import { saveProgress } from '../ui.jsx';
 import { SPEAKERS } from '../data/tutorial.js';
@@ -15,9 +15,12 @@ const SPEEDS = [1, 1.5, 2];
 
 const LAB_NAME = { fade: '페이드 실습실', eq: 'EQ 실습실', fx: '울림(리버브) 실습실' };
 
-export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab }) {
+export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab, inline = false }) {
   const { script, narration, waiting, speaking, praised, quiz } = player;
   const [shown, setShown] = useState(0);
+  // 설명 카드 접기: 직접 해 보는 동안은 저절로 접어 대상이 가려지지 않게, X로 접은 카드는 그 장면 동안 접힌 채로
+  const [cardHidden, setCardHidden] = useState(null); // 접은 장면의 seq
+  const cardOpen = !!narration?.show && cardHidden !== narration.seq && !waiting;
   const seqRef = useRef(null);
   const text = narration?.text ?? '';
   // 글자 나타내기: 지금 읽는 부분(offset부터)을 음성 길이에 맞춰. 음성이 단어 위치를 알려 주면(pos) 그만큼은 바로 보인다.
@@ -58,9 +61,12 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
     player.next();
   };
   // 키보드: Enter/→ 다음, ← 이전
+  //  버튼·노브·다른 창(의견 보내기 등)에 초점이 있으면 그쪽이 키를 쓰게 둔다
   useEffect(() => {
     const onKey = (e) => {
-      if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      if (e.defaultPrevented || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      if (e.target.closest?.('button, a, [role=slider], [role=radio], [role=tab], [role=dialog]')) return;
+      if (document.querySelector('[role=dialog][aria-modal=true]')) return;
       if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); advance(); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); player.jump(-1); }
       if (quizOn && /^[1-4]$/.test(e.key)) { e.preventDefault(); player.pick(Number(e.key) - 1); }
@@ -76,13 +82,27 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
   const sp = tutorial ? SPEAKERS[who] : { name: speaker };
   const junior = who === 'junior';
   return (
-    <div className="absolute left-1/2 -translate-x-1/2 bottom-2 w-[min(97%,720px)] z-20">
+    // 3D 화면 안에서만 (카드가 커도 위쪽 머리말 단추를 덮지 않는다). 좁은 화면에선 3D 아래 줄에 (inline)
+    <div className={inline ? 'relative z-20 min-h-0 shrink px-1 pt-1 flex flex-col' : 'absolute left-1/2 -translate-x-1/2 top-2 bottom-2 w-[min(97%,720px)] z-20 flex flex-col justify-end pointer-events-none'} data-bm-dialog>
       {/* 설명 카드 (사진·3D 모형·그림) */}
-      {narration?.show && <div key={narration.seq} className="mb-1.5 flex bm-pop"><VisualCard show={narration.show} /></div>}
-      <div className={`rounded-2xl border ${junior ? 'border-emerald-400/50' : 'border-violet-400/50'} bg-slate-950/95 backdrop-blur shadow-2xl overflow-hidden`}>
+      {cardOpen && (
+        <div key={narration.seq} className={`mb-1.5 flex min-h-0 bm-pop pointer-events-auto ${inline ? 'max-h-[24vh] justify-center' : ''}`}>
+          <div className="relative min-h-0 max-w-full overflow-y-auto rounded-xl">
+            <VisualCard show={narration.show} />
+            <button type="button" onClick={() => setCardHidden(narration.seq)} className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white/90 hover:bg-black" aria-label="설명 카드 접기" title="카드 접기"><X size={14} /></button>
+          </div>
+        </div>
+      )}
+      {narration?.show && !cardOpen && (
+        <button type="button" onClick={() => setCardHidden(null)} disabled={!!waiting} className="mb-1.5 self-start pointer-events-auto inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-950/90 px-2.5 py-1 text-[11px] font-bold text-slate-200 disabled:opacity-50" title={waiting ? '직접 해 보는 동안은 카드를 접어 둬요' : '설명 카드 다시 보기'}>
+          <ImageIcon size={13} /> 카드 보기
+        </button>
+      )}
+      <div className={`pointer-events-auto ${inline ? 'min-h-0 flex flex-col' : 'shrink-0'} rounded-2xl border ${junior ? 'border-emerald-400/50' : 'border-violet-400/50'} bg-slate-950/95 backdrop-blur shadow-2xl overflow-hidden`}>
         {/* 진행 막대 */}
         <div className="h-1 bg-slate-800"><div className="h-full bg-violet-400 transition-all" style={{ width: `${((i + (ready ? 1 : 0.4)) / n) * 100}%` }} /></div>
-        <div className="flex gap-3 px-3 pt-2.5 pb-2 cursor-pointer select-none" onClick={advance} role="button" tabIndex={-1} aria-label="다음 대사">
+        {/* 좁은 화면에선 글 부분만 스크롤 — 아래 이전·다음 줄은 늘 보이게 */}
+        <div className={`flex gap-3 px-3 pt-2.5 pb-2 cursor-pointer select-none ${inline ? 'min-h-0 overflow-y-auto' : ''}`} onClick={advance} role="button" tabIndex={-1} aria-label="다음 대사">
           <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5">
             <div className={`h-11 w-11 rounded-full bg-gradient-to-br ${junior ? 'from-emerald-400 to-amber-400' : 'from-violet-500 to-sky-500'} flex items-center justify-center ring-2 ${speaking ? (junior ? 'ring-emerald-200 animate-pulse' : 'ring-violet-300 animate-pulse') : 'ring-slate-700'}`} title={sp.role}>
               {junior ? <Sprout size={22} className="text-white" /> : <Headphones size={22} className="text-white" />}
@@ -132,7 +152,7 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 whitespace-nowrap border-t border-slate-800 px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="shrink-0 flex items-center gap-1.5 whitespace-nowrap border-t border-slate-800 px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
           <button type="button" onClick={() => player.jump(-1)} disabled={i === 0} className="flex items-center gap-0.5 rounded-md px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-30" aria-label="이전 장면"><ChevronLeft size={15} /><span className="hidden sm:inline">이전</span></button>
           {script.playing
             ? <button type="button" onClick={player.pause} className="p-1 rounded hover:bg-slate-800 text-slate-300" aria-label="일시정지"><Pause size={15} /></button>

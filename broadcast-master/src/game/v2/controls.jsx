@@ -6,15 +6,15 @@ import { clamp } from '../engine.js';
  * 노브·페이더는 드래그 중에는 onChange, 손을 뗄 때 onCommit(이전값, 새값)
  * ===================================================================== */
 
-export function Knob({ label, value, min = 0, max = 100, step = 1, onChange, onCommit, color = '#38bdf8', size = 40, display, def, disabled, title }) {
+export function Knob({ label, value, min = 0, max = 100, step = 1, onChange, onCommit, color = '#38bdf8', size = 40, display, def, disabled, title, ctl, ariaLabel }) {
   const start = useRef(null);
   const frac = (value - min) / (max - min);
   const ang = -135 + frac * 270;
   const set = (v) => onChange?.(clamp(Math.round(v / step) * step, min, max));
   return (
-    <div className={`flex flex-col items-center select-none ${disabled ? 'opacity-40' : ''}`} title={title}>
+    <div className={`flex flex-col items-center select-none rounded-md ${disabled ? 'opacity-40' : ''}`} title={title} data-ctl={ctl}>
       <div
-        role="slider" tabIndex={disabled ? -1 : 0} aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value}
+        role="slider" tabIndex={disabled ? -1 : 0} aria-label={ariaLabel ?? label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value}
         className="relative touch-none cursor-ns-resize rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         style={{ width: size, height: size }}
         onPointerDown={(e) => { if (disabled) return; e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); start.current = { y: e.clientY, x: e.clientX, v: value }; }}
@@ -51,7 +51,7 @@ function arc(cx, cy, r, a0, a1) {
   return `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
 }
 
-export function Toggle({ on, onClick, children, color = 'red', title, small, disabled }) {
+export function Toggle({ on, onClick, children, color = 'red', title, small, disabled, ctl }) {
   const onCls = {
     red: 'bg-red-600 border-red-400 text-white shadow-[0_0_10px_rgba(239,68,68,.55)]',
     amber: 'bg-amber-500 border-amber-300 text-slate-900 shadow-[0_0_10px_rgba(245,158,11,.55)]',
@@ -60,7 +60,7 @@ export function Toggle({ on, onClick, children, color = 'red', title, small, dis
     cyan: 'bg-cyan-500 border-cyan-300 text-slate-900 shadow-[0_0_10px_rgba(34,211,238,.5)]',
   }[color];
   return (
-    <button type="button" title={title} onClick={onClick} disabled={disabled} aria-pressed={!!on}
+    <button type="button" title={title} onClick={onClick} disabled={disabled} aria-pressed={!!on} data-ctl={ctl}
       className={`${small ? 'px-1.5 py-0.5 text-[9px]' : 'px-2.5 py-1 text-xs'} rounded border font-bold tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-40 ${on ? onCls : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}>
       {children}
     </button>

@@ -34,6 +34,8 @@ class AudioEngine {
     if (!this.ctx) {
       const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
       if (!AC) return false;
+      // 아이폰: 무음 스위치를 켜 둬도 게임 소리가 나게 (사파리 16.4+, 없으면 그냥 넘어간다)
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* 지원 안 함 */ }
       const ctx = new AC();
       this.ctx = ctx;
       this.master = ctx.createGain(); this.master.gain.value = 0.9; this.master.connect(ctx.destination);

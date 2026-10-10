@@ -10,14 +10,15 @@ const TITLE = { fade: '페이드 실습실', eq: 'EQ 실습실', fx: '울림(리
 
 export default function LabOverlay({ lab, onClose }) {
   return (
-    <div className="absolute inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/70 p-2 sm:p-4" onClick={onClose}>
-      <div className="w-[min(100%,820px)] rounded-2xl border border-cyan-400/50 bg-[#0f1624] shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={TITLE[lab.lab]}>
+    // 화면 전체를 쓰는 창 (콘솔이 열려 3D 칸이 좁아도 손잡이가 다 보이게)
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-2 sm:p-4" onClick={onClose}>
+      <div className="w-[min(100%,820px)] rounded-2xl border border-cyan-400/50 bg-[#0f1624] shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={TITLE[lab.lab]}>
         <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
           <FlaskConical size={16} className="text-cyan-300" />
-          <b className="text-sm text-cyan-100">{TITLE[lab.lab] ?? '실습실'}</b>
-          {lab.goal && <span className="min-w-0 truncate text-xs text-slate-300">· {lab.goal}</span>}
-          <button type="button" onClick={onClose} className="ml-auto flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-cyan-500"><X size={14} /> 다 해 봤어요</button>
+          <b className="whitespace-nowrap text-sm text-cyan-100">{TITLE[lab.lab] ?? '실습실'}</b>
+          <button type="button" onClick={onClose} className="ml-auto shrink-0 whitespace-nowrap flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-cyan-500"><X size={14} /> 다 해 봤어요</button>
         </div>
+        {lab.goal && <p className="border-b border-slate-800 px-3 py-1.5 text-xs text-slate-200">{lab.goal}</p>}
         <Suspense fallback={<div className="p-6 text-sm text-slate-400">불러오는 중…</div>}>
           {lab.lab === 'fade' ? <FadeLab /> : <AudioLab focus={lab.lab === 'fx' ? 'fx' : 'eq'} />}
         </Suspense>

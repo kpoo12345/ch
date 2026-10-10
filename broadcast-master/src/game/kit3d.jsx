@@ -58,17 +58,35 @@ export function NoWebGL({ hint }) {
     </div>
   );
 }
-export function CanvasShell({ children, fallback, ...canvasProps }) {
+// 휴대폰·저사양 기기 — 그림자·해상도·조명 수를 줄인다 (아이패드는 맥처럼 보여서 터치로 가린다)
+export const LOW_END = typeof navigator !== 'undefined' && (
+  /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+  || (navigator.hardwareConcurrency ?? 8) <= 4 || (navigator.deviceMemory ?? 8) <= 4);
+
+export function CanvasShell({ children, fallback, onCreated, ...canvasProps }) {
   const portal = useMemo(() => ({ current: null }), []);
+  // 앱을 바꿨다 오면 휴대폰이 3D(WebGL)를 거둬 가기도 한다 → 검은 화면 대신 다시 불러오기 단추
+  const [lost, setLost] = useState(false);
+  const [gen, setGen] = useState(0);
   const fb = fallback === undefined ? <NoWebGL /> : fallback;
   if (!hasWebGL()) return fb;
+  const created = (state) => {
+    const el = state.gl.domElement;
+    el.addEventListener('webglcontextlost', (e) => { e.preventDefault(); setLost(true); }, { once: true });
+    onCreated?.(state);
+  };
   return (
     // isolate: 3D 위 이름표들이 캔버스 안에서만 쌓여, 대화 상자 같은 화면 위 패널을 가리지 않게
     <div className="relative w-full h-full isolate">
       <PortalCtx.Provider value={portal}>
-        <GLBoundary fallback={fb}><Canvas {...canvasProps}>{children}</Canvas></GLBoundary>
+        <GLBoundary fallback={fb}><Canvas key={gen} {...canvasProps} onCreated={created}>{children}</Canvas></GLBoundary>
       </PortalCtx.Provider>
       <div ref={(el) => { if (el) portal.current = el; }} className="absolute inset-0 pointer-events-none overflow-hidden" />
+      {lost && (
+        <div className="absolute inset-0 z-10 grid place-items-center bg-slate-950/85">
+          <button type="button" onClick={() => { setLost(false); setGen((g) => g + 1); }} className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-bold text-white">3D 화면 다시 불러오기</button>
+        </div>
+      )}
     </div>
   );
 }

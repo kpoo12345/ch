@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, PlayCircle, Hand, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, PlayCircle, Hand, CheckCircle2, RotateCcw } from 'lucide-react';
 import { TUTORIAL } from '../data/tutorial.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
 import { getAudio } from '../audio.js';
@@ -15,6 +15,11 @@ export default function TutorialMode({ onExit, onStory, startPart = null }) {
   const [doneOverlay, setDoneOverlay] = useState(false);
   const [runKey, setRunKey] = useState(0);
   const done = loadProgress('bm2-tutorial', []);
+  // 파트마다 마지막으로 본 장면 (휴대폰에서 탭이 새로 고쳐져도 이어 볼 수 있게)
+  const savedPos = (id) => loadProgress('bm2-tut-pos', {})[id] ?? 0;
+  const [from, setFrom] = useState(() => (part != null ? savedPos(TUTORIAL[part]?.id) : 0));
+  const openPart = (i, resume) => { setFrom(resume ? savedPos(TUTORIAL[i].id) : 0); setPart(i); setRunKey((k) => k + 1); };
+  const savePos = (id, i) => { const all = loadProgress('bm2-tut-pos', {}); if (all[id] !== i) { all[id] = i; saveProgress('bm2-tut-pos', all); } };
   if (part != null) {
     const p = TUTORIAL[part];
     const nextIdx = TUTORIAL.findIndex((x, k) => k > part && x.steps.length >= 3);
@@ -22,14 +27,16 @@ export default function TutorialMode({ onExit, onStory, startPart = null }) {
     return (
       <>
         <GameScreen key={`${p.id}-${runKey}`} spec={p} mode="tutorial" heading={`튜토리얼 ${part + 1}/${TUTORIAL.length}`}
-          tutorial={{ steps: p.steps, practice, auto, key: `${p.id}-${runKey}`, onDone: () => { const d = new Set(loadProgress('bm2-tutorial', [])); d.add(p.id); saveProgress('bm2-tutorial', [...d]); setDoneOverlay(true); } }}
+          tutorial={{ steps: p.steps, practice, auto, key: `${p.id}-${runKey}`, from,
+            onStep: (_step, i) => savePos(p.id, i),
+            onDone: () => { const d = new Set(loadProgress('bm2-tutorial', [])); d.add(p.id); saveProgress('bm2-tutorial', [...d]); savePos(p.id, 0); setDoneOverlay(true); } }}
           onExit={() => { setPart(null); setDoneOverlay(false); }} />
         {doneOverlay && (
           <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-3">
             <div className="rounded-2xl border border-green-500/50 bg-slate-900/95 p-4 shadow-2xl flex flex-wrap items-center gap-2">
               <CheckCircle2 className="text-green-400" /> <b className="text-green-200">{p.title} 완료!</b>
-              {next && <button type="button" onClick={() => { setDoneOverlay(false); setPart(nextIdx); setRunKey((k) => k + 1); }} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white font-bold">다음 파트 →</button>}
-              <button type="button" onClick={() => { setDoneOverlay(false); setRunKey((k) => k + 1); }} className="px-3 py-1.5 rounded-lg bg-slate-700 font-bold text-sm">다시 보기</button>
+              {next && <button type="button" onClick={() => { setDoneOverlay(false); openPart(nextIdx, false); }} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white font-bold">다음 파트 →</button>}
+              <button type="button" onClick={() => { setDoneOverlay(false); openPart(part, false); }} className="px-3 py-1.5 rounded-lg bg-slate-700 font-bold text-sm">다시 보기</button>
               {!next && <button type="button" onClick={onStory} className="px-3 py-1.5 rounded-lg bg-violet-600 text-white font-bold">스토리 모드 시작 →</button>}
               <button type="button" onClick={() => { setDoneOverlay(false); setPart(null); }} className="px-3 py-1.5 rounded-lg bg-slate-800 text-sm">목록</button>
             </div>
@@ -59,16 +66,22 @@ export default function TutorialMode({ onExit, onStory, startPart = null }) {
         <div className="grid gap-3 sm:grid-cols-3">
           {TUTORIAL.map((p, i) => {
             const soon = p.steps.length < 3; // 아직 쓰는 중인 파트
+            const at = savedPos(p.id);
             return (
-              <button key={p.id} type="button" disabled={soon} onClick={() => { setPart(i); setRunKey((k) => k + 1); }}
-                className={`text-left rounded-xl border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 p-4 space-y-2 transition ${soon ? 'opacity-50 cursor-not-allowed' : 'hover:border-sky-400 hover:-translate-y-0.5'}`}>
+              <div key={p.id} className="relative">
+              <button type="button" disabled={soon} onClick={() => openPart(i, true)}
+                className={`w-full h-full text-left rounded-xl border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 p-4 space-y-2 transition ${soon ? 'opacity-50 cursor-not-allowed' : 'hover:border-sky-400 hover:-translate-y-0.5'}`}>
                 <div className="flex items-center justify-between"><span className="text-xs font-bold text-sky-300">PART {i + 1}</span>{done.includes(p.id) && <CheckCircle2 size={16} className="text-green-400" />}</div>
                 <div className="font-black leading-snug">{p.title.replace(/^파트 \d · /, '')}</div>
                 <p className="text-xs text-slate-400 leading-relaxed">{p.summary}</p>
                 {soon
                   ? <div className="text-sm font-bold text-slate-400">준비 중</div>
-                  : <div className="flex items-center gap-1 text-sm font-bold text-sky-300"><PlayCircle size={16} /> 시작 · {p.steps.length}단계</div>}
+                  : <div className="flex items-center gap-1 text-sm font-bold text-sky-300"><PlayCircle size={16} /> {at > 0 ? `이어 보기 · 장면 ${at + 1}/${p.steps.length}` : `시작 · ${p.steps.length}단계`}</div>}
               </button>
+              {at > 0 && !soon && (
+                <button type="button" onClick={() => openPart(i, false)} className="absolute right-2 bottom-2 flex items-center gap-1 rounded-md bg-slate-800 px-2 py-1 text-[11px] font-bold text-slate-300 hover:bg-slate-700" title="처음 장면부터 다시 봅니다"><RotateCcw size={12} /> 처음부터</button>
+              )}
+              </div>
             );
           })}
         </div>

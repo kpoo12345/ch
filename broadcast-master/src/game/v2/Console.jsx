@@ -49,7 +49,7 @@ export default function Console({ game, compact }) {
   const phantomOn = !!M.phantom || (!digital && S.channels.some((c) => c.phantom));
   const anyPfl = !digital && S.channels.some((c) => c.pfl);
   const K = (ch, key, label, props) => (
-    <Knob label={label} value={S.channels[ch - 1][key] ?? props.def} size={props.size ?? 28} {...props}
+    <Knob label={label} value={S.channels[ch - 1][key] ?? props.def} size={props.size ?? 28} ctl={`ch${ch}-${key}`} ariaLabel={`CH${ch} ${label}`} {...props}
       onChange={(v) => set(ch, key, v)} onCommit={commit(ch, key)} />
   );
   return (
@@ -72,7 +72,7 @@ export default function Console({ game, compact }) {
         const mono = digital || i < MONO_CHANNELS;
         const jacks = [...new Set((nMix.channels[i]?.comps ?? []).map((x) => x.jack).filter(Boolean))];
         return (
-          <div key={i} onPointerDown={() => setSelCh(i)}
+          <div key={i} onPointerDown={() => setSelCh(i)} data-ctl={`ch${c}`}
             className={`shrink-0 ${mono ? 'w-[74px]' : 'w-[70px]'} rounded-md border ${sel ? 'border-sky-400 bg-slate-800/90' : 'border-slate-700 bg-slate-900/80'} p-1 flex flex-col items-center gap-1`}>
             <div className="w-full rounded px-1 py-0.5 text-center" style={{ background: digital ? CH_COLORS[i] : '#efe6cf' }}>
               <div className="text-[9px] font-black text-slate-900 leading-none">CH {chLabel(mixer.type, i)}{!mono && ' ST'}</div>
@@ -85,7 +85,7 @@ export default function Console({ game, compact }) {
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={`local${k}`}>IN: LOCAL {k}</option>)}
                   <option value="off">IN: OFF</option>
                 </select>
-                <Toggle small on={ch.phantom} color="amber" onClick={() => tog(c, 'phantom')} title="+48V 팬텀 전원 (콘덴서 마이크용) — 디지털 믹서는 입력마다 켭니다">+48V</Toggle>
+                <Toggle small ctl={`ch${c}-phantom`} on={ch.phantom} color="amber" onClick={() => tog(c, 'phantom')} title="+48V 팬텀 전원 (콘덴서 마이크용) — 디지털 믹서는 입력마다 켭니다">+48V</Toggle>
               </>
             ) : (
               <div className="flex gap-0.5 h-[15px]" title="지금 이 채널에 꽂힌 단자: MIC = XLR(마이크 레벨), LINE = TRS(라인 레벨, 26dB 둔감)">
@@ -93,15 +93,15 @@ export default function Console({ game, compact }) {
                   : <span className="text-[8px] text-slate-500 leading-[15px]">{mono ? '단자 비어 있음' : 'L/R 비어 있음'}</span>}
               </div>
             )}
-            <Knob label="GAIN" value={ch.gain} min={0} max={60} color="#ef4444" size={36} display={gainTxt(ch.gain)} def={30}
+            <Knob label="GAIN" value={ch.gain} min={0} max={60} color="#ef4444" size={36} display={gainTxt(ch.gain)} def={30} ctl={`ch${c}-gain`} ariaLabel={`CH${c} GAIN`}
               onChange={(v) => set(c, 'gain', v)} onCommit={commit(c, 'gain')} title="입력 증폭 — 말하면서 아래 미터가 흰 칸(-20~-6dB)에 오게" />
             <div className="w-full"><Meter level={lv} target={[-20, -6]} thin /></div>
             {digital ? (
-              <Toggle small on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="LOW CUT: 아래 FREQ보다 낮은 저음 차단 (웅웅거림·진동·숨소리)">LOW CUT</Toggle>
+              <Toggle small ctl={`ch${c}-lowCut`} on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="LOW CUT: 아래 FREQ보다 낮은 저음 차단 (웅웅거림·진동·숨소리)">LOW CUT</Toggle>
             ) : mono && (
               <div className="flex gap-0.5">
-                <Toggle small on={ch.pad} color="amber" onClick={() => tog(c, 'pad')} title="26dB PAD: MIC 단자로 들어오는 너무 큰 신호를 26dB 줄입니다">PAD</Toggle>
-                <Toggle small on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="HPF(LOW CUT): 아래 FREQ보다 낮은 저음 차단 (웅웅거림·진동·숨소리)">HPF</Toggle>
+                <Toggle small ctl={`ch${c}-pad`} on={ch.pad} color="amber" onClick={() => tog(c, 'pad')} title="26dB PAD: MIC 단자로 들어오는 너무 큰 신호를 26dB 줄입니다">PAD</Toggle>
+                <Toggle small ctl={`ch${c}-lowCut`} on={ch.lowCut} color="cyan" onClick={() => tog(c, 'lowCut')} title="HPF(LOW CUT): 아래 FREQ보다 낮은 저음 차단 (웅웅거림·진동·숨소리)">HPF</Toggle>
               </div>
             )}
             {/* LOW CUT 주파수: 숨소리 "퍽"이 사라질 때까지 조금씩 올리고, 목소리가 얇아지기 전에 멈춘다 */}
@@ -112,8 +112,8 @@ export default function Console({ game, compact }) {
                 {K(c, 'eqHigh', 'HIGH', { min: -15, max: 15, color: '#60a5fa', size: 30, display: eqTxt(ch.eqHigh), def: 0 })}
                 {K(c, 'eqMid', 'MID', { min: -15, max: 15, color: '#34d399', size: 30, display: eqTxt(ch.eqMid), def: 0 })}
                 {!digital && mono && (
-                  <Knob label="FREQ" value={FREQS.indexOf(ch.eqFreq ?? 1000) < 0 ? 3 : FREQS.indexOf(ch.eqFreq ?? 1000)} min={0} max={FREQS.length - 1} size={24} color="#86efac"
-                    display={freqTxt(ch.eqFreq ?? 1000)} def={3} title="MID가 다룰 주파수. 하울링·먹먹함은 보통 500Hz~4kHz"
+                  <Knob label="FREQ" ctl={`ch${c}-eqFreq`} ariaLabel={`CH${c} FREQ`} value={FREQS.indexOf(ch.eqFreq ?? 1000) < 0 ? 3 : FREQS.indexOf(ch.eqFreq ?? 1000)} min={0} max={FREQS.length - 1} size={24} color="#86efac"
+                    display={freqTxt(ch.eqFreq ?? 1000)} def={3} title="MID가 다룰 주파수. 먹먹함·웅웅거림은 200~500Hz, 코맹맹이는 1kHz 근처, 하울링은 보통 500Hz~4kHz"
                     onChange={(v) => set(c, 'eqFreq', FREQS[v])} onCommit={(p, v) => { if (p !== v) show({ op: 'ch', ch: c, key: 'eqFreq', value: FREQS[v], ...mx }, FREQS[p]); }} />
                 )}
                 {K(c, 'eqLow', 'LOW', { min: -15, max: 15, color: '#fbbf24', size: 30, display: eqTxt(ch.eqLow), def: 0 })}
@@ -128,16 +128,16 @@ export default function Console({ game, compact }) {
               </>
             )}
             {digital ? (
-              <Toggle small on={ch.mute} color="red" onClick={() => tog(c, 'mute')}>MUTE</Toggle>
+              <Toggle small ctl={`ch${c}-mute`} on={ch.mute} color="red" onClick={() => tog(c, 'mute')}>MUTE</Toggle>
             ) : (
               <div className="flex gap-0.5 items-center">
-                <Toggle small on={!ch.mute} color="amber" onClick={() => tog(c, 'mute')} title="ON: 불이 켜져 있어야 채널 소리가 나갑니다 (끄면 뮤트)">ON</Toggle>
+                <Toggle small ctl={`ch${c}-mute`} on={!ch.mute} color="amber" onClick={() => tog(c, 'mute')} title="ON: 불이 켜져 있어야 채널 소리가 나갑니다 (끄면 뮤트)">ON</Toggle>
                 <span className={`h-2 w-2 rounded-full ${lv != null && lv > -3 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,.9)]' : 'bg-red-950'}`} title="PEAK: 찢어지기 직전이면 켜집니다" />
-                <Toggle small on={!!ch.pfl} color="amber" onClick={() => tog(c, 'pfl')} title="PFL: 이 채널만 헤드폰으로 미리 듣기 (페이더 앞)">PFL</Toggle>
+                <Toggle small ctl={`ch${c}-pfl`} on={!!ch.pfl} color="amber" onClick={() => tog(c, 'pfl')} title="PFL: 이 채널만 헤드폰으로 미리 듣기 (페이더 앞)">PFL</Toggle>
               </div>
             )}
             <div className="flex items-end gap-0.5">
-              <VFader label="" value={ch.fader} height={compact ? 96 : 120} display={fmtDb(faderDb(ch.fader)).replace(' dB', '')}
+              <VFader label="" ctl={`ch${c}-fader`} ariaLabel={`CH${c} 페이더`} value={ch.fader} height={compact ? 96 : 120} display={fmtDb(faderDb(ch.fader)).replace(' dB', '')}
                 onChange={(v) => set(c, 'fader', v)} onCommit={commit(c, 'fader')} />
               <VMeter level={lv == null || ch.mute ? null : lv + faderDb(ch.fader)} height={compact ? 74 : 98} />
             </div>
@@ -145,19 +145,19 @@ export default function Console({ game, compact }) {
         );
       })}
       {/* 마스터 */}
-      <div className="shrink-0 w-[124px] rounded-md border border-rose-500/60 bg-slate-900/90 p-1.5 flex flex-col items-center gap-1">
+      <div className="shrink-0 w-[124px] rounded-md border border-rose-500/60 bg-slate-900/90 p-1.5 flex flex-col items-center gap-1" data-ctl="master">
         <div className="w-full rounded bg-rose-500 text-center text-[10px] font-black text-white py-0.5">{digital ? 'MASTER' : 'STEREO MASTER'}</div>
         {!digital && (
-          <Toggle small on={phantomOn} color="red" onClick={() => mapply('phantom', !phantomOn)}
+          <Toggle small ctl="master-phantom" on={phantomOn} color="red" onClick={() => mapply('phantom', !phantomOn)}
             title="PHANTOM +48V: 이 믹서는 스위치 하나로 모든 MIC(XLR) 단자에 한꺼번에 전원이 들어갑니다. 콘덴서 마이크용">PHANTOM +48V</Toggle>
         )}
         <div className="flex gap-1">
-          <Knob label={digital ? 'AUX MST' : 'AUX1'} value={M.auxMaster} min={0} max={100} color="#c084fc" size={28} def={75} onChange={(v) => mset('auxMaster', v)} onCommit={mcommit('auxMaster')} title="AUX 1(모니터) 전체 볼륨" />
-          {!digital && <Knob label="AUX2" value={M.aux2Master ?? 75} min={0} max={100} color="#a78bfa" size={28} def={75} onChange={(v) => mset('aux2Master', v)} onCommit={mcommit('aux2Master')} title="AUX 2 전체 볼륨" />}
+          <Knob label={digital ? 'AUX MST' : 'AUX1'} ctl="master-auxMaster" value={M.auxMaster} min={0} max={100} color="#c084fc" size={28} def={75} onChange={(v) => mset('auxMaster', v)} onCommit={mcommit('auxMaster')} title="AUX 1(모니터) 전체 볼륨" />
+          {!digital && <Knob label="AUX2" ctl="master-aux2Master" value={M.aux2Master ?? 75} min={0} max={100} color="#a78bfa" size={28} def={75} onChange={(v) => mset('aux2Master', v)} onCommit={mcommit('aux2Master')} title="AUX 2 전체 볼륨" />}
         </div>
         <div className="flex gap-1">
-          <Knob label={digital ? 'FX RTN' : 'RETURN'} value={M.fxReturn} min={0} max={100} color="#2dd4bf" size={28} def={50} onChange={(v) => mset('fxReturn', v)} onCommit={mcommit('fxReturn')} title="이펙트 리턴: 리버브가 메인으로 돌아오는 양" />
-          {!digital && <Knob label="PHONES" value={M.phonesLevel ?? 75} min={0} max={100} color="#f8fafc" size={28} def={75} onChange={(v) => mset('phonesLevel', v)} onCommit={mcommit('phonesLevel')} title="헤드폰 볼륨" />}
+          <Knob label={digital ? 'FX RTN' : 'RETURN'} ctl="master-fxReturn" value={M.fxReturn} min={0} max={100} color="#2dd4bf" size={28} def={50} onChange={(v) => mset('fxReturn', v)} onCommit={mcommit('fxReturn')} title="이펙트 리턴: 리버브가 메인으로 돌아오는 양" />
+          {!digital && <Knob label="PHONES" ctl="master-phonesLevel" value={M.phonesLevel ?? 75} min={0} max={100} color="#f8fafc" size={28} def={75} onChange={(v) => mset('phonesLevel', v)} onCommit={mcommit('phonesLevel')} title="헤드폰 볼륨" />}
         </div>
         {!digital && <div className={`text-[9px] font-bold ${anyPfl ? 'text-orange-400' : 'text-slate-500'}`}>{anyPfl ? '● PFL: 헤드폰 = 선택 채널' : '헤드폰 = STEREO'}</div>}
         {digital && (
@@ -170,10 +170,10 @@ export default function Console({ game, compact }) {
         )}
         <div className="flex gap-1 items-center text-[9px] text-slate-400"><span>AUX</span><div className="w-12"><Meter level={auxLv} thin /></div></div>
         {digital
-          ? <Toggle small on={M.mainMute} color="red" onClick={() => mapply('mainMute', !M.mainMute)}>MAIN MUTE</Toggle>
-          : <Toggle small on={!M.mainMute} color="amber" onClick={() => mapply('mainMute', !M.mainMute)} title="STEREO ON: 꺼지면 메인 스피커로 아무 소리도 나가지 않습니다">ST ON</Toggle>}
+          ? <Toggle small ctl="master-mainMute" on={M.mainMute} color="red" onClick={() => mapply('mainMute', !M.mainMute)}>MAIN MUTE</Toggle>
+          : <Toggle small ctl="master-mainMute" on={!M.mainMute} color="amber" onClick={() => mapply('mainMute', !M.mainMute)} title="STEREO ON: 꺼지면 메인 스피커로 아무 소리도 나가지 않습니다">ST ON</Toggle>}
         <div className="flex items-end gap-0.5">
-          <VFader label={digital ? 'MAIN' : 'STEREO'} value={M.mainFader} height={compact ? 96 : 150} cap="#fca5a5" display={fmtDb(faderDb(M.mainFader)).replace(' dB', '')}
+          <VFader label={digital ? 'MAIN' : 'STEREO'} ctl="master-mainFader" ariaLabel={digital ? 'MAIN 페이더' : 'STEREO 페이더'} value={M.mainFader} height={compact ? 96 : 150} cap="#fca5a5" display={fmtDb(faderDb(M.mainFader)).replace(' dB', '')}
             onChange={(v) => mset('mainFader', v)} onCommit={mcommit('mainFader')} />
           <VMeter level={mainLv} height={compact ? 74 : 128} />
           <VMeter level={mainRLv} height={compact ? 74 : 128} />

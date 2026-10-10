@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Lightbulb, Wand2, Music, Volume2, VolumeX, Mic, Tag, Lock, Unlock, Video, RotateCcw, CheckCircle2, Circle, Star, ChevronRight,
-  SlidersHorizontal, Cable, ListChecks, Cpu, ScrollText, Ear, Guitar, MessageSquare,
+  SlidersHorizontal, Cable, ListChecks, Cpu, ScrollText, Ear, Guitar, MessageSquare, MessageSquarePlus,
 } from 'lucide-react';
 import Venue3D from '../Venue3D.jsx';
 import { hasWebGL, NoWebGL } from '../kit3d.jsx';
@@ -19,7 +19,7 @@ import Dialog from './Dialog.jsx';
 import ListenCompare from './ListenCompare.jsx';
 import LabOverlay from './LabOverlay.jsx';
 import { PHRASES, TALK_VOICE } from '../data/phrases.js';
-import { patchBetaContext } from '../betaContext.js';
+import { patchBetaContext, openFeedback, subscribeBeta, enterGameScreen } from '../betaContext.js';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -30,6 +30,19 @@ const LISTEN = [['main', '객석 스피커'], ['monitor', '무대 모니터'], [
 const noWatch = () => null;
 const INSTRUMENTS = new Set(['e_guitar', 'keyboard', 'digital_piano', 'bass_guitar', 'drum_kit', 'kick_mic', 'snare_mic', 'overhead_mic']);
 const lvToVol = (lv) => (lv == null ? 0 : Math.max(0, Math.min(1, (lv + 42) / 32)));
+// 좁은 화면(휴대폰·세로 태블릿)인지 — 대화 상자를 3D 위가 아니라 아래에 둔다
+const NARROW = '(max-width: 1023px)';
+function useNarrow() {
+  const [n, setN] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(NARROW).matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.(NARROW);
+    if (!mq) return undefined;
+    const on = () => setN(mq.matches);
+    mq.addEventListener?.('change', on);
+    return () => mq.removeEventListener?.('change', on);
+  }, []);
+  return n;
+}
 
 export default function GameScreen({
   spec, mode = 'story', heading, onExit, onNext, onRestart, tutorial, sandbox, restore, initialAuto = false,
@@ -48,6 +61,7 @@ export default function GameScreen({
   const [listen, setListen] = useState(defaultListen);
   const [compareOpen, setCompareOpen] = useState(false);
   const [lab, setLab] = useState(null); // 튜토리얼에서 연 실습실 { lab, goal }
+  const narrow = useNarrow();
   // 자유 모드: 탭과 상관없이 자동 저장·도전 과제 (훅은 화면이 살아 있는 동안 늘 같은 것이 불린다)
   const useWatch = sandbox?.useWatch ?? noWatch;
   useWatch(game);
@@ -66,11 +80,15 @@ export default function GameScreen({
   // 경과 시간 (돌발 상황 스테이지는 제한 시간)
   const [elapsed, setElapsed] = useState(0);
   const [overtime, setOvertime] = useState(false);
+  // 의견 창이 열려 있거나 다른 탭을 보는 동안은 시간을 세지 않는다
+  const [feedbackOpen, setFeedbackOpenState] = useState(false);
+  useEffect(() => subscribeBeta((u) => setFeedbackOpenState(u.open)), []);
+  useEffect(enterGameScreen, []);
   useEffect(() => {
-    if (mode !== 'story' || showBrief || cleared) return undefined;
-    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    if (mode !== 'story' || showBrief || cleared || feedbackOpen) return undefined;
+    const id = setInterval(() => { if (!document.hidden) setElapsed((e) => e + 1); }, 1000);
     return () => clearInterval(id);
-  }, [mode, showBrief, cleared]);
+  }, [mode, showBrief, cleared, feedbackOpen]);
   useEffect(() => {
     if (spec.timeLimit && elapsed >= spec.timeLimit && !overtime && !cleared) { setOvertime(true); game.notify('err', '제한 시간이 지났습니다! 계속 해결할 수 있지만 평가가 한 단계 내려갑니다.'); }
   }, [elapsed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -93,6 +111,7 @@ export default function GameScreen({
 
   // 자동 진행 중에는 대본이 끝난 뒤에 결과 창을 띄운다
   const scriptRunning = !!player.script && !player.script.done;
+  const dialogBelow = narrow && !!player.script && !!(player.narration || player.waiting);
   useEffect(() => { if (cleared && mode === 'story' && !scriptRunning) { const t = setTimeout(() => setResultOpen(true), 900); return () => clearTimeout(t); } return undefined; }, [cleared, mode, scriptRunning]);
 
   /* ----- 오디오 ----- */
@@ -142,7 +161,12 @@ export default function GameScreen({
 
   // 스페이스바 = 말하기
   useEffect(() => {
-    const down = (e) => { if (e.code === 'Space' && !e.repeat && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) { e.preventDefault(); game.setPtt(true); } };
+    const down = (e) => {
+      if (e.code !== 'Space' || e.repeat || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      // 단추·다른 창에 초점이 있으면 스페이스는 그 단추를 누르는 데 쓴다
+      if (e.target.closest?.('button, a, [role=slider], [role=radio], [role=tab], [role=dialog]') || document.querySelector('[role=dialog][aria-modal=true]')) return;
+      e.preventDefault(); game.setPtt(true);
+    };
     const up = (e) => { if (e.code === 'Space') game.setPtt(false); };
     window.addEventListener('keydown', down); window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
@@ -150,7 +174,7 @@ export default function GameScreen({
 
   // 튜토리얼: 대본 자동 시작
   useEffect(() => {
-    if (tutorial?.steps) player.start(tutorial.steps, { practice: tutorial.practice, auto: !!tutorial.auto, speed: loadProgress('bm2-speed', 1), onDone: tutorial.onDone, onStep: tutorial.onStep });
+    if (tutorial?.steps) player.start(tutorial.steps, { practice: tutorial.practice, auto: !!tutorial.auto, speed: loadProgress('bm2-speed', 1), onDone: tutorial.onDone, onStep: tutorial.onStep, from: tutorial.from ?? 0 });
   }, [tutorial?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (initialAuto) startAuto(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -164,7 +188,7 @@ export default function GameScreen({
   useEffect(() => { if (game.selected && mode !== 'sandbox') setTab('device'); }, [game.selected]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대본이 장비를 조작할 때 해당 장비 선택
   useEffect(() => {
-    if (!player.script || !game.action?.device || !st.devices[game.action.device]) return;
+    if (!player.script || !game.action?.byScript || !game.action?.device || !st.devices[game.action.device]) return;
     const k = game.action.ctl?.kind;
     if (k === 'mixer' || k === 'master') setConsoleOpen(true);
     else game.setSelected(game.action.device);
@@ -175,18 +199,46 @@ export default function GameScreen({
   const highlight = player.waiting ? targetOf(player.waiting, st) : null;
   // 믹서 손잡이를 돌려야 하는 단계면 콘솔을 저절로 열고, 닫혀 있으면 단추를 반짝인다
   const mixerAsk = !!player.waiting && ['ch', 'master', 'fade'].includes(player.waiting.op);
-  useEffect(() => { if (mixerAsk) setConsoleOpen(true); }, [player.waiting?.index]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const w = player.waiting;
+    if (!w) return undefined;
+    const narrow = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023px)').matches;
+    if (mixerAsk) {
+      setConsoleOpen(true);
+      // 해야 할 손잡이가 콘솔 스크롤 밖이면 보이게 굴리고 잠깐 반짝인다
+      const key = w.op === 'fade' ? (w.ch ? `ch${w.ch}-fader` : 'master-mainFader') : w.op === 'master' ? `master-${w.key}` : `ch${w.ch}-${w.key}`;
+      const t = setTimeout(() => {
+        const el = document.querySelector(`[data-ctl="${key}"]`) ?? document.querySelector(`[data-ctl="${w.op === 'ch' || w.ch ? `ch${w.ch}` : 'master'}"]`);
+        if (!el) return;
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+        document.querySelectorAll('.bm-target').forEach((x) => x.classList.remove('bm-target'));
+        el.classList.add('bm-target');
+        setTimeout(() => el.classList.remove('bm-target'), 4000);
+      }, 180);
+      return () => clearTimeout(t);
+    }
+    // 좁은 화면: 콘솔을 닫아 3D·연결표가 보이게, 케이블 잇기는 연결표 탭을 펼친다
+    if (narrow) {
+      setConsoleOpen(false);
+      if (w.op === 'connect' || w.op === 'disconnect') setTab('ports');
+    }
+    return undefined;
+  }, [player.waiting?.index]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
     const id = player.narration?.focus;
     if (id && !lockView && st.devices[id]?.placed) setFocusRequest({ id, key: Date.now() });
   }, [player.narration?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
   // 다음 장면으로 넘어가면 실습실은 닫는다
-  useEffect(() => { setLab(null); }, [player.narration?.i]);
+  useEffect(() => { setLab(null); player.setHold(false); }, [player.narration?.i]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openLab = (l) => { setLab(l); player.setHold(true); };
+  const closeLab = () => { setLab(null); player.setHold(false); };
   // 베타 의견에 붙일 위치: 미션·파트 이름과 대화 장면 번호
   useEffect(() => {
     patchBetaContext({ title: spec.title, id: spec.id, step: player.narration ? `${(player.narration.i ?? 0) + 1}/${player.narration.n}` : undefined });
   }, [spec.id, player.narration?.i]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 이 화면을 떠나면 위치 정보를 지운다 (목록 화면에서 보낸 의견이 마지막 미션으로 적히지 않게)
+  useEffect(() => () => patchBetaContext({ title: undefined, id: undefined, step: undefined }), []);
   const onePending = game.pending ? `${st.devices[game.pending.d]?.name ?? game.pending.d} · ${portLabel(st, game.pending.d, game.pending.p)}` : null;
   const doneCount = game.objectives.filter((o) => o.ok).length;
 
@@ -219,11 +271,12 @@ export default function GameScreen({
         <button type="button" onClick={() => setBgmOn(!bgmOn)} className={`p-1.5 rounded ${bgmOn ? 'text-sky-300' : 'text-slate-500'} hover:bg-slate-800`} title="배경음악" aria-label="배경음악 켜기/끄기" aria-pressed={bgmOn}><Music size={17} /></button>
         <button type="button" onClick={() => setSfxOn(!sfxOn)} className={`p-1.5 rounded ${sfxOn ? 'text-sky-300' : 'text-slate-500'} hover:bg-slate-800`} title="현장 소리·효과음" aria-label="현장 소리 켜기/끄기" aria-pressed={sfxOn}>{sfxOn ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
         <button type="button" onClick={() => setVoiceOn(!voiceOn)} className={`p-1.5 rounded ${voiceOn ? 'text-sky-300' : 'text-slate-500'} hover:bg-slate-800`} title="내레이션 음성" aria-label="내레이션 음성" aria-pressed={voiceOn}><MessageSquare size={17} /></button>
+        <button type="button" onClick={openFeedback} className="flex items-center gap-1 rounded bg-amber-400 px-1.5 py-1 text-[11px] font-black text-slate-900 hover:bg-amber-300" title="불편한 점이나 아이디어를 개발자에게 보내요" aria-label="베타 의견 보내기"><MessageSquarePlus size={15} /><span className="hidden sm:inline">의견</span></button>
       </header>
 
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
-        {/* 3D */}
-        <div className={`relative flex-1 ${consoleOpen ? 'min-h-[26vh]' : 'min-h-[40vh]'} lg:min-h-0`}>
+      <div className={`flex-1 min-h-0 flex flex-col lg:flex-row ${dialogBelow ? 'overflow-hidden' : ''}`}>
+        {/* 3D — 좁은 화면에서 대화 중이면 3D는 위쪽 일부, 대화 상자는 그 아래 (3D를 가리지 않게) */}
+        <div className={`relative ${dialogBelow ? `flex-none ${consoleOpen ? 'h-[13vh]' : 'h-[30vh]'}` : `flex-1 ${consoleOpen ? 'min-h-[26vh]' : 'min-h-[40vh]'}`} lg:min-h-0 lg:h-auto lg:flex-1`}>
           {gl ? (
             <Venue3D st={st} sim={actual} venueId={st.venue} talking={talking} performing={game.performing} selectedChannel={game.selCh}
               pending={game.pending} selectedCable={game.cable} selectedDevice={game.selected} labels={labels} resetKey={resetKey}
@@ -231,7 +284,7 @@ export default function GameScreen({
               highlight={highlight} free={mode === 'sandbox'} sandboxApi={sandboxApi}
               onPortClick={game.clickPort} onSelectDevice={game.setSelected} onDisconnect={game.disconnect}
               onPlace={(id) => game.apply({ op: 'place', device: id })} onCancelPending={() => game.setPending(null)} />
-          ) : <NoWebGL hint="오른쪽 '연결' 탭의 연결표로 게임을 계속할 수 있습니다." />}
+          ) : <NoWebGL hint="'연결표' 탭에서 게임을 계속할 수 있어요." />}
           {/* 3D 보기 도구 */}
           <div className="absolute top-2 right-2 flex flex-col gap-1">
             <ViewBtn on={labels} onClick={() => setLabels(!labels)} icon={Tag} label="단자 이름" />
@@ -249,12 +302,13 @@ export default function GameScreen({
           {game.toast && <Toast toast={game.toast} onDone={() => game.setToast(null)} />}
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
-          <Dialog player={player} tutorial={!!tutorial} onLab={setLab} />
-          {lab && <LabOverlay lab={lab} onClose={() => setLab(null)} />}
+          {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} />}
+          {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
+        {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} inline />}
 
         {/* 사이드 패널 */}
-        <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 h-[38vh] lg:h-auto`}>
+        <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'h-[38vh]'} lg:h-auto lg:flex-none`}>
           <nav className="flex border-b border-slate-800 shrink-0" role="tablist">
             {[
               ...(mode === 'sandbox' ? [['add', '장비 추가', Cpu]] : [['mission', '미션', ListChecks]]),
@@ -269,7 +323,7 @@ export default function GameScreen({
           <div className="flex-1 overflow-y-auto p-3 space-y-3 overscroll-contain">
             {tab === 'add' && sandbox && <sandbox.Panel game={game} placing={placing} setPlacing={setPlacing} />}
             {tab === 'mission' && (
-              <MissionPanel spec={spec} game={game} tutorial={mode === 'tutorial'} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))} />
+              <MissionPanel spec={spec} game={game} tutorial={mode === 'tutorial'} placeAsk={player.waiting?.op === 'place' ? player.waiting.device : null} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))} />
             )}
             {tab === 'device' && (game.selected && st.devices[game.selected]
               ? <DevicePanel key={game.selected} game={game} id={game.selected} />
@@ -307,7 +361,7 @@ export default function GameScreen({
             {(st.venue === 'live_stage' || Object.values(st.devices).some((d) => INSTRUMENTS.has(d.type))) && (
               <Toggle small on={game.performing} color="green" onClick={() => game.setPerforming(!game.performing)} title="밴드 연주"><Guitar size={12} className="inline" /> 연주</Toggle>
             )}
-            <span className="flex items-center gap-1 text-[11px] text-slate-400"><Ear size={14} /></span>
+            <span className="flex items-center gap-0.5 text-[11px] font-bold text-slate-300" title="어디서 들리는 소리를 들을지 고릅니다"><Ear size={14} /> 듣는 곳</span>
             <Seg small value={listen} options={LISTEN.filter(([k]) => k !== 'headphones' || Object.values(st.devices).some((d) => d.type === 'headphones'))} onChange={setListen} />
             <Toggle small on={compareOpen} color="sky" onClick={() => setCompareOpen(!compareOpen)} title="현장(객석)에서 들리는 소리와 방송으로 나가는 소리를 나란히 비교합니다">A/B 비교</Toggle>
             {st.mixerId && st.devices[st.mixerId]?.placed && (
@@ -319,7 +373,7 @@ export default function GameScreen({
           </div>
         </div>
         {consoleOpen && st.mixerId && (
-          <div className="px-2 pb-2 max-h-[46vh] overflow-y-auto"><Console game={game} /></div>
+          <div className={`px-2 pb-2 ${dialogBelow ? 'max-h-[32vh]' : 'max-h-[46vh]'} overflow-y-auto`}><Console game={game} /></div>
         )}
       </div>
 
@@ -348,11 +402,13 @@ function Toast({ toast, onDone }) {
   return <div role="status" className={`absolute top-2 left-1/2 -translate-x-1/2 max-w-[86%] rounded-lg border px-3 py-1.5 text-xs sm:text-sm shadow-lg ${cls}`}>{toast.text}</div>;
 }
 
-function MissionPanel({ spec, game, tutorial, hints, onHint }) {
+function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint }) {
   const { objectives, st } = game;
   return (
     <div className="space-y-3">
       <div className="rounded-lg bg-sky-950/40 border border-sky-800/50 p-2.5 text-sm text-sky-100 leading-relaxed">{spec.mission}</div>
+      {/* 튜토리얼은 선배가 "놓아 보세요" 할 때 그 장비만 */}
+      {(!tutorial || placeAsk) && <Unplaced game={game} only={tutorial ? placeAsk : null} />}
       <ul className="space-y-1.5" aria-label="목표">
         {objectives.map((o, i) => (
           <li key={i} className={`flex items-start gap-2 text-sm ${o.ok ? 'text-green-300' : 'text-slate-200'}`}>
@@ -371,6 +427,21 @@ function MissionPanel({ spec, game, tutorial, hints, onHint }) {
       )}
       {spec.briefing && <details className="text-xs text-slate-400"><summary className="cursor-pointer">상황 설명 다시 보기</summary>{spec.briefing.map((b, i) => <p key={i} className="mt-1 leading-relaxed">{b}</p>)}</details>}
       {st.faults.length > 0 && <div className="text-[11px] text-slate-400">이 현장에는 숨은 문제 {st.faults.length}개가 있습니다. 소리·화면이 가는 길을 따라가며 찾아보세요.</div>}
+    </div>
+  );
+}
+
+// 아직 놓지 않은 장비 — 3D 화면이 확대돼 "+ 배치" 단추가 안 보여도 여기서 놓을 수 있다
+function Unplaced({ game, only }) {
+  const left = Object.values(game.st.devices).filter((d) => !d.placed && d.slot && (!only || d.id === only));
+  if (!left.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="text-slate-400">아직 놓지 않은 장비</span>
+      {left.map((d) => (
+        <button key={d.id} type="button" onClick={() => game.apply({ op: 'place', device: d.id })}
+          className="rounded-full border border-sky-400/70 bg-sky-900/40 px-2 py-0.5 font-bold text-sky-100 hover:bg-sky-800/60">+ {d.name ?? DEVICE_TYPES[d.type]?.name} 배치</button>
+      ))}
     </div>
   );
 }

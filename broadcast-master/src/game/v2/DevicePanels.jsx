@@ -8,6 +8,9 @@ import { Meter } from '../ui.jsx';
 import { Knob, Toggle, Seg, Stepper, Row, Card, HSlider } from './controls.jsx';
 import { drawSource, drawComposition, sourceOf, CLIPS, drawMeterBar } from '../scenes.js';
 
+// 단자 이름은 장비에 쓰인 그대로 (in1 → CH1 MIC (XLR))
+const portName = (st, d, p) => { const def = DEVICE_TYPES[st.devices[d]?.type]; return [...(def?.ins ?? []), ...(def?.outs ?? [])].find((x) => x.id === p)?.label ?? p; };
+
 /* =====================================================================
  * 장비별 조작 패널 — 선택한 장비의 실제 버튼·노브를 2D로
  * ===================================================================== */
@@ -305,7 +308,7 @@ export function DevicePanel({ game, id }) {
             {conns.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-2 text-xs text-slate-200">
                 <span className="flex items-center gap-1.5 min-w-0"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: CABLES[c.cable]?.stroke }} />
-                  <span className="truncate">{st.devices[c.from.d]?.name ?? c.from.d} {c.from.p} → {st.devices[c.to.d]?.name ?? c.to.d} {c.to.p}</span></span>
+                  <span className="truncate">{st.devices[c.from.d]?.name ?? c.from.d} {portName(st, c.from.d, c.from.p)} → {st.devices[c.to.d]?.name ?? c.to.d} {portName(st, c.to.d, c.to.p)}</span></span>
                 <button type="button" onClick={() => game.disconnect(c)} className="shrink-0 px-1.5 py-0.5 rounded bg-slate-700 hover:bg-red-700 text-[10px]">분리</button>
               </li>
             ))}

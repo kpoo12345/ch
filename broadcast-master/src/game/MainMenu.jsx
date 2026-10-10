@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { BookOpen, Gamepad2, Wrench, ChevronRight, ChevronDown, GraduationCap, Music, VolumeX, Check } from 'lucide-react';
 import Venue3D from './Venue3D.jsx';
+import { LOW_END } from './kit3d.jsx';
 import { buildRuntime, computeSim } from './sim.js';
 import { runOps } from './ops.js';
 import { EDU_ITEMS, partTitle } from './eduContent.js';
@@ -16,6 +17,11 @@ import { TUTORIAL } from './data/tutorial.js';
  *  도구: 장비 백과사전(찾아보기) · 자유 스튜디오
  * ===================================================================== */
 function MenuBackdrop() {
+  // 휴대폰에선 장식용 3D를 돌리지 않는다 (배터리·발열, 게임 화면에서 쓸 힘을 아낀다)
+  if (LOW_END) return <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,#1e3a5f_0%,#0b1220_70%)]" />;
+  return <MenuBackdrop3D />;
+}
+function MenuBackdrop3D() {
   const { st, sim } = useMemo(() => {
     const spec = STORY.chapters.flatMap((c) => c.stages).find((s) => s.id === 'light-2');
     const s1 = runOps(buildRuntime(spec), SOLUTIONS['light-2'].filter((x) => x.op)).st;
