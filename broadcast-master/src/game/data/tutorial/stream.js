@@ -30,9 +30,10 @@ export default {
   objectives: [], talk: 'ptt', performing: false,
   steps: [
     // 오늘 할 일 · 큰 그림
-    { say: '오늘은 이 강의를 인터넷으로 생중계해 볼 거예요. 카메라 두 대로 시작하죠.' },
+    { say: '강의 시작까지 30분 남았어요. 카메라 두 대로 이 강의를 인터넷에 생중계해 볼게요.' },
     { who: 'junior', say: '방송이면 카메라를 컴퓨터에 바로 꽂으면 되는 거 아니에요?' },
-    { say: '한 대면 그래도 돼요. 근데 두 대가 넘으면 그중 하나를 골라 주는 장비가 따로 필요하거든요.', show: { items: [{ photo: 'camcorder', label: '카메라' }, { photo: 'atem_mini', label: '스위처' }, { model: 'pc', label: '송출 PC' }], caption: '영상은 이 순서로 흘러가요' } },
+    { say: '웹캠이면 USB로 바로 돼요. 근데 이 카메라는 HDMI로 나오고, PC의 HDMI는 화면이 나가는 구멍이라 못 받아요.' },
+    { say: '그래서 사이에 스위처를 둬요. 카메라가 여러 대여도 그중 하나를 골라서 PC로 넘겨 주죠.', show: { items: [{ photo: 'camcorder', label: '카메라' }, { photo: 'atem_mini', label: '스위처' }, { model: 'pc', label: '송출 PC' }], caption: '영상은 이 순서로 흘러가요' } },
     { who: 'junior', say: '송출 PC에는 OBS라고 떠 있네요. 이건 뭐예요?' },
     { say: '화면이랑 소리를 하나로 합쳐서 유튜브 같은 데로 보내 주는 프로그램이에요. 소리는 믹서에서 따로 와서 여기서 만나죠.', focus: 'pc', show: { model: 'pc' } },
 
@@ -42,7 +43,7 @@ export default {
 
     // 스위처 · HDMI
     { who: 'junior', say: '카메라 선은 어디로 가요? 저 작은 상자요?' },
-    { say: '네, 그게 ATEM Mini예요. 들어온 화면 중 하나를 골라 내보내는 스위처죠.', focus: 'atem', show: { photo: 'atem_mini' } },
+    { say: '네, 그게 ATEM Mini예요. 아까 말한 스위처죠. 이 작은 게 카메라를 네 대까지 받아요.', focus: 'atem', show: { photo: 'atem_mini' } },
     { say: '카메라 1은 HDMI로 1번 입력에 꽂아요. 카메라 번호랑 입력 번호를 맞추면 나중에 안 헷갈려요.', op: 'connect', from: 'cam1.hdmi', to: 'atem.in1', cable: 'hdmi', practice: 'HDMI를 고르고 카메라 1 HDMI OUT, ATEM HDMI IN 1을 눌러 보세요.' },
     { say: '카메라 2는 2번 입력으로 가고요.', op: 'connect', from: 'cam2.hdmi', to: 'atem.in2', cable: 'hdmi' },
 
@@ -69,8 +70,8 @@ export default {
     { say: '방 전체 소리를 멀리서 주워 담으니까 그래요. 진행자 마이크 소리는 이미 믹서에 깨끗하게 들어와 있잖아요.' },
     { say: '이건 디지털 믹서예요. USB 단자 하나로 소리를 PC에 바로 보낼 수 있죠.', focus: 'mixer', show: { photo: 'mixer_digital' }, op: 'connect', from: 'mixer.usb', to: 'pc.usb2', cable: 'usb', practice: 'USB로 믹서 USB AUDIO와 PC USB 2를 이어 보세요.' },
     { say: '그럼 OBS 오디오 소스를 믹서 USB로 바꿔요.', op: 'obs', key: 'audio', value: 'mixer', practice: '송출 PC 패널에서 오디오 소스를 믹서 USB로 골라 보세요.' },
-    { who: 'junior', say: '어? 이번엔 OBS 미터가 아예 안 움직여요. 선을 잘못 꽂았나 봐요.' },
-    { say: '선은 맞아요. 디지털 믹서는 USB로 뭘 보낼지 정해 줘야 하는데, 지금은 OFF로 돼 있거든요.' },
+    { who: 'junior', say: '어? 이번엔 OBS 미터가 아예 안 움직여요. 꽂긴 제대로 꽂았는데요.' },
+    { say: '꽂은 건 맞아요. 디지털 믹서는 USB로 뭘 보낼지 정해 줘야 하는데, 지금은 OFF로 돼 있거든요.' },
     { say: '메인을 보내요. 마스터 페이더, 전체 소리가 나가는 출구였죠? 그 소리를 그대로 PC에 주는 거예요.', show: { concept: 'strip', focus: 'master' }, op: 'master', key: 'usbOut', value: 'main', practice: '믹서 콘솔 MASTER에서 USB 출력을 Main L/R로 바꿔 보세요.' },
     { who: 'junior', say: '들어와요! 아까보다 훨씬 가깝고 또렷하네요.' },
     { quiz: { q: 'OBS 화면은 잘 나오는데 소리 미터만 꿈쩍 안 해요. 디지털 믹서에서 먼저 볼 곳은?', options: ['USB 출력 설정', '카메라 HDMI 케이블', 'ATEM의 CUT 버튼'], answer: 0, explain: '디지털 믹서는 꽂기만 해선 소리가 안 가요. USB로 뭘 내보내는지부터 확인해요.' } },
@@ -89,7 +90,7 @@ export default {
     { say: '이제 진행자 얼굴로 넘어가 볼까요? PVW에 카메라 1을 올려요.', op: 'atem', key: 'preview', value: 1, practice: 'ATEM 패널에서 PREVIEW 줄의 1을 눌러 보세요.' },
     { say: '이번엔 CUT 말고 AUTO를 써 봐요. CUT은 툭 바뀌고, AUTO는 두 화면이 살짝 겹치면서 넘어가거든요.', show: { concept: 'transitions' } },
     { say: '눌러 보세요. 화면이 스르륵 바뀌는 게 보일 거예요.', focus: 'cam1', op: 'atem', key: 'auto', practice: 'ATEM 패널의 AUTO 버튼을 눌러 보세요.' },
-    { quiz: { q: '방송 중인 카메라 위치를 옮겨야 해요. 어떻게 할까요?', options: ['다른 카메라로 먼저 넘기고 옮긴다', '빨리만 옮기면 괜찮다', 'PVW에 올려 두고 옮긴다'], answer: 0, explain: '빨간 불 카메라를 움직이면 흔들리는 화면이 그대로 나가요. PGM에서 빼고 나서 옮겨야죠.' } },
-    { say: '방송의 길은 여기까지예요. 다음 파트에선 조명이랑 큰 화면을 다뤄 봐요.', op: 'talk', on: false },
+    { quiz: { q: '방송 중인 카메라 위치를 옮겨야 해요. 어떻게 할까요?', options: ['다른 카메라로 먼저 넘기고 옮긴다', '빨리만 옮기면 괜찮다', 'PGM에 그대로 둔 채 천천히 옮긴다'], answer: 0, explain: '빨간 불 카메라를 움직이면 흔들리는 화면이 그대로 나가요. 다른 카메라로 넘긴 뒤 옮기고, PVW에서 확인하고 다시 올려요.' } },
+    { say: '방송은 이대로 강의 끝까지 쭉 가요. 다음엔 소리 말고 조명이랑 큰 화면을 다뤄 봐요.', op: 'talk', on: false },
   ],
 };

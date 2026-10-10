@@ -4,6 +4,7 @@
  * → DI 박스 → THRU와 GROUND LIFT → 디지털 피아노 L/R을 DI 두 대와 PAN으로 → 인풋 리스트 → 악기별 LOW CUT.
  * 드럼 세트는 공연장 무대에 늘 있어서, 연주(perform)만 켜면 생소리가 객석에 들린다. 메인 스피커는 미리 연결.
  * 시작 상태: 오버헤드는 3·4번에 꽂혀 있지만 +48V가 꺼져 있고 페이더도 내려 둔 상태(켜는 순간의 퍽 소리 방지).
+ * +48V는 MIC 채널 전체에 한꺼번에 걸리고 연주 중엔 킥·스네어 채널이 열려 있어서, STEREO를 먼저 내리고 켠 뒤 다시 올린다.
  * 1번 GAIN은 35로 높게 둬서 킥을 꽂자마자 클리핑이 나게 한다. 건반 DI 두 대는 7·8번까지 미리 이어 두고 8번 PAN은 오른쪽 끝. */
 export default {
   id: 'tut-instrument', venue: 'live_stage', title: '파트 6 · 악기',
@@ -42,7 +43,7 @@ export default {
   objectives: [], talk: 'ptt', performing: false,
   steps: [
     // 오늘 할 일 · 마이크로 받는 악기, 선으로 받는 악기
-    { say: '오늘은 밴드 악기를 믹서로 받아 봐요. 드럼, 베이스, 건반 순서로 갈 거예요.' },
+    { say: '공연장에 밴드가 와 있네요. 드럼, 베이스, 건반을 차례로 믹서에 받아 볼게요.' },
     { who: 'junior', say: '악기도 노래처럼 전부 마이크를 대요?' },
     { say: '공기를 울려서 소리 나는 악기는 마이크로, 전기로 소리가 나오는 악기는 선으로 받아요.', show: { items: [{ photo: 'drum_kit', label: '드럼 · 마이크로' }, { photo: 'bass_guitar', label: '베이스 · 선으로' }, { photo: 'digital_piano', label: '건반 · 선으로' }] } },
     { say: '마침 밴드가 리허설을 시작한대요. 일단 그냥 들어 볼까요?', op: 'perform', on: true },
@@ -65,7 +66,9 @@ export default {
     // 오버헤드: 펜슬 콘덴서 두 대 → +48V
     { say: '그래서 마이크 등을 하이햇 쪽으로 돌려요. 심벌은 위에 세운 가는 콘덴서 두 대가 따로 잡거든요.', show: { items: [{ photo: 'drum_overheads', label: '오버헤드 · 드럼 위 좌우' }, { photo: 'mic_pencil', label: '펜슬 콘덴서' }] }, focus: 'ohL' },
     { who: 'junior', say: '3, 4번에 꽂힌 게 그거죠? 근데 그 두 개만 미터가 꿈쩍도 안 해요. 이번에도 선 불량은 아니죠?' },
-    { say: '펜슬도 콘덴서라서 +48V가 있어야 일을 하죠. 3, 4번 페이더는 내려 놨으니 바로 켜요.', focus: 'mixer', op: 'master', key: 'phantom', value: true, practice: '믹서 콘솔에서 +48V 버튼을 켜 보세요.' },
+    { say: '펜슬도 콘덴서라서 +48V가 있어야 일을 하죠. 근데 연주 중이니까 STEREO 페이더부터 내려요.', focus: 'mixer', op: 'master', key: 'mainFader', value: 0, tol: 0, practice: '믹서 콘솔에서 STEREO 페이더를 맨 아래로 내려 보세요.' },
+    { say: '이 믹서는 +48V가 MIC 채널 전체에 한꺼번에 걸리거든요. 이제 켜도 퍽 소리가 스피커로 안 가요.', op: 'master', key: 'phantom', value: true, practice: '믹서 콘솔에서 +48V 버튼을 켜 보세요.' },
+    { say: 'STEREO는 다시 제자리로 올려 둘게요.', op: 'master', key: 'mainFader', value: 75 },
     { say: '이제 3번 페이더를 0 눈금까지 천천히 올려 봐요.', op: 'ch', ch: 3, key: 'fader', value: 75, practice: 'CH3 페이더를 0 눈금까지 올려 보세요.' },
     { say: '4번도 똑같이 올리고요.', op: 'ch', ch: 4, key: 'fader', value: 75 },
 
@@ -76,7 +79,7 @@ export default {
     { who: 'junior', say: '부웅 하는 소리가 깔려요. 베이스도 종이처럼 얇고 힘이 없어요.' },
     { say: '부웅은 케이블 파트에서 들은 험이에요. 게다가 픽업 신호는 약하고 예민해서, 믹서에 바로 물리면 힘이 쭉 빠져요.' },
     { say: '그래서 DI 박스를 써요. 악기 신호를 마이크처럼 튼튼한 XLR 신호로 바꿔 주는 상자죠. 기타 선부터 빼요.', show: { photo: 'di_box' }, focus: 'dib', op: 'disconnect', from: 'bass.out', to: 'mixer.line5' },
-    { say: 'DI는 베이스 옆에 놔뒀어요. 베이스 선을 DI의 INPUT에 꽂아요. 이만큼 짧으면 TS 선이어도 괜찮거든요.', op: 'connect', from: 'bass.out', to: 'dib.input', cable: 'trs', practice: 'TRS 케이블로 베이스 OUT과 DI INPUT을 이어 보세요.' },
+    { say: 'DI는 베이스 옆에 놔뒀어요. 베이스 선을 DI의 INPUT에 꽂아요. 이만큼 짧으면 TS 선이어도 괜찮거든요.', op: 'connect', from: 'bass.out', to: 'dib.input', cable: 'trs', practice: '6.3mm(TS) 케이블로 베이스 OUT과 DI INPUT을 이어 보세요.' },
     { say: 'DI 출력은 XLR이에요. 마이크처럼 믹서 5번 MIC 단자까지 길게 보내요.', op: 'connect', from: 'dib.out', to: 'mixer.in5', cable: 'xlr', practice: 'XLR로 DI OUTPUT과 믹서 CH5 MIC를 이어 보세요.' },
     { who: 'junior', say: '부웅도 사라지고 소리가 꽉 찼어요! 상자 하나로 이렇게 달라져요?' },
 
@@ -89,7 +92,7 @@ export default {
     // 디지털 피아노: L/R 두 줄 → DI 두 대 → 7·8번, PAN 양 끝
     { who: 'junior', say: '건반 뒤엔 선 꽂는 데가 두 개네요. 하나만 쓰면 안 돼요?', focus: 'pno' },
     { say: 'L이랑 R이에요. 낮은 음은 왼쪽, 높은 음은 오른쪽으로 나눠 보내서, 믹서가 옆이면 스테레오 채널 L, R에 바로 꽂죠.', show: { photo: 'digital_piano' } },
-    { say: '여긴 믹서가 멀어서 DI 두 대로 7번, 8번까지 이어 놨어요. L 출력을 왼쪽 DI에 꽂아 봐요.', focus: 'dik1', op: 'connect', from: 'pno.outL', to: 'dik1.input', cable: 'trs', practice: 'TRS 케이블로 건반 OUT L과 건반 DI L의 INPUT을 이어 보세요.' },
+    { say: '여긴 믹서가 멀어서 DI 두 대로 7번, 8번까지 이어 놨어요. L 출력을 왼쪽 DI에 꽂아 봐요.', focus: 'dik1', op: 'connect', from: 'pno.outL', to: 'dik1.input', cable: 'trs', practice: '6.3mm(TS) 케이블로 건반 OUT L과 건반 DI L의 INPUT을 이어 보세요.' },
     { say: 'R은 오른쪽 DI로 가고요.', focus: 'dik2', op: 'connect', from: 'pno.outR', to: 'dik2.input', cable: 'trs' },
     { say: 'PAN, 소리를 왼쪽 오른쪽 어디로 보낼지 정하는 손잡이였죠? 8번은 오른쪽 끝이니까 7번은 왼쪽 끝으로 돌려요.', show: { concept: 'strip', focus: 'pan' }, focus: 'mixer', op: 'ch', ch: 7, key: 'pan', value: -100, practice: 'CH7 PAN을 왼쪽 끝까지 돌려 보세요.' },
     { who: 'junior', say: '건반이 양쪽 스피커에서 넓게 퍼져요. 진짜 피아노 앞에 앉은 것 같아요!' },
@@ -104,6 +107,6 @@ export default {
     { say: 'LOW CUT, 아주 낮은 웅웅을 잘라 내는 버튼이었죠. 심벌만 받으면 되는 오버헤드는 켜요. 3번 눌러 볼까요?', show: { concept: 'strip', focus: 'lowcut' }, op: 'ch', ch: 3, key: 'lowCut', value: true, practice: 'CH3의 HPF 버튼을 눌러 켜 보세요.' },
     { say: '4번도 켜 두고요. 베이스랑 킥은 반대예요. 그 낮은 소리가 본업이라 꼭 꺼 둬요.', op: 'ch', ch: 4, key: 'lowCut', value: true },
     { quiz: { q: '리허설 전에 채널마다 LOW CUT을 하나씩 맞추고 있어요. 꺼 둬야 하는 채널은?', options: ['베이스', '보컬', '오버헤드'], answer: 0, explain: '베이스는 낮은 소리가 본업이라 잘라 내면 힘이 다 빠져요. 킥도 마찬가지고요.' } },
-    { say: '악기는 여기까지예요. 다음 파트에선 이렇게 모은 소리가 카메라 화면이랑 만나서 방송으로 나가는 길을 따라가요.' },
+    { say: '드럼부터 건반까지 다 받았네요. 다음엔 이렇게 모은 소리가 카메라 화면이랑 만나서 방송으로 나가는 길을 따라가요.' },
   ],
 };

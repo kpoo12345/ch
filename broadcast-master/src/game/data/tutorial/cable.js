@@ -27,7 +27,7 @@ export default {
   objectives: [], talk: 'ptt', performing: false,
   steps: [
     // 오늘 할 일
-    { say: '오늘은 케이블이에요. 믹서가 객석 맨 뒤라 무대까지 30미터쯤 되는데, 이 길을 어떻게 잇는지 볼 거예요.', focus: 'mixer' },
+    { say: '이 공연장은 믹서가 객석 맨 뒤라 무대까지 30미터쯤 돼요. 이 먼 길을 선으로 어떻게 잇는지 볼게요.', focus: 'mixer' },
     { who: 'junior', say: '선은 다 거기서 거기 아니에요? 구멍에 맞는 걸로 꽂으면 끝일 것 같은데요.' },
 
     // 밸런스드 vs 언밸런스드: 먼저 귀로 듣는다
@@ -46,7 +46,7 @@ export default {
 
     // TS와 TRS
     { who: 'junior', say: '이 굵은 잭은 기타 선이죠? 근데 이건 끝에 줄이 하나 더 그어져 있네요.' },
-    { say: '둘 다 6.3mm 잭인데, 끝의 검은 링을 세 보면 돼요. 하나면 기타용 TS, 둘이면 밸런스드로도 쓰는 TRS예요.', show: { items: [{ photo: 'conn_ts', label: 'TS · 링 1개 · 악기' }, { photo: 'conn_trs', label: 'TRS · 링 2개 · 라인과 헤드폰' }] } },
+    { say: '둘 다 6.3mm 잭인데, 끝의 검은 링을 세 보면 돼요. 하나면 기타용 TS, 둘이면 밸런스드로도 쓰는 TRS예요.', show: { items: [{ photo: 'conn_ts', label: 'TS · 링 1개 · 악기' }, { photo: 'conn_trs', label: 'TRS · 링 2개 · 라인과 헤드폰' }], caption: '케이블 가방에선 둘 다 6.3mm 케이블로 골라요' } },
     { quiz: { q: '잭 끝에 검은 링이 두 줄 보여요. 이 케이블은 뭘까요?', options: ['TS', 'TRS', 'XLR'], answer: 1, explain: '링이 두 줄이면 TRS예요. 가닥이 하나 더 있어서 밸런스드 라인이나 헤드폰 양쪽 소리를 실을 수 있죠.' } },
 
     // 3.5mm와 변환 젠더 · Y 케이블
@@ -54,7 +54,7 @@ export default {
     { say: '그럴 땐 변환 젠더나 Y 케이블을 써요. Y 케이블은 3.5mm 하나를 6.3mm 두 개로 갈라 주죠.', show: { items: [{ photo: 'conn_mini', label: '3.5mm' }, { photo: 'adapter_y', label: 'Y 케이블' }, { photo: 'adapter_xlr_trs', label: 'XLR↔6.3mm 변환' }] } },
     { who: 'junior', say: '오, 그럼 젠더만 챙기면 뭐든 다 연결되겠네요!' },
     { say: '모양만 바뀌는 거예요. 속은 그대로 언밸런스드라 길게 끌면 잡음이 나고, 소리 크기도 그대로고요.' },
-    { say: '게다가 잘 헐거워져요. 지난주 결혼식에선 젠더가 쏙 빠져서 입장곡이 뚝 끊겼다니까요.' },
+    { say: '게다가 잘 헐거워져요. 작년 졸업식 땐 젠더가 쏙 빠져서 입장 음악이 뚝 끊겼다니까요.' },
     { quiz: { q: '노트북 3.5mm에 XLR 변환 젠더를 끼웠어요. 이제 30m 끌어도 깨끗할까요?', options: ['아니요, 속은 그대로 언밸런스드예요', '네, 끝이 XLR이니까 밸런스드가 돼요'], answer: 0, explain: '젠더는 모양만 바꿔 줘요. 멀리 보내려면 DI 박스로 밸런스드 신호를 만들어야 하죠.' } },
 
     // 왜 스네이크인가
@@ -75,9 +75,9 @@ export default {
 
     // 리턴 맛보기: 믹서 AUX SEND 1 → 팬아웃 RETURN 1 → (멀티) → 박스 RETURN 1 → 보컬 모니터
     { who: 'junior', say: '그럼 보컬 앞 모니터 스피커는요? 믹서는 저 뒤에 있잖아요.', focus: 'wedge' },
-    { say: '스네이크는 거꾸로도 보내요. 모니터용 소리가 나가는 믹서 AUX SEND 1을 팬아웃 RETURN 1에 꽂아요.', focus: 'fan', op: 'connect', from: 'mixer.aux1', to: 'fan.ret1', cable: 'trs', practice: 'TRS로 믹서 AUX SEND 1과 팬아웃 RETURN 1을 이어 보세요.' },
+    { say: '스네이크는 거꾸로도 보내요. 모니터용 소리가 나가는 믹서 AUX SEND 1을 팬아웃 RETURN 1에 꽂아요.', focus: 'fan', op: 'connect', from: 'mixer.aux1', to: 'fan.ret1', cable: 'trs', practice: '6.3mm 케이블로 믹서 AUX SEND 1과 팬아웃 RETURN 1을 이어 보세요.' },
     { say: '무대에선 박스 RETURN 1에서 모니터로 가요. 여기는 XLR로 이으면 되고요.', focus: 'box', op: 'connect', from: 'box.ret1', to: 'wedge.in', cable: 'xlr', practice: 'XLR로 박스 RETURN 1과 보컬 모니터를 이어 보세요.' },
-    { say: '보컬이 다시 불러 줄 거예요. 아래 귀 모양 옆을 무대 모니터로 바꿔서 들어 봐요.', focus: 'wedge', op: 'talk', on: true },
+    { say: '보컬이 다시 불러 줄 거예요. 아래 듣는 곳에서 무대 모니터를 골라 들어 봐요.', focus: 'wedge', op: 'talk', on: true },
     { who: 'junior', say: '어, 모니터에선 아무것도 안 들려요. 이번엔 진짜 선이 잘못됐죠?' },
     { say: '선은 맞아요. 1번 AUX가 0이거든요. 파트 1에서 본, 무대 모니터로 따로 보내는 손잡이요.', show: { concept: 'strip', focus: 'aux' }, op: 'ch', ch: 1, key: 'aux', value: 60, practice: '믹서 콘솔에서 CH1 AUX1을 60 근처로 돌려 보세요.' },
     { who: 'junior', say: '들려요! 믹서까지 갔던 소리가 같은 선을 타고 다시 무대로 오네요.' },
@@ -89,6 +89,6 @@ export default {
     { who: 'junior', say: '공연 끝나면 이 긴 선들은 팔꿈치에 칭칭 감으면 되죠?' },
     { say: '그러면 속이 꼬여서 금방 끊겨요. 한 번은 바로, 한 번은 뒤집어 감는 오버언더로 감아요.', show: { concept: 'cablecare' } },
     { quiz: { q: '공연이 끝나고 마이크 선을 감을 차례예요. 어떻게 감을까요?', options: ['팔꿈치와 손에 빙빙 감는다', '한 번은 바로, 한 번은 뒤집어 번갈아 감는다', '대충 접어서 가방에 넣는다'], answer: 1, explain: '오버언더로 감으면 속 가닥이 안 꼬여서 오래가요. 다음 현장에서 풀 때도 이어폰 줄처럼 엉키지 않고요.' } },
-    { say: '케이블은 여기까지예요. 다음 파트에선 이 선들이 다 모이는 믹서를 제대로 다뤄 봐요.' },
+    { say: '이렇게 감아 두면 다음 현장이 편해져요. 이제 이 선들이 다 모이는 믹서를 제대로 다뤄 볼 차례예요.' },
   ],
 };

@@ -28,7 +28,7 @@ export default {
   objectives: [], talk: 'auto', performing: false,
   steps: [
     // 오늘 할 일
-    { say: '오늘은 소리 말고 빛이랑 화면을 만져 볼 거예요. 조명, 스크린, 카메라 순서로 가 보죠.' },
+    { say: '예배당 앞쪽이 좀 어둡죠? 조명부터 켜고, 스크린이랑 카메라까지 차례로 만져 볼게요.' },
     { who: 'junior', say: '조명은 그냥 벽에 있는 스위치로 켜는 거 아니에요?' },
     { say: '객석 등은 그렇죠. 무대 조명은 방송실에 있는 이 콘솔 하나로 밝기랑 색을 다 정해요.', focus: 'desk', show: { photo: 'lighting_console' } },
     { say: '천장에 달린 건 LED 파 조명이에요. 빨강, 초록, 파랑, 흰색을 섞어서 어떤 색이든 내죠.', focus: 'p1', show: { photo: 'par_led' } },
@@ -66,8 +66,8 @@ export default {
     { say: '이번엔 화면이에요. 가사랑 배경은 이 미디어 서버에서 나가요. 레이어를 쌓는데, 위에 있는 게 앞에 보이죠.', focus: 'vj', show: { concept: 'layers' } },
     { say: '스크린은 천장 프로젝터가 비춰요. 큰 행사장에선 LED 전광판을 쓰기도 하고요.', show: { items: [{ photo: 'projector', label: '프로젝터' }, { photo: 'led_wall', label: 'LED 전광판' }] } },
     { say: '미디어 서버 HDMI OUT 1을 프로젝터에 꽂아요.', op: 'connect', from: 'vj.out1', to: 'proj.hdmi', cable: 'hdmi', practice: 'HDMI로 미디어 서버 OUT 1과 프로젝터를 이어 보세요.' },
-    { who: 'junior', say: '꽂았는데 스크린이 그대로 하얘요. 선이 잘못됐나요?', focus: 'proj' },
-    { say: '선은 맞아요. 프로젝터가 아직 꺼져 있잖아요. 전원부터 켜 봐요.', op: 'dev', device: 'proj', key: 'power', value: true, practice: '프로젝터를 클릭하고 전원을 ON으로 켜 보세요.' },
+    { who: 'junior', say: '꽂았는데 스크린이 그대로 하얘요. 이번엔 뭘 빠뜨렸죠?', focus: 'proj' },
+    { say: '천장을 봐요. 프로젝터가 아직 꺼져 있잖아요. 전원부터 켜 봐요.', op: 'dev', device: 'proj', key: 'power', value: true, practice: '프로젝터를 클릭하고 전원을 ON으로 켜 보세요.' },
     { who: 'junior', say: '나왔다! 배경 위에 가사가 겹쳐 보여요.' },
     { say: '3번 레이어가 비었죠? 교회 로고를 올려 볼까요. 가사 위로 로고가 얹혀요.', focus: 'vj', op: 'dev', device: 'vj', key: 'layers.2.clip', value: 'logo', practice: '미디어 서버 Layer 3에서 교회 로고를 골라 보세요.' },
     { say: '찬양이 끝나면 가사는 빼야죠. 2번 레이어 불투명도를 0으로 내려요. 배경이랑 로고만 남아요.', op: 'dev', device: 'vj', key: 'layers.1.opacity', value: 0, practice: 'Layer 2 불투명도를 맨 왼쪽으로 내려 보세요.' },
@@ -86,6 +86,6 @@ export default {
     { quiz: { q: '조이스틱의 2번 카메라 버튼이 빨간불이에요. 지금 2번 프리셋을 불러도 될까요?', options: ['안 된다, 방송 중인 화면이 움직인다', '된다, 프리셋은 순식간이라 괜찮다', '된다, 빨간불은 배터리 부족이다'], answer: 0, explain: '빨간불은 지금 방송에 나가는 카메라예요. 다른 카메라로 넘긴 다음에 움직여요.' } },
 
     // 마무리
-    { say: '튜토리얼은 여기까지예요. 큐 만들기는 스토리 6장, 화면은 7장, PTZ 운용은 8장에서 현장처럼 해 봐요.' },
+    { say: '여덟 파트를 다 왔네요, 수고했어요! 큐 만들기는 스토리 6장, 화면은 7장, PTZ 운용은 8장에서 현장처럼 해 봐요.' },
   ],
 };
