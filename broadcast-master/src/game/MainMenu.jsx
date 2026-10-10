@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { BookOpen, Gamepad2, Wrench, ChevronRight, ChevronDown, GraduationCap, Music, VolumeX, Check } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BookOpen, Gamepad2, Wrench, ChevronRight, ChevronDown, GraduationCap, Music, VolumeX, Check, Inbox } from 'lucide-react';
 import Venue3D from './Venue3D.jsx';
 import { LOW_END } from './kit3d.jsx';
 import { buildRuntime, computeSim } from './sim.js';
@@ -10,6 +10,8 @@ import { getAudio } from './audio.js';
 import STORY from './data/story.json';
 import { SOLUTIONS } from './data/solutions.js';
 import { TUTORIAL } from './data/tutorial.js';
+import { BetaWelcome, BetaCourseCard, shouldShowWelcome } from './BetaGuide.jsx';
+import FeedbackInbox, { canReadFeedback } from './FeedbackInbox.jsx';
 
 /* =====================================================================
  * 메인 메뉴 — 공연장 3D가 천천히 도는 배경 위에서 고른다
@@ -38,6 +40,11 @@ export default function MainMenu({ onSelect }) {
   const startMusic = () => { const a = getAudio(); if (a.unlock()) { a.setSong('menu'); a.setBgm({ on: bgm }); } };
   const toggleBgm = () => { const on = !bgm; setBgm(on); saveProgress('bm2-bgm', on); const a = getAudio(); a.unlock(); a.setBgm({ on }); };
   const go = (mode, arg) => { startMusic(); onSelect(mode, arg); };
+  // 베타: 처음 온 테스터에겐 안내를 한 번 띄우고, 게임 주인에겐 "의견 모아보기"를 보여 준다
+  const [welcome, setWelcome] = useState(shouldShowWelcome);
+  const [inbox, setInbox] = useState(false);
+  const [owner, setOwner] = useState(false);
+  useEffect(() => { let alive = true; canReadFeedback().then((ok) => { if (alive) setOwner(ok); }); return () => { alive = false; }; }, []);
 
   // 진행 상황 (튜토리얼: bm2-tutorial = 마친 파트 id 목록 · 스토리: bm2-progress = { 스테이지 id: 별 })
   const done = new Set(loadProgress('bm2-tutorial', []));
@@ -146,6 +153,12 @@ export default function MainMenu({ onSelect }) {
 
           {/* 도구 */}
           <div className="sm:col-span-3 lg:col-span-1 grid grid-cols-2 lg:grid-cols-1 gap-2 content-end">
+            <div className="col-span-2 lg:col-span-1"><BetaCourseCard onOpen={() => setWelcome(true)} /></div>
+            {owner && (
+              <button type="button" onClick={() => setInbox(true)} className="col-span-2 lg:col-span-1 flex items-center gap-2 rounded-xl border border-slate-500/70 bg-slate-950/80 px-3 py-2 text-left text-sm font-bold hover:border-amber-300">
+                <Inbox size={17} className="text-amber-300" /> 베타 의견 모아보기 <span className="ml-auto text-[10px] font-normal text-slate-400">나만 보여요</span>
+              </button>
+            )}
             <div className="col-span-2 lg:col-span-1 text-[10px] font-bold tracking-widest text-slate-300/80">도구 · 언제든 열어 보기</div>
             {[
               { key: 'dict', icon: BookOpen, title: '장비 백과사전', desc: `모르는 장비·용어 바로 찾기 · ${EDU_ITEMS.length}개`, cls: 'border-emerald-400/60 hover:border-emerald-300', ic: 'text-emerald-300' },
@@ -168,6 +181,8 @@ export default function MainMenu({ onSelect }) {
         </div>
         <p className="mt-4 text-xs text-slate-400 text-center">추천 순서: ① 튜토리얼 → ② 스토리 모드 · 막히면 언제든 장비 백과사전에서 찾아보세요</p>
       </div>
+      {welcome && <BetaWelcome onClose={() => setWelcome(false)} onGo={go} />}
+      {inbox && <FeedbackInbox onClose={() => setInbox(false)} />}
     </div>
   );
 }

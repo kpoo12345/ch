@@ -9,7 +9,7 @@ import { DEVICE_TYPES, PORT_KIND_LABEL, PORT_COLOR, CABLES, MIXER_DEFAULT, MIC_L
 import { EquipmentViewer, CableShowcase } from './Studio3D.jsx';
 import AudioLab from './AudioLab.jsx';
 import FadeLab from './FadeLab.jsx';
-import { Slider, ToggleBtn } from './ui.jsx';
+import { Slider, ToggleBtn, saveProgress } from './ui.jsx';
 import { EDU_CATEGORIES, EDU_ITEMS, EDU_BY_ID, partTitle } from './eduContent.js';
 import { CONCEPT, MixerSizes } from './eduVisuals.jsx';
 import { PHOTOS, photoSrc, photoCredit, photoPage } from './data/photos.js';
@@ -746,7 +746,7 @@ export default function Encyclopedia({ onExit, onNavigate, initialId = null }) {
   const results = useMemo(() => (cat === 'all' ? all : all.filter((r) => r.x.cat === cat)), [all, cat]);
   const list = results.map((r) => r.x);
   const item = openId ? EDU_BY_ID[openId] : null;
-  useEffect(() => { patchBetaContext({ entry: item ? item.title : undefined }); }, [openId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { patchBetaContext({ entry: item ? item.title : undefined }); if (item) saveProgress('bm2-dict-seen', true); }, [openId]); // eslint-disable-line react-hooks/exhaustive-deps
   const counts = useMemo(() => {
     const c = { all: all.length };
     for (const r of all) c[r.x.cat] = (c[r.x.cat] ?? 0) + 1;

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MessageSquarePlus, X, Send, CheckCircle2, Copy } from 'lucide-react';
 import { getBetaContext, BETA_VERSION, subscribeBeta, setFeedbackOpen, getLastError } from './betaContext.js';
 import { audioPath } from './speech.js';
+import { loadProgress, saveProgress } from './ui.jsx';
 
 /* =====================================================================
  * 베타 의견 보내기 — 어느 화면에서든 왼쪽 가장자리 탭으로 연다
@@ -37,6 +38,9 @@ const where = (c) => {
   if (c.entry) parts.push(c.entry);
   return parts.filter(Boolean).join(' · ');
 };
+
+// 베타 테스트 코스의 "의견 한 번 보내기" 체크용
+const noteSent = () => saveProgress('bm2-beta-sent', loadProgress('bm2-beta-sent', 0) + 1);
 
 async function capability(name) {
   try { return (await window.claude?.use?.(name)) ?? null; } catch { return null; }
@@ -93,7 +97,7 @@ export default function BetaFeedback() {
       }));
       await db.collection(`feedback/${uid}/items`).add(item);
       await db.doc(`feedback/${uid}`).set({ lastAt: at, lastKind: kind });
-      setState('sent'); setText('');
+      setState('sent'); setText(''); noteSent();
     } catch (e) {
       // 권한 없음(보기·댓글 전용 공유) 등은 댓글로 안내
       setState(['invalid_argument', 'not_granted', 'revoked', 'capability_disabled', 'capability_removed'].includes(e?.code) ? 'nodb' : 'error');
@@ -105,7 +109,7 @@ export default function BetaFeedback() {
     try { await c.openComposer({ element: rootRef.current ?? document.body }); } catch { setCanComment(false); }
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(`[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION})\n${text}`); setCopied('ok'); } catch { taRef.current?.focus(); taRef.current?.select(); setCopied('fail'); }
+    try { await navigator.clipboard.writeText(`[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION})\n${text}`); setCopied('ok'); noteSent(); } catch { taRef.current?.focus(); taRef.current?.select(); setCopied('fail'); }
   };
 
   return (
@@ -154,7 +158,7 @@ export default function BetaFeedback() {
                     <p>{state === 'error' ? '방금은 저장하지 못했어요. 잠시 뒤 다시 보내거나, 아래 방법으로 보내 주세요.' : '이 링크로는 의견을 게임에 바로 저장할 수 없어요. 편한 방법으로 보내 주세요.'}</p>
                     <div className="flex flex-wrap gap-2">
                       {canComment && <button type="button" onClick={openComments} className="rounded-md bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white">댓글로 남기기</button>}
-                      <a href={issueHref(kind, text, ctx)} target="_blank" rel="noopener noreferrer"
+                      <a href={issueHref(kind, text, ctx)} target="_blank" rel="noopener noreferrer" onClick={noteSent}
                         className={`rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-900 ${text.trim() ? '' : 'pointer-events-none opacity-40'}`} aria-disabled={!text.trim()}>GitHub로 보내기</a>
                       <button type="button" onClick={copy} disabled={!text.trim()} className="flex items-center gap-1 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"><Copy size={12} /> {copied === 'ok' ? '복사됐어요' : '글 복사'}</button>
                     </div>
