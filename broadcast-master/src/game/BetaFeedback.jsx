@@ -108,14 +108,6 @@ export default function BetaFeedback() {
     if (!c) { setCanComment(false); return; }
     try { await c.openComposer({ element: rootRef.current ?? document.body }); } catch { setCanComment(false); }
   };
-  // 휴대폰 공유 창(카톡·문자 등)으로 바로 보내기 — 로그인 없이 받는 가장 쉬운 길
-  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-  const share = async () => {
-    try {
-      await navigator.share({ title: '방송장비 마스터 베타 의견', text: `[방송장비 마스터 베타 의견]\n[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION} · ${device()})\n${text}` });
-      noteSent(); setCopied('ok');
-    } catch { /* 공유 창을 닫음 */ }
-  };
   const copy = async () => {
     try { await navigator.clipboard.writeText(`[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION})\n${text}`); setCopied('ok'); noteSent(); } catch { taRef.current?.focus(); taRef.current?.select(); setCopied('fail'); }
   };
@@ -165,14 +157,13 @@ export default function BetaFeedback() {
                   <div className="rounded-lg border border-sky-500/50 bg-sky-950/40 p-2 text-sm text-sky-100 space-y-2">
                     <p>{state === 'error' ? '방금은 저장하지 못했어요. 잠시 뒤 다시 보내거나, 아래 방법으로 보내 주세요.' : '아래 편한 방법으로 보내 주세요.'}</p>
                     <div className="flex flex-wrap gap-2">
-                      {canShare && <button type="button" onClick={share} disabled={!text.trim()} className="rounded-md bg-amber-400 px-2.5 py-1.5 text-xs font-black text-slate-900 disabled:opacity-40">카톡·문자로 보내기</button>}
                       {canComment && <button type="button" onClick={openComments} className="rounded-md bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white">댓글로 남기기</button>}
                       <a href={issueHref(kind, text, ctx)} target="_blank" rel="noopener noreferrer" onClick={noteSent}
                         className={`rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-900 ${text.trim() ? '' : 'pointer-events-none opacity-40'}`} aria-disabled={!text.trim()}>GitHub로 보내기</a>
                       <button type="button" onClick={copy} disabled={!text.trim()} className="flex items-center gap-1 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"><Copy size={12} /> {copied === 'ok' ? '복사됐어요' : '글 복사'}</button>
                     </div>
                     {copied === 'fail' && <p className="text-[11px] text-amber-200">자동 복사가 안 돼요. 글이 선택돼 있으니 길게 눌러(또는 Ctrl+C) 복사해 주세요.</p>}
-                    <p className="text-[11px] text-sky-200/70">{canShare ? '카톡·문자로 보내기를 누르면 휴대폰 공유 창이 떠요. 링크를 보내 준 사람에게 보내 주세요.' : 'GitHub는 계정이 있으면 바로 올라가요. 계정이 없으면 글을 복사해서 링크를 보내 준 사람에게 전해 주세요.'}</p>
+                    <p className="text-[11px] text-sky-200/70">GitHub는 계정이 있으면 바로 올라가요. 계정이 없으면 글을 복사해서 게임을 알게 된 곳(게시글 댓글 등)에 남겨 주세요.</p>
                   </div>
                 )}
                 {state !== 'nodb' && <button type="button" onClick={send} disabled={!text.trim() || state === 'sending'}
