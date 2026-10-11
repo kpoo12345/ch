@@ -230,10 +230,9 @@ export default function GameScreen({
       return () => clearTimeout(t);
     }
     // 좁은 화면: 콘솔을 닫아 3D·연결표가 보이게, 케이블 잇기는 연결표 탭을 펼친다
-    if (narrow) {
-      setConsoleOpen(false);
-      if (w.op === 'connect' || w.op === 'disconnect') setTab('ports');
-    }
+    if (narrow) setConsoleOpen(false);
+    // 케이블 잇기는 어느 화면이든 연결표 탭을 펼친다 (3D에서 단자가 가려져도 표에서 같은 단자가 반짝인다)
+    if (w.op === 'connect' || w.op === 'disconnect') setTab('ports');
     // 장비 설정(전원 등): 그 장비를 골라 패널을 열고 카메라도 그쪽으로
     if ((w.op === 'dev' || w.op === 'ptz') && st.devices[w.device]?.placed) {
       game.setSelected(w.device); setTab('device');
