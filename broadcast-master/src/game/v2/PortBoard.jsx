@@ -98,7 +98,7 @@ function connLive(st, sim, c) {
 }
 
 /* ---------- 배선도 모델 (카드 위치 · 단자 좌표 · 케이블) ---------- */
-function buildModel(st, pending, cable, expanded, sim) {
+function buildModel(st, pending, cable, expanded, sim, guideKey = null) {
   const used = new Map();
   st.connections.forEach((c) => { used.set(`${c.from.d}.${c.from.p}`, c); used.set(`${c.to.d}.${c.to.p}`, c); });
   const pendKey = pending ? `${pending.d}.${pending.p}` : null;
@@ -115,7 +115,7 @@ function buildModel(st, pending, cable, expanded, sim) {
     const groupOf = new Map();
     groups.forEach((g) => g.ids.forEach((id) => groupOf.set(id, g)));
     const ess = ESSENTIAL[d.type];
-    const want = (pid) => used.has(`${d.id}.${pid}`) || pendKey === `${d.id}.${pid}` || canTake(d.id, pid);
+    const want = (pid) => used.has(`${d.id}.${pid}`) || pendKey === `${d.id}.${pid}` || guideKey === `${d.id}.${pid}` || canTake(d.id, pid);
     let hideable = 0;
     const side = (dir, list) => {
       const items = [];
@@ -148,7 +148,7 @@ function buildModel(st, pending, cable, expanded, sim) {
       const key = `${d.id}.${p.id}`;
       ports[p.id] = {
         id: p.id, dir, kind: p.kind, label: p.label, x, y, ...extra,
-        used: used.get(key) ?? null, pending: pendKey === key, hot: hot(d.id, p.id),
+        used: used.get(key) ?? null, pending: pendKey === key, hot: hot(d.id, p.id), guide: guideKey === key,
       };
     };
     let bodyH;
@@ -266,23 +266,33 @@ const STYLE = `
 .pb-flow { stroke-dasharray: 8 6; animation: pb-flow .6s linear infinite; }
 @keyframes pb-pulse { 0%,100% { box-shadow: 0 0 0 2px rgba(125,211,252,.95), 0 0 0 5px rgba(56,189,248,.25); } 50% { box-shadow: 0 0 0 2px rgba(125,211,252,.95), 0 0 0 8px rgba(56,189,248,.05); } }
 .pb-hot { animation: pb-pulse 1.1s ease-in-out infinite; }
+@keyframes pb-guide { 0%,100% { box-shadow: 0 0 0 3px rgba(251,191,36,1), 0 0 0 7px rgba(251,191,36,.35); transform: scale(1.15); } 50% { box-shadow: 0 0 0 3px rgba(251,191,36,1), 0 0 0 12px rgba(251,191,36,.05); transform: scale(1.35); } }
+.pb-guide { animation: pb-guide .9s ease-in-out infinite; }
 .pb-cable:hover .pb-main, .pb-cable:focus-visible .pb-main { stroke-width: 6; }
 .pb-cable:focus { outline: none; }
 .pb-cable:focus-visible .pb-shadow { stroke: #e0f2fe; stroke-width: 9; }
-@media (prefers-reduced-motion: reduce) { .pb-flow, .pb-hot { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .pb-flow, .pb-hot, .pb-guide { animation: none !important; } }
 `;
 
 /* =====================================================================
  * 내보내기: 사이드 패널의 연결표 + "크게 보기" 전체 화면
  * ===================================================================== */
-export default function PortBoard({ game }) {
+export default function PortBoard({ game, guide = null }) {
   const { st, pending, cable, actual } = game;
+  const guideKey = guide && guide.stage !== 'cable' ? `${guide.target.d}.${guide.target.p}` : null;
   const [big, setBig] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
   const bigBtn = useRef(null);
   const toggle = useCallback((id) => setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
-  const model = useMemo(() => buildModel(st, pending, cable, expanded, actual), [st, pending, cable, expanded, actual]);
+  const model = useMemo(() => buildModel(st, pending, cable, expanded, actual, guideKey), [st, pending, cable, expanded, actual, guideKey]);
   const close = useCallback(() => { setBig(false); requestAnimationFrame(() => bigBtn.current?.focus()); }, []);
+  // 안내하는 단자가 배선판 밖(가로 스크롤)에 있으면 보이게 굴린다
+  useEffect(() => {
+    if (!guideKey) return undefined;
+    const [d, pid] = guideKey.split('.');
+    const t = setTimeout(() => document.querySelector(`[data-port="${d}|${pid}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }), 120);
+    return () => clearTimeout(t);
+  }, [guideKey]);
 
   return (
     <div className="space-y-2">
@@ -603,7 +613,7 @@ function PortDot({ k, p, st, name, dim, onClick, onDown }) {
   const other = p.used ? (p.used.from.d === k.id && p.used.from.p === p.id ? p.used.to : p.used.from) : null;
   const state = p.pending ? ', 선택됨' : p.hot ? ', 여기에 연결 가능' : '';
   const aria = `${name} ${p.label} — ${p.dir === 'in' ? '입력' : '출력'}, ${PORT_KIND_LABEL[p.kind] ?? p.kind}${other ? `, ${devName(st, other.d)} ${shortLabel(portName(st, other.d, other.p))}에 연결됨` : ''}${state}`;
-  const faded = dim && !p.pending && !p.hot && !p.used;
+  const faded = dim && !p.pending && !p.hot && !p.used && !p.guide;
   const fill = p.pending ? '#ffffff' : p.used ? color : '#020617';
   const isDot = p.dot != null;
   const size = isDot ? 21 : 15;
@@ -612,7 +622,7 @@ function PortDot({ k, p, st, name, dim, onClick, onDown }) {
       onClick={(e) => { e.stopPropagation(); onClick(k.id, p.id); }} onPointerDown={(e) => onDown(e, k.id, p.id)}
       className="group absolute flex cursor-crosshair items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
       style={{ left: k.x + p.x - 15, top: k.y + p.y - 14, width: 30, height: 28, zIndex: 3, opacity: faded ? 0.4 : 1, touchAction: 'manipulation' }}>
-      <span className={`flex items-center justify-center rounded-full font-mono font-bold leading-none transition-transform group-hover:scale-125 ${p.hot ? 'pb-hot' : ''}`}
+      <span className={`flex items-center justify-center rounded-full font-mono font-bold leading-none transition-transform group-hover:scale-125 ${p.guide ? 'pb-guide' : p.hot ? 'pb-hot' : ''}`}
         style={{ width: size, height: size, border: `${isDot ? 2 : 3}px solid ${color}`, background: fill, color: p.used || p.pending ? '#0b1220' : '#e2e8f0', fontSize: p.dot?.length > 2 ? 7.5 : 9 }}>
         {isDot ? p.dot : null}
       </span>

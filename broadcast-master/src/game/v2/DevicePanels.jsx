@@ -58,7 +58,7 @@ export function DevicePanel({ game, id }) {
       const lv = actual.inLevel(id, 'in');
       body = (
         <Card title="액티브 스피커" icon={Power}>
-          <Row label="전원" hint="케이블을 다 꽂은 뒤 마지막에 켜고, 끌 때는 가장 먼저 끕니다."><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="전원" hint="케이블을 다 꽂은 뒤 마지막에 켜고, 끌 때는 가장 먼저 끕니다."><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           <Row label="스피커로 들어오는 신호"><div className="w-36"><Meter level={s.power ? lv : null} /></div></Row>
           <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '마이크보다 청중 쪽에서 청중을 향함'}>
             {free.map(([k, sl]) => <button key={k} type="button" onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
@@ -98,7 +98,7 @@ export function DevicePanel({ game, id }) {
       const nameOf = (x) => st.devices[x]?.name ?? DEVICE_TYPES[st.devices[x]?.type]?.name ?? x;
       body = (
         <Card title="파워 앰프 (2채널)" icon={Zap}>
-          <Row label="전원" hint="케이블을 다 꽂은 뒤 맨 마지막에 켜고, 끌 때는 맨 먼저 끕니다."><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="전원" hint="케이블을 다 꽂은 뒤 맨 마지막에 켜고, 끌 때는 맨 먼저 끕니다."><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           {outs.map(({ ch, src, dst, lv }) => {
             const key = `level${ch}`;
             const v = s[key] ?? 75;
@@ -127,7 +127,7 @@ export function DevicePanel({ game, id }) {
           <div className={`rounded px-2 py-1 font-mono text-xs ${ok ? 'bg-sky-950 text-sky-200' : 'bg-red-950 text-red-200'}`}>
             {!s.power ? '송신기 전원 꺼짐 — 소리 없음' : ok ? `CH ${s.txChannel} 수신 중 (RF ▮▮▮▮)` : `채널 불일치 (송신 ${s.txChannel} / 벨트팩 ${s.rxChannel}) — 소리 없음`}
           </div>
-          <Row label="송신기 전원"><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="송신기 전원"><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           <Row label="송신기 채널"><Stepper value={s.txChannel} min={1} max={8} onChange={(v) => set('txChannel', v)} label="송신기 채널" /></Row>
           <Row label="벨트팩(수신기) 채널" hint="송신기와 같은 채널이어야 들립니다."><Stepper value={s.rxChannel} min={1} max={8} onChange={(v) => set('rxChannel', v)} label="벨트팩 채널" /></Row>
           <Row label="송신기로 들어오는 신호 (AUX)"><div className="w-36"><Meter level={s.power ? actual.inLevel(id, 'in') : null} /></div></Row>
@@ -142,7 +142,7 @@ export function DevicePanel({ game, id }) {
     case 'monitor':
       body = (
         <Card title="모니터 스피커 (웨지)" icon={Power}>
-          <Row label="전원"><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="전원"><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           <Row label="웨지로 들어오는 신호 (AUX)"><div className="w-36"><Meter level={s.power ? actual.inLevel(id, 'in') : null} /></div></Row>
           <p className="text-[11px] text-slate-400">무대 위 연주자·설교자가 자기 소리를 듣는 스피커입니다. 믹서의 각 채널 AUX 노브로 무엇을 얼마나 보낼지 정합니다.</p>
         </Card>
@@ -272,7 +272,7 @@ export function DevicePanel({ game, id }) {
       const r = nominal.displays[id];
       body = (
         <Card title={d.type === 'projector' ? '프로젝터' : 'LED 전광판'} icon={Tv}>
-          <Row label="전원"><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="전원"><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           {d.type === 'led_wall' && <Row label="LED 프로세서 입력 해상도"><span className="font-mono text-xs text-slate-200">{s.res}</span></Row>}
           <div className="text-[11px] text-slate-400">상태: {!s.power ? '꺼짐' : !r?.source ? '입력 없음' : r.scaled ? <span className="text-red-300">해상도 불일치 — 확대되어 흐릿함</span> : r.ok ? <span className="text-green-300">정상 출력</span> : '신호는 있지만 보낼 화면이 비어 있음'}</div>
           <Canvas2D w={320} h={180} draw={(ctx, w, h) => { if (r?.layers?.length) drawComposition(ctx, r.layers, 0, 0, w, h); else if (r?.program) drawSource(ctx, sourceOf(st, nominal, nominal.video.programCam), 0, 0, w, h); else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); } }} deps={[JSON.stringify(r)]} />
@@ -588,7 +588,7 @@ function FixturePanel({ game, id }) {
       <Row label="DMX 시작 주소" hint={`${fp}채널 모드: ${String(s.address).padStart(3, '0')} ~ ${String(s.address + fp - 1).padStart(3, '0')}번 채널 사용`}>
         <Stepper value={s.address} min={1} max={512 - fp + 1} onChange={(v) => set('address', v)} fmt={(v) => String(v).padStart(3, '0')} label="DMX 주소" />
       </Row>
-      <Row label="전원"><Toggle on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+      <Row label="전원"><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
       <Row label="DMX 터미네이터" hint="라인의 마지막 조명 OUT에 꽂아 신호 반사를 막습니다."><Toggle on={s.terminated} color="green" onClick={() => set('terminated', !s.terminated)}>{s.terminated ? '꽂힘' : '없음'}</Toggle></Row>
       <div className="text-[11px] space-y-0.5">
         <div className={r.receiving ? 'text-green-300' : 'text-amber-300'}>DMX 신호: {r.receiving ? `수신 중 (체인 ${r.depth}번째)` : '없음 — 케이블 확인'}</div>

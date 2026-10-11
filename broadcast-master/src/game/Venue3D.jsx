@@ -682,7 +682,7 @@ function CameraRig({ venue, resetKey, focus, portWorld }) {
  * ===================================================================== */
 export default function Venue3D({
   st, sim, venueId, interactive = true, autoRotate = false, fallback, talking, performing, selectedChannel = 0,
-  pending, selectedCable, selectedDevice, labels = false, resetKey, focusRequest, lockView = false, follow = false, action, viewers = 0, highlight,
+  pending, selectedCable, selectedDevice, labels = false, resetKey, focusRequest, lockView = false, follow = false, action, viewers = 0, highlight, holdOnPending = false,
   onPortClick, onSelectDevice, onDisconnect, onPlace, onCancelPending, sandboxApi,
 }) {
   const venue = VENUES[venueId] ?? VENUES.lecture_hall;
@@ -736,6 +736,17 @@ export default function Venue3D({
     };
   };
 
+  // 단자 하나를 정면에서 가까이 (단자가 향한 쪽 + 조금 위 + 평소 보던 쪽에서 비스듬히)
+  const focusPort = (id, pid) => {
+    const pw = portWorld(id, pid);
+    if (!pw) { focusDevice(id, { silent: true }); return; }
+    const cam = venue.camera;
+    const c = [cam.pos[0] - cam.target[0], cam.pos[1] - cam.target[1], cam.pos[2] - cam.target[2]];
+    const cl = Math.hypot(...c) || 1;
+    const dir = [pw.n[0] + 0.6 * (c[0] / cl), pw.n[1] + 0.55 + 0.6 * (c[1] / cl), pw.n[2] + 0.6 * (c[2] / cl)];
+    setFocus({ target: pw.p, dist: 0.85, dir, key: `port-${id}-${pid}-${Date.now()}` });
+    lastFocus.current = { id, t: Date.now() };
+  };
   const focusDevice = (id, opts = {}) => {
     const w = worldOf(id);
     if (!w) return;
@@ -761,6 +772,7 @@ export default function Venue3D({
   useEffect(() => {
     if (!focusRequest) return;
     if (focusRequest.id === 'overview') { setFocus({ overview: true, target: venue.camera.target, key: `ov-${focusRequest.key}` }); lastFocus.current = null; }
+    else if (!lockView && focusRequest.port && devices[focusRequest.id]?.placed) focusPort(focusRequest.id, focusRequest.port);
     else if (!lockView && devices[focusRequest.id]?.placed) focusDevice(focusRequest.id, { silent: true, zoom: focusRequest.zoom }); // 시점 고정 중에는 확대하지 않음
   }, [focusRequest?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -955,8 +967,9 @@ export default function Venue3D({
   }
   const pendingWorld = pending ? portWorld(pending.d, pending.p) : null;
   // 확대해서 단자를 고르면, 반대쪽 장비도 누를 수 있게 전체 보기로 빠진다
+  //  (케이블 잇기 연습 안내 중이면 안내가 다음 단자로 카메라를 옮기므로 빠지지 않는다)
   useEffect(() => {
-    if (!pending || lockView || !lastFocus.current) return;
+    if (!pending || lockView || holdOnPending || !lastFocus.current) return;
     setFocus({ overview: true, target: venue.camera.target, key: `pend-${Date.now()}` });
     lastFocus.current = null;
   }, [pending?.d, pending?.p]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1183,6 +1196,7 @@ export default function Venue3D({
                   return (
                     <Port3D key={pid} p={pw.p} n={pw.n} port={port} label={SHORT_LABEL[`${d.type}:${pid}`] ?? port.label}
                       lift={(d.type === 'digital_mixer' || SNAKE_TYPES.has(d.type)) && idx % 2 ? 0.035 : 0} used={used} isPending={isPending} candidate={candidate || hiPort}
+                      guide={hiPort && holdOnPending} quietLabel={holdOnPending}
                       bare={OWN_JACKS.has(d.type)} hitR={SNAKE_TYPES.has(d.type) ? 0.024 : undefined} labels={labels && d.type !== 'analog_mixer'} onClick={() => onPortClick?.(d.id, pid)} />
                   );
                 })}

@@ -15,7 +15,7 @@ const SPEEDS = [1, 1.5, 2];
 
 const LAB_NAME = { fade: '페이드 실습실', eq: 'EQ 실습실', fx: '울림(리버브) 실습실' };
 
-export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab, inline = false }) {
+export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab, inline = false, guide = null }) {
   const { script, narration, waiting, speaking, praised, quiz } = player;
   const [shown, setShown] = useState(0);
   // 설명 카드 접기: 직접 해 보는 동안은 저절로 접어 대상이 가려지지 않게, X로 접은 카드는 그 장면 동안 접힌 채로
@@ -114,12 +114,28 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
               {text.slice(0, shown)}<span className="text-transparent">{text.slice(shown)}</span>
             </p>
             {waiting && full && (
-              <div className="mt-1.5 rounded-lg border border-amber-400/60 bg-amber-500/10 px-2.5 py-1.5 text-sm font-bold text-amber-200 flex items-start gap-1.5" onClick={(e) => e.stopPropagation()}>
-                <Hand size={16} className="mt-0.5 shrink-0 animate-bounce" />
-                <span className="flex-1">직접 해 보세요: {waiting.practice}</span>
-                <button type="button" onClick={player.showMe} className="shrink-0 rounded-md bg-slate-800 hover:bg-slate-700 px-2 py-0.5 text-[12px] text-slate-200 flex items-center gap-1" title="유령 손이 대신 보여 줍니다">
-                  <Wand2 size={13} /> 보여 주세요
-                </button>
+              <div className="mt-1.5 rounded-lg border border-amber-400/60 bg-amber-500/10 px-2.5 py-1.5 text-sm font-bold text-amber-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-start gap-1.5">
+                  <Hand size={16} className="mt-0.5 shrink-0 animate-bounce" />
+                  {/* 케이블 잇기 안내가 있으면 긴 설명 대신 "지금 할 일" 하나 (좁은 화면) · 넓은 화면은 설명 + 아래 순서 */}
+                  {guide && inline
+                    ? <span className="flex-1">직접 해 보세요 ({guide.steps.findIndex((g) => g.active) + 1}/{guide.steps.length}): <span className="text-amber-100 underline decoration-amber-400/70 underline-offset-2">{guide.steps.find((g) => g.active)?.text}</span></span>
+                    : <span className="flex-1">직접 해 보세요: {waiting.practice}</span>}
+                  <button type="button" onClick={player.showMe} className="shrink-0 rounded-md bg-slate-800 hover:bg-slate-700 px-2 py-0.5 text-[12px] text-slate-200 flex items-center gap-1" title="유령 손이 대신 보여 줍니다">
+                    <Wand2 size={13} /> 보여 주세요
+                  </button>
+                </div>
+                {/* 케이블 잇기: 지금 할 일 하나만 크게, 끝난 일은 체크 */}
+                {guide && !inline && (
+                  <ol className="mt-1.5 grid gap-1 sm:grid-cols-3" aria-label="연결 순서">
+                    {guide.steps.map((g, k) => (
+                      <li key={k} className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] leading-snug ${g.done ? 'bg-green-900/30 text-green-200' : g.active ? 'bg-amber-400 text-slate-900 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
+                        <span className={`shrink-0 h-4 w-4 rounded-full text-[10px] font-black flex items-center justify-center ${g.done ? 'bg-green-500 text-slate-900' : g.active ? 'bg-slate-900 text-amber-300' : 'bg-slate-700 text-slate-300'}`}>{g.done ? '✓' : k + 1}</span>
+                        <span>{g.text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
             )}
             {q && quiz?.i === narration?.i && full && (

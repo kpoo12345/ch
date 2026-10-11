@@ -196,7 +196,19 @@ export default function GameScreen({
 
   const inv = Object.entries(st.cables).filter(([k]) => CABLES[k]);
   const cableChoices = st.unlimited ? Object.keys(CABLES) : inv.map(([k]) => k);
-  const highlight = player.waiting ? targetOf(player.waiting, st) : null;
+  // 케이블 잇기 연습: ① 케이블 고르기 → ② 첫 단자 → ③ 둘째 단자를 한 단계씩 짚어 준다 (카메라도 그 단자로)
+  const guide = useMemo(() => connectGuide(player.waiting, st, game.cable, game.pending), [player.waiting, st, game.cable, game.pending]);
+  const highlight = guide ? { device: guide.target.d, port: guide.target.p } : player.waiting ? targetOf(player.waiting, st) : null;
+  // 연습 중 엉뚱한 단자를 골라 두었으면 풀어 준다 (반짝이는 단자를 누르면 바로 이어지게)
+  useEffect(() => {
+    if (guide?.wrongPending) { game.setPending(null); game.notify('info', '연습 중이에요. 반짝이는 단자부터 눌러 보세요.'); }
+  }, [guide?.wrongPending]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 다음에 누를 단자가 바뀌면 카메라가 그 단자로 다가간다 (시점 고정 중이면 그대로)
+  const guideKey = guide ? `${guide.stage}:${guide.target.d}.${guide.target.p}` : null;
+  useEffect(() => {
+    if (!guide || lockView || !st.devices[guide.target.d]?.placed) return;
+    setFocusRequest({ id: guide.target.d, port: guide.target.p, key: Date.now() });
+  }, [guideKey]); // eslint-disable-line react-hooks/exhaustive-deps
   // 믹서 손잡이를 돌려야 하는 단계면 콘솔을 저절로 열고, 닫혀 있으면 단추를 반짝인다
   const mixerAsk = !!player.waiting && ['ch', 'master', 'fade'].includes(player.waiting.op);
   useEffect(() => {
@@ -221,6 +233,26 @@ export default function GameScreen({
     if (narrow) {
       setConsoleOpen(false);
       if (w.op === 'connect' || w.op === 'disconnect') setTab('ports');
+    }
+    // 장비 설정(전원 등): 그 장비를 골라 패널을 열고 카메라도 그쪽으로
+    if ((w.op === 'dev' || w.op === 'ptz') && st.devices[w.device]?.placed) {
+      game.setSelected(w.device); setTab('device');
+      if (!lockView) setFocusRequest({ id: w.device, key: Date.now() });
+      // 패널 안의 그 단추(전원 등)를 보이게 굴리고 반짝인다
+      const t = setTimeout(() => {
+        const el = document.querySelector(`[data-ctl="${w.device}-${w.key}"]`);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center' });
+        document.querySelectorAll('.bm-target').forEach((x) => x.classList.remove('bm-target'));
+        el.classList.add('bm-target');
+        setTimeout(() => el.classList.remove('bm-target'), 6000);
+      }, 300);
+      return () => clearTimeout(t);
+    }
+    // 장비 놓기: 전체가 보이게 빼고, 미션 탭의 "+ 배치" 단추도 보이게
+    if (w.op === 'place') {
+      setTab('mission');
+      if (!lockView) setFocusRequest({ id: 'overview', key: Date.now() });
     }
     return undefined;
   }, [player.waiting?.index]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -281,7 +313,7 @@ export default function GameScreen({
             <Venue3D st={st} sim={actual} venueId={st.venue} talking={talking} performing={game.performing} selectedChannel={game.selCh}
               pending={game.pending} selectedCable={game.cable} selectedDevice={game.selected} labels={labels} resetKey={resetKey}
               focusRequest={focusRequest} lockView={lockView} follow={follow} action={game.action} viewers={actual.stream.live ? 1280 : 0}
-              highlight={highlight} free={mode === 'sandbox'} sandboxApi={sandboxApi}
+              highlight={highlight} holdOnPending={!!guide} free={mode === 'sandbox'} sandboxApi={sandboxApi}
               onPortClick={game.clickPort} onSelectDevice={game.setSelected} onDisconnect={game.disconnect}
               onPlace={(id) => game.apply({ op: 'place', device: id })} onCancelPending={() => game.setPending(null)} />
           ) : <NoWebGL hint="'연결표' 탭에서 게임을 계속할 수 있어요." />}
@@ -302,10 +334,10 @@ export default function GameScreen({
           {game.toast && <Toast toast={game.toast} onDone={() => game.setToast(null)} />}
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
-          {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} />}
+          {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} />}
           {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
-        {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} inline />}
+        {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} inline />}
 
         {/* 사이드 패널 */}
         <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'h-[38vh]'} lg:h-auto lg:flex-none`}>
@@ -329,7 +361,7 @@ export default function GameScreen({
               ? <DevicePanel key={game.selected} game={game} id={game.selected} />
               : <DeviceList game={game} onFocus={(id) => setFocusRequest({ id, key: Date.now() })} />)}
             {tab === 'device' && game.selected && <button type="button" onClick={() => game.setSelected(null)} className="text-xs text-slate-400 hover:text-slate-200">← 장비 목록</button>}
-            {tab === 'ports' && <PortBoard game={game} />}
+            {tab === 'ports' && <PortBoard game={game} guide={guide} />}
             {tab === 'log' && <LogPanel log={game.log} />}
           </div>
         </aside>
@@ -346,7 +378,7 @@ export default function GameScreen({
               const on = game.cable === k;
               return (
                 <button key={k} type="button" role="radio" aria-checked={on} disabled={!st.unlimited && !n} onClick={() => game.setCable(on ? null : k)} title={`${CABLES[k].name} — ${CABLES[k].desc}`}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold border disabled:opacity-35 ${on ? 'bg-white text-slate-900 border-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'}`}>
+                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold border disabled:opacity-35 ${on ? 'bg-white text-slate-900 border-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'} ${guide?.stage === 'cable' && guide.cable === k ? 'bm-target' : ''}`}>
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: CABLES[k].stroke }} />{CABLES[k].short} <span className="font-mono opacity-70">×{n}</span>
                 </button>
               );
@@ -552,6 +584,32 @@ function Result({ spec, stars, usedAuto, elapsed, onNext, onRetry, onExit, onClo
 function portLabel(st, d, p) {
   const def = DEVICE_TYPES[st.devices[d]?.type];
   return [...(def?.ins ?? []), ...(def?.outs ?? [])].find((x) => x.id === p)?.label ?? p;
+}
+
+// 케이블 잇기 연습의 지금 단계: 케이블 → 첫 단자 → 둘째 단자 (어느 쪽 끝부터 눌러도 된다)
+function connectGuide(w, st, cable, pending) {
+  if (!w || w.op !== 'connect') return null;
+  const [fd, fp] = w.from.split('.');
+  const [td, tp] = w.to.split('.');
+  if (!st.devices[fd]?.placed || !st.devices[td]?.placed) return null;
+  const at = (d, p) => !!pending && pending.d === d && pending.p === p;
+  const swap = at(td, tp);
+  const A = swap ? { d: td, p: tp } : { d: fd, p: fp };
+  const B = swap ? { d: fd, p: fp } : { d: td, p: tp };
+  const name = (e) => `${st.devices[e.d]?.name ?? DEVICE_TYPES[st.devices[e.d]?.type]?.name ?? e.d} ${portLabel(st, e.d, e.p)}`;
+  const cableOk = cable === w.cable;
+  const firstOk = at(A.d, A.p);
+  const stage = !cableOk ? 'cable' : firstOk ? 'second' : 'first';
+  return {
+    stage, cable: w.cable,
+    target: firstOk ? B : A,
+    wrongPending: !!pending && !at(fd, fp) && !at(td, tp),
+    steps: [
+      { text: `아래 케이블 가방에서 ${CABLES[w.cable]?.short ?? w.cable} 고르기`, done: cableOk, active: stage === 'cable' },
+      { text: `${name(A)} 누르기`, done: firstOk, active: stage === 'first' },
+      { text: `${name(B)} 누르기`, done: false, active: stage === 'second' },
+    ],
+  };
 }
 
 // 연습 단계에서 강조할 장비/단자

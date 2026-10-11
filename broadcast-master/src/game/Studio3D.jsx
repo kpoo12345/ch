@@ -875,22 +875,23 @@ export const SHORT_LABEL = {
 // 단자 앞면 크기(반지름) — JackFace 모양과 맞춘다
 export const SOCKET_R = { xlr: 0.0108, combo: 0.0108, dmx: 0.0108, trs: 0.0068, hdmi: 0.0098, sdi: 0.0068, usb: 0.0062, eth: 0.0088, mini: 0.0042, multi: 0.026, speakon: 0.0125 };
 
-export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, bare, hitR, onClick }) {
+// guide: 연습 안내가 "지금 이 단자"를 가리킬 때 (주황 · 크게 깜빡 · "여기!" 이름표) · quietLabel: 안내 중 다른 후보는 이름표 없이 테두리만
+export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate, labels, bare, hitR, onClick, guide = false, quietLabel = false }) {
   const hold = useHoldCamera();
   const q = useMemo(() => quatFromNormal(n), [n]);
   const ring = useRef();
   const [hover, setHover] = useState(false);
   useFrame(({ clock }) => {
     if (!ring.current) return;
-    const pulse = candidate ? 1 + Math.sin(clock.elapsedTime * 8) * 0.25 : 1;
+    const pulse = guide ? 1.4 + Math.sin(clock.elapsedTime * 7) * 0.45 : candidate ? 1 + Math.sin(clock.elapsedTime * 8) * 0.25 : 1;
     ring.current.scale.setScalar((hover || isPending ? 1.3 : 1) * pulse);
-    ring.current.visible = !used || hover || isPending || candidate;
+    ring.current.visible = !used || hover || isPending || candidate || guide;
   });
   const r = SOCKET_R[port.kind] ?? 0.014;
-  const color = PORT_COLOR[port.kind];
+  const color = guide ? '#fbbf24' : PORT_COLOR[port.kind];
   const nv = new THREE.Vector3(...n).normalize();
   const labelPos = new THREE.Vector3(...p).addScaledVector(nv, 0.05).add(new THREE.Vector3(0, 0.03 + lift, 0));
-  const glow = isPending || candidate || hover;
+  const glow = isPending || candidate || hover || guide;
   return (
     <group>
       <group position={p} quaternion={q}>
@@ -916,13 +917,13 @@ export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       </group>
-      {(labels || hover || isPending || candidate) && (
+      {(labels || hover || isPending || guide || (candidate && !quietLabel)) && (
         // 이름표도 누를 수 있다 (초보자는 작은 단자보다 이름표를 누른다). 고를 수 있는 단자만
-        <Label position={labelPos} center zIndexRange={[20, 0]} wrapperClass={candidate || hover ? '' : 'bm-noevents'}>
-          <div className={`whitespace-nowrap rounded px-1 py-[1px] font-mono text-[10px] leading-tight ${isPending ? 'bg-white text-slate-900' : candidate ? 'bg-sky-500 text-white cursor-pointer' : 'bg-black/75 text-slate-100'} ${used ? 'opacity-70' : ''}`}
-            style={{ borderLeft: `3px solid ${color}`, pointerEvents: candidate || hover ? 'auto' : 'none' }}
-            onClick={candidate || hover ? (e) => { e.stopPropagation(); onClick(); } : undefined}>
-            {isPending || hover || candidate ? port.label : label}
+        <Label position={labelPos} center zIndexRange={[guide ? 25 : 20, 0]} wrapperClass={candidate || hover || guide ? '' : 'bm-noevents'}>
+          <div className={`whitespace-nowrap rounded font-mono leading-tight ${guide ? 'px-1.5 py-0.5 text-[12px] font-bold bg-amber-400 text-slate-900 shadow-[0_0_12px_rgba(251,191,36,.9)] animate-pulse cursor-pointer' : `px-1 py-[1px] text-[10px] ${isPending ? 'bg-white text-slate-900' : candidate ? 'bg-sky-500 text-white cursor-pointer' : 'bg-black/75 text-slate-100'}`} ${used && !guide ? 'opacity-70' : ''}`}
+            style={{ borderLeft: `3px solid ${color}`, pointerEvents: candidate || hover || guide ? 'auto' : 'none' }}
+            onClick={candidate || hover || guide ? (e) => { e.stopPropagation(); onClick(); } : undefined}>
+            {guide ? `▶ ${port.label} · 여기!` : isPending || hover || candidate ? port.label : label}
           </div>
         </Label>
       )}
