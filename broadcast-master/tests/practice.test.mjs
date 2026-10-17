@@ -115,11 +115,11 @@ test('every non-cable practice step names a control to flash, inside a panel tha
   const { ctlKeysOf, panelDeviceOf } = await import('../src/game/v2/practiceTarget.js');
   const bad = [];
   TUTORIAL.forEach((part) => part.steps.forEach((s, i) => {
-    if (!s.practice || s.op === 'connect' || s.op === 'place') return;
+    if (!s.practice || s.op === 'connect') return;
     const st = stateBefore(part, i);
     const keys = ctlKeysOf(s, st);
     if (!keys.length || keys.some((k) => /undefined|null/.test(k))) bad.push(`${part.id}#${i} ${s.op} keys ${keys.join(',')}`);
-    if (['ch', 'master', 'fade'].includes(s.op)) return; // 믹서 콘솔
+    if (['ch', 'master', 'fade', 'place'].includes(s.op)) return; // 믹서 콘솔 · 미션 탭
     const pd = panelDeviceOf(s, st);
     if (!pd || !st.devices[pd]?.placed) bad.push(`${part.id}#${i} ${s.op} panel ${pd} not placed`);
   }));

@@ -262,7 +262,7 @@ export default function GameScreen({
       if (!shown.classList.contains('bm-target')) shown.classList.add('bm-target');
       if (scrolled !== hit.key) {
         scrolled = hit.key;
-        shown.scrollIntoView({ block: mixerAsk ? 'nearest' : 'center', inline: 'nearest', behavior: 'smooth' });
+        shown.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
       }
     };
     document.querySelectorAll('.bm-target[data-ctl]').forEach((x) => x.classList.remove('bm-target'));
@@ -488,7 +488,7 @@ function Unplaced({ game, only }) {
     <div className="flex flex-wrap items-center gap-1.5 text-xs">
       <span className="text-slate-400">아직 놓지 않은 장비</span>
       {left.map((d) => (
-        <button key={d.id} type="button" onClick={() => game.apply({ op: 'place', device: d.id })}
+        <button key={d.id} type="button" data-ctl={`mission-place-${d.id}`} onClick={() => game.apply({ op: 'place', device: d.id })}
           className="rounded-full border border-sky-400/70 bg-sky-900/40 px-2 py-0.5 font-bold text-sky-100 hover:bg-sky-800/60">+ {d.name ?? DEVICE_TYPES[d.type]?.name} 배치</button>
       ))}
     </div>

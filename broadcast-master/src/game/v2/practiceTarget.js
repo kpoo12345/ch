@@ -13,7 +13,7 @@
  *   케이블 분리           `${패널 장비}-disconnect-${from}>${to}` (연결이 저장된 방향 그대로)
  *   조명 콘솔 탭          `${콘솔}-tab-pb` · `-tab-prog` · `-tab-patch`
  *   조명 콘솔 저장·패치    `${콘솔}-lightRecord-${n}` · `-patchAdd` · `-patchRemove-${n}`
- *   놓기 (패널 단추)       `${장비}-place` (연습은 미션 탭의 "+ 배치"로 안내하므로 ctlKeysOf는 쓰지 않는다)
+ *   놓기                 미션 탭의 "+ 배치" 단추 `mission-place-${장비}` (장비 패널 안의 `${장비}-place`는 다음 후보)
  *
  * ctlKeysOf는 앞에서부터 찾아볼 이름 목록(가장 구체적인 것부터)을,
  * panelDeviceOf는 그 단추가 들어 있는 패널의 장비를 돌려준다.
@@ -105,6 +105,7 @@ export function ctlKeysOf(step, st) {
         case 'recall': return [`${d}-ptz-preset-${step.value}`];
         default: return [];
       }
+    case 'place': return d ? [`mission-place-${d}`, `${d}-place`] : [];
     case 'move': return [`${d}-move-${step.slot}`];
     case 'disconnect': {
       const a = endOf(step.from), b = endOf(step.to);
