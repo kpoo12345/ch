@@ -46,7 +46,7 @@ export function DevicePanel({ game, id }) {
     return (
       <div className="space-y-2">{header}
         <p className="text-xs text-slate-300">아직 배치되지 않았습니다.</p>
-        <button type="button" onClick={() => apply({ op: 'place', device: id })} className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold">+ 배치하기</button>
+        <button type="button" data-ctl={`${id}-place`} onClick={() => apply({ op: 'place', device: id })} className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold">+ 배치하기</button>
       </div>
     );
   }
@@ -61,7 +61,7 @@ export function DevicePanel({ game, id }) {
           <Row label="전원" hint="케이블을 다 꽂은 뒤 마지막에 켜고, 끌 때는 가장 먼저 끕니다."><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           <Row label="스피커로 들어오는 신호"><div className="w-36"><Meter level={s.power ? lv : null} /></div></Row>
           <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '마이크보다 청중 쪽에서 청중을 향함'}>
-            {free.map(([k, sl]) => <button key={k} type="button" onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
+            {free.map(([k, sl]) => <button key={k} type="button" data-ctl={`${id}-move-${k}`} onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
           </Row>
         </Card>
       );
@@ -82,7 +82,7 @@ export function DevicePanel({ game, id }) {
           </div>
           <Row label="앰프에서 들어오는 신호"><div className="w-36"><Meter level={actual.inLevel(id, 'spk')} /></div></Row>
           <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '마이크보다 청중 쪽에서 청중을 향함'}>
-            {free.map(([k, sl]) => <button key={k} type="button" onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
+            {free.map(([k, sl]) => <button key={k} type="button" data-ctl={`${id}-move-${k}`} onClick={() => apply({ op: 'move', device: id, slot: k })} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">{sl.label}로 옮기기</button>)}
           </Row>
           <p className="text-[11px] text-slate-400">앰프가 들어 있지 않아 믹서·마이크 신호를 바로 꽂아도 소리가 나지 않습니다. 하울링은 액티브 스피커와 똑같이 조심합니다.</p>
         </Card>
@@ -104,7 +104,7 @@ export function DevicePanel({ game, id }) {
             const v = s[key] ?? 75;
             return (
               <div key={ch} className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Knob label={`CH ${ch}`} value={v} min={0} max={100} color="#fbbf24" size={40} def={75} display={v <= 0 ? '-∞' : fmtDb(faderDb(v)).replace(' dB', '')}
+                <Knob label={`CH ${ch}`} ctl={`${id}-${key}`} value={v} min={0} max={100} color="#fbbf24" size={40} def={75} display={v <= 0 ? '-∞' : fmtDb(faderDb(v)).replace(' dB', '')}
                   onChange={(x) => set(key, x, false)} onCommit={commit(key)} />
                 <div className="min-w-0 flex-1 space-y-1">
                   <Meter level={s.power ? lv : null} />
@@ -128,11 +128,11 @@ export function DevicePanel({ game, id }) {
             {!s.power ? '송신기 전원 꺼짐 — 소리 없음' : ok ? `CH ${s.txChannel} 수신 중 (RF ▮▮▮▮)` : `채널 불일치 (송신 ${s.txChannel} / 벨트팩 ${s.rxChannel}) — 소리 없음`}
           </div>
           <Row label="송신기 전원"><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
-          <Row label="송신기 채널"><Stepper value={s.txChannel} min={1} max={8} onChange={(v) => set('txChannel', v)} label="송신기 채널" /></Row>
-          <Row label="벨트팩(수신기) 채널" hint="송신기와 같은 채널이어야 들립니다."><Stepper value={s.rxChannel} min={1} max={8} onChange={(v) => set('rxChannel', v)} label="벨트팩 채널" /></Row>
+          <Row label="송신기 채널"><Stepper ctl={`${id}-txChannel`} value={s.txChannel} min={1} max={8} onChange={(v) => set('txChannel', v)} label="송신기 채널" /></Row>
+          <Row label="벨트팩(수신기) 채널" hint="송신기와 같은 채널이어야 들립니다."><Stepper ctl={`${id}-rxChannel`} value={s.rxChannel} min={1} max={8} onChange={(v) => set('rxChannel', v)} label="벨트팩 채널" /></Row>
           <Row label="송신기로 들어오는 신호 (AUX)"><div className="w-36"><Meter level={s.power ? actual.inLevel(id, 'in') : null} /></div></Row>
           <Row label="벨트팩 볼륨" hint="귀를 보호하려면 작게 시작해 천천히 올립니다.">
-            <Knob value={s.volume ?? 75} min={0} max={100} size={34} def={75} onChange={(v) => set('volume', v, false)} onCommit={commit('volume')} />
+            <Knob ctl={`${id}-volume`} value={s.volume ?? 75} min={0} max={100} size={34} def={75} onChange={(v) => set('volume', v, false)} onCommit={commit('volume')} />
           </Row>
           <p className="text-[11px] text-slate-400">소리가 귀 안으로만 들어가 마이크로 되돌아가지 않으므로 하울링이 생기지 않습니다.</p>
         </Card>
@@ -155,10 +155,10 @@ export function DevicePanel({ game, id }) {
           <div className={`rounded px-2 py-1 font-mono text-xs ${ok ? 'bg-sky-950 text-sky-200' : 'bg-red-950 text-red-200'}`}>
             RX CH {s.rxChannel} · {ok ? '신호 수신 중 (RF ▮▮▮▮)' : !s.txPower ? '송신기 전원 꺼짐' : s.txChannel !== s.rxChannel ? '채널 불일치 — 신호 없음' : '배터리 부족 — 끊김'}
           </div>
-          <Row label="송신기(마이크) 전원"><Toggle on={s.txPower} color="green" onClick={() => set('txPower', !s.txPower)}>{s.txPower ? 'ON' : 'OFF'}</Toggle></Row>
-          <Row label="송신기 채널"><Stepper value={s.txChannel} min={1} max={8} onChange={(v) => set('txChannel', v)} label="송신기 채널" /></Row>
-          <Row label="수신기 채널" hint="송신기와 같은 채널이어야 합니다."><Stepper value={s.rxChannel} min={1} max={8} onChange={(v) => set('rxChannel', v)} label="수신기 채널" /></Row>
-          <Row label={`배터리 ${s.battery}%`}><button type="button" onClick={() => set('battery', 100)} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">새 배터리로 교체</button></Row>
+          <Row label="송신기(마이크) 전원"><Toggle ctl={`${id}-txPower`} on={s.txPower} color="green" onClick={() => set('txPower', !s.txPower)}>{s.txPower ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="송신기 채널"><Stepper ctl={`${id}-txChannel`} value={s.txChannel} min={1} max={8} onChange={(v) => set('txChannel', v)} label="송신기 채널" /></Row>
+          <Row label="수신기 채널" hint="송신기와 같은 채널이어야 합니다."><Stepper ctl={`${id}-rxChannel`} value={s.rxChannel} min={1} max={8} onChange={(v) => set('rxChannel', v)} label="수신기 채널" /></Row>
+          <Row label={`배터리 ${s.battery}%`}><button type="button" data-ctl={`${id}-battery`} onClick={() => set('battery', 100)} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">새 배터리로 교체</button></Row>
         </Card>
       );
       break;
@@ -167,8 +167,8 @@ export function DevicePanel({ game, id }) {
       body = (
         <Card title="DI 박스" icon={Cable}>
           <p className="text-[11px] text-slate-400">악기·키보드의 언밸런스드 신호를 밸런스드 XLR(마이크 레벨)로 바꿔 멀리 보내도 잡음이 없게 합니다.</p>
-          <Row label="GROUND LIFT" hint="험(웅—) 소리가 나면 켜서 접지 루프를 끊습니다."><Toggle on={s.groundLift} color="amber" onClick={() => set('groundLift', !s.groundLift)}>LIFT</Toggle></Row>
-          <Row label="PAD -20dB" hint="입력이 너무 큰 소스(앰프 출력 등)일 때"><Toggle on={s.pad} color="amber" onClick={() => set('pad', !s.pad)}>PAD</Toggle></Row>
+          <Row label="GROUND LIFT" hint="험(웅—) 소리가 나면 켜서 접지 루프를 끊습니다."><Toggle ctl={`${id}-groundLift`} on={s.groundLift} color="amber" onClick={() => set('groundLift', !s.groundLift)}>LIFT</Toggle></Row>
+          <Row label="PAD -20dB" hint="입력이 너무 큰 소스(앰프 출력 등)일 때"><Toggle ctl={`${id}-pad`} on={s.pad} color="amber" onClick={() => set('pad', !s.pad)}>PAD</Toggle></Row>
           {nominal.humSources.length > 0 && <div className="text-[11px] text-amber-300">험 감지: {nominal.humSources.map((x) => st.devices[x]?.name ?? x).join(', ')}</div>}
         </Card>
       );
@@ -181,27 +181,27 @@ export function DevicePanel({ game, id }) {
             const lv = Object.values(actual.heard.interface ?? {}).length ? lvOfInput(st, actual, id, i) : null;
             return (
               <div key={i} className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Knob label={`IN ${i + 1} GAIN`} value={cfg.gain} min={0} max={60} color="#ef4444" size={40} display={`+${cfg.gain}`} def={30}
+                <Knob label={`IN ${i + 1} GAIN`} ctl={`${id}-in.${i}.gain`} value={cfg.gain} min={0} max={60} color="#ef4444" size={40} display={`+${cfg.gain}`} def={30}
                   onChange={(v) => set(`in.${i}.gain`, v, false)} onCommit={commit(`in.${i}.gain`)} />
                 <div className="flex-1 space-y-1">
                   <Meter level={lv} target={[-20, -6]} />
                   <div className="flex gap-1">
-                    <Toggle small on={cfg.phantom} color="amber" onClick={() => set(`in.${i}.phantom`, !cfg.phantom)}>+48V</Toggle>
-                    <Toggle small on={cfg.inst} color="amber" onClick={() => set(`in.${i}.inst`, !cfg.inst)}>INST</Toggle>
+                    <Toggle small ctl={`${id}-in.${i}.phantom`} on={cfg.phantom} color="amber" onClick={() => set(`in.${i}.phantom`, !cfg.phantom)}>+48V</Toggle>
+                    <Toggle small ctl={`${id}-in.${i}.inst`} on={cfg.inst} color="amber" onClick={() => set(`in.${i}.inst`, !cfg.inst)}>INST</Toggle>
                   </div>
                 </div>
               </div>
             );
           })}
-          <Row label="DIRECT MONITOR" hint="PC를 거치지 않고 입력을 헤드폰으로 바로 (지연 없음)"><Toggle on={s.direct} color="green" onClick={() => set('direct', !s.direct)}>{s.direct ? 'ON' : 'OFF'}</Toggle></Row>
-          <Row label="헤드폰 볼륨"><Knob value={s.monitor} min={0} max={100} size={34} def={60} onChange={(v) => set('monitor', v, false)} onCommit={commit('monitor')} /></Row>
+          <Row label="DIRECT MONITOR" hint="PC를 거치지 않고 입력을 헤드폰으로 바로 (지연 없음)"><Toggle ctl={`${id}-direct`} on={s.direct} color="green" onClick={() => set('direct', !s.direct)}>{s.direct ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="헤드폰 볼륨"><Knob ctl={`${id}-monitor`} value={s.monitor} min={0} max={100} size={34} def={60} onChange={(v) => set('monitor', v, false)} onCommit={commit('monitor')} /></Row>
         </Card>
       );
       break;
     case 'mirrorless':
       body = (
         <Card title="미러리스 카메라" icon={Camera}>
-          <Row label="클린 HDMI 출력" hint="끄면 배터리·조리개 같은 화면 표시가 방송에 그대로 나갑니다."><Toggle on={s.clean} color="green" onClick={() => set('clean', !s.clean)}>{s.clean ? 'ON' : 'OFF'}</Toggle></Row>
+          <Row label="클린 HDMI 출력" hint="끄면 배터리·조리개 같은 화면 표시가 방송에 그대로 나갑니다."><Toggle ctl={`${id}-clean`} on={s.clean} color="green" onClick={() => set('clean', !s.clean)}>{s.clean ? 'ON' : 'OFF'}</Toggle></Row>
           <Canvas2D w={320} h={180} draw={(ctx, w, h) => drawSource(ctx, sourceOf(st, nominal, id), 0, 0, w, h)} deps={[s.clean, st.venue]} />
         </Card>
       );
@@ -223,8 +223,8 @@ export function DevicePanel({ game, id }) {
       body = (
         <Card title="PTZ 카메라 설정" icon={Camera}>
           <Row label={`IP 주소 ${s.ip}`} hint="앞 세 자리(대역)는 조이스틱과 같게, 끝자리는 카메라마다 다르게.">
-            <Seg small value={ipNet} options={[['192.168.1', '192.168.1.x'], ['192.168.0', '192.168.0.x (다른 대역)']]} onChange={(v) => set('ip', `${v}.${ipLast}`)} />
-            <Stepper value={ipLast} min={1} max={254} onChange={(v) => set('ip', `${ipNet}.${v}`)} fmt={(v) => `.${v}`} label="IP 끝자리" />
+            <Seg small ctl={`${id}-ip`} value={ipNet} options={[['192.168.1', '192.168.1.x'], ['192.168.0', '192.168.0.x (다른 대역)']]} onChange={(v) => set('ip', `${v}.${ipLast}`)} />
+            <Stepper ctl={`${id}-ip-last`} value={ipLast} min={1} max={254} onChange={(v) => set('ip', `${ipNet}.${v}`)} fmt={(v) => `.${v}`} label="IP 끝자리" />
           </Row>
           {joy && <div className="text-[11px] font-mono text-slate-500">조이스틱 목록: {(st.dev[joy.id]?.cams ?? []).map((ip, i) => `CAM${i + 1} ${ip}`).join(' · ')}</div>}
           <div className="text-[11px] text-slate-400">원격 제어: {r?.reachable ? <span className="text-green-300">조이스틱 {r.index}번으로 연결됨</span> : <span className="text-amber-300">{PTZ_REASON[r?.reason] ?? '—'}{r?.dupWith?.length ? ` — ${r.dupWith.map((x) => st.devices[x]?.name ?? x).join(', ')}와(과) 같은 IP` : ''}</span>}</div>
@@ -238,7 +238,7 @@ export function DevicePanel({ game, id }) {
     case 'laptop':
       body = (
         <Card title="노트북 (음원 재생)" icon={Laptop}>
-          <Row label="BGM 재생"><Toggle on={s.playing} color="green" onClick={() => set('playing', !s.playing)}>{s.playing ? '▶ 재생 중' : '❚❚ 정지'}</Toggle></Row>
+          <Row label="BGM 재생"><Toggle ctl={`${id}-playing`} on={s.playing} color="green" onClick={() => set('playing', !s.playing)}>{s.playing ? '▶ 재생 중' : '❚❚ 정지'}</Toggle></Row>
           <p className="text-[11px] text-slate-400">3.5mm 출력은 가정용 라인 레벨입니다. 믹서의 LINE(TRS) 단자나 스테레오 채널에 꽂고 GAIN을 낮게 씁니다. MIC(XLR) 단자에 꽂으면 GAIN을 0 근처까지 내려야 합니다.</p>
         </Card>
       );
@@ -309,7 +309,7 @@ export function DevicePanel({ game, id }) {
               <li key={c.id} className="flex items-center justify-between gap-2 text-xs text-slate-200">
                 <span className="flex items-center gap-1.5 min-w-0"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: CABLES[c.cable]?.stroke }} />
                   <span className="truncate">{st.devices[c.from.d]?.name ?? c.from.d} {portName(st, c.from.d, c.from.p)} → {st.devices[c.to.d]?.name ?? c.to.d} {portName(st, c.to.d, c.to.p)}</span></span>
-                <button type="button" onClick={() => game.disconnect(c)} className="shrink-0 px-1.5 py-0.5 rounded bg-slate-700 hover:bg-red-700 text-[10px]">분리</button>
+                <button type="button" data-ctl={`${id}-disconnect-${c.from.d}.${c.from.p}>${c.to.d}.${c.to.p}`} onClick={() => game.disconnect(c)} className="shrink-0 px-1.5 py-0.5 rounded bg-slate-700 hover:bg-red-700 text-[10px]">분리</button>
               </li>
             ))}
           </ul>
@@ -413,11 +413,11 @@ function ObsPanel({ game, id }) {
     <Card title="OBS Studio" icon={MonitorPlay}>
       <Canvas2D w={480} h={270} draw={(ctx, w, h) => { drawSource(ctx, src, 0, 0, w, h); if (o.streaming) { ctx.fillStyle = nominal.stream.obsLive ? '#dc2626' : '#92400e'; ctx.fillRect(w - 110, 10, 100, 28); ctx.fillStyle = '#fff'; ctx.font = '800 16px sans-serif'; ctx.fillText(nominal.stream.obsLive ? '● LIVE' : '● 문제', w - 98, 30); } }}
         deps={[JSON.stringify(src), o.streaming, nominal.stream.obsLive]} />
-      <Row label="영상 소스"><Seg small value={o.video} options={[['none', '없음'], ['atem', 'ATEM (USB 웹캠)']]} onChange={(v) => set('video', v)} /></Row>
-      <Row label="오디오 소스"><Seg small value={o.audio} options={[['none', '없음'], ['builtin', 'PC 내장 마이크'], ['mixer', '믹서 USB'], ['interface', '오디오 인터페이스'], ['atem', 'ATEM (USB)']]} onChange={(v) => set('audio', v)} /></Row>
-      <Row label="오디오 미터"><div className="w-40"><Meter level={o.muted ? null : lv > -99 ? lv : null} /></div><Toggle small on={o.muted} color="red" onClick={() => set('muted', !o.muted)}>MUTE</Toggle></Row>
+      <Row label="영상 소스"><Seg small ctl={`${id}-obs-video`} value={o.video} options={[['none', '없음'], ['atem', 'ATEM (USB 웹캠)']]} onChange={(v) => set('video', v)} /></Row>
+      <Row label="오디오 소스"><Seg small ctl={`${id}-obs-audio`} value={o.audio} options={[['none', '없음'], ['builtin', 'PC 내장 마이크'], ['mixer', '믹서 USB'], ['interface', '오디오 인터페이스'], ['atem', 'ATEM (USB)']]} onChange={(v) => set('audio', v)} /></Row>
+      <Row label="오디오 미터"><div className="w-40"><Meter level={o.muted ? null : lv > -99 ? lv : null} /></div><Toggle small ctl={`${id}-obs-muted`} on={o.muted} color="red" onClick={() => set('muted', !o.muted)}>MUTE</Toggle></Row>
       <Row label="방송">
-        <button type="button" onClick={() => set('streaming', !o.streaming)} className={`px-3 py-1.5 rounded font-bold text-sm ${o.streaming ? 'bg-slate-200 text-slate-900' : 'bg-red-600 text-white'}`}>{o.streaming ? '방송 중지' : '방송 시작'}</button>
+        <button type="button" data-ctl={`${id}-obs-streaming`} onClick={() => set('streaming', !o.streaming)} className={`px-3 py-1.5 rounded font-bold text-sm ${o.streaming ? 'bg-slate-200 text-slate-900' : 'bg-red-600 text-white'}`}>{o.streaming ? '방송 중지' : '방송 시작'}</button>
       </Row>
       {o.streaming && !nominal.stream.obsLive && (
         <div className="text-[11px] text-amber-300">시청자 화면 점검: {!nominal.stream.obsVideoOk ? '영상이 나가지 않음 · ' : ''}{!nominal.stream.obsAudioOk ? '소리가 나가지 않음' : ''}</div>
@@ -450,17 +450,17 @@ function AtemPanel({ game, id }) {
         [1, 2, 3, 4].forEach((n, i) => { const x = i * (w / 4) + 2; drawSource(ctx, map[n] ? sourceOf(st, nominal, map[n]) : { kind: 'nosignal' }, x, top + 2, w / 4 - 4, h - top - 4); ctx.strokeStyle = n === a.program ? '#ef4444' : n === a.preview ? '#22c55e' : '#334155'; ctx.lineWidth = 3; ctx.strokeRect(x, top + 2, w / 4 - 4, h - top - 4); ctx.fillStyle = '#fff'; ctx.fillText(String(n), x + 4, top + 16); });
       }} deps={[JSON.stringify(map), a.program, a.preview, JSON.stringify(Object.values(nominal.ptz).map((r) => r.framing)), nominal.video.dark]} />
       <div className="text-[11px] text-slate-400">PROGRAM (방송 중)</div>
-      <div className="flex gap-1">{[1, 2, 3, 4].map((n) => <button key={n} type="button" onClick={() => at('program', n)} className={`w-10 h-9 rounded font-bold ${a.program === n ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,.6)]' : 'bg-slate-700 text-slate-200'}`}>{n}</button>)}</div>
+      <div className="flex gap-1">{[1, 2, 3, 4].map((n) => <button key={n} type="button" data-ctl={`${id}-program-${n}`} onClick={() => at('program', n)} className={`w-10 h-9 rounded font-bold ${a.program === n ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,.6)]' : 'bg-slate-700 text-slate-200'}`}>{n}</button>)}</div>
       <div className="text-[11px] text-slate-400">PREVIEW (다음 화면)</div>
-      <div className="flex gap-1 items-center">{[1, 2, 3, 4].map((n) => <button key={n} type="button" onClick={() => at('preview', n)} className={`w-10 h-9 rounded font-bold ${a.preview === n ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-200'}`}>{n}</button>)}
-        <button type="button" onClick={() => at('cut')} className="ml-2 px-3 h-9 rounded bg-slate-100 text-slate-900 font-black">CUT</button>
-        <button type="button" onClick={() => at('auto')} className="px-3 h-9 rounded bg-amber-500 text-slate-900 font-black">AUTO</button>
+      <div className="flex gap-1 items-center">{[1, 2, 3, 4].map((n) => <button key={n} type="button" data-ctl={`${id}-preview-${n}`} onClick={() => at('preview', n)} className={`w-10 h-9 rounded font-bold ${a.preview === n ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-200'}`}>{n}</button>)}
+        <button type="button" data-ctl={`${id}-cut`} onClick={() => at('cut')} className="ml-2 px-3 h-9 rounded bg-slate-100 text-slate-900 font-black">CUT</button>
+        <button type="button" data-ctl={`${id}-auto`} onClick={() => at('auto')} className="px-3 h-9 rounded bg-amber-500 text-slate-900 font-black">AUTO</button>
       </div>
       {pro && (
         <div className="flex flex-wrap gap-1.5 pt-1">
-          <Toggle on={a.streaming} color="red" onClick={() => at('streaming', !a.streaming)}>ON AIR</Toggle>
-          <Toggle on={a.recording} color="red" onClick={() => at('recording', !a.recording)}>REC</Toggle>
-          <Toggle on={a.pip} color="sky" onClick={() => at('pip', !a.pip)}>PIP</Toggle>
+          <Toggle ctl={`${id}-streaming`} on={a.streaming} color="red" onClick={() => at('streaming', !a.streaming)}>ON AIR</Toggle>
+          <Toggle ctl={`${id}-recording`} on={a.recording} color="red" onClick={() => at('recording', !a.recording)}>REC</Toggle>
+          <Toggle ctl={`${id}-pip`} on={a.pip} color="sky" onClick={() => at('pip', !a.pip)}>PIP</Toggle>
           <span className="text-[11px] text-slate-400 self-center">{a.streaming ? (live ? '송출 정상' : !sw.net ? '인터넷(LAN) 연결 없음' : !sw.heard.some((x) => x.level != null && x.level > -40) ? '소리가 없음 (MIC 입력 확인)' : '영상 확인') : ''}</span>
         </div>
       )}
@@ -489,7 +489,7 @@ function TigerTouchPanel({ game, id }) {
     setPAddr(null); setPLabel('');
   };
   return (
-    <Card title="Avolites Tiger Touch II" icon={Lightbulb} right={<Seg small value={tab} options={[['pb', '플레이백'], ['prog', '프로그래머'], ['patch', '패치']]} onChange={setTab} />}>
+    <Card title="Avolites Tiger Touch II" icon={Lightbulb} right={<Seg small ctl={`${id}-tab`} value={tab} options={[['pb', '플레이백'], ['prog', '프로그래머'], ['patch', '패치']]} onChange={setTab} />}>
       {tab === 'pb' && (
         <>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -498,7 +498,7 @@ function TigerTouchPanel({ game, id }) {
               return (
                 <div key={i} className="shrink-0 w-14 flex flex-col items-center gap-1">
                   <div className="text-[9px] text-center text-slate-300 h-6 leading-tight">{pb ? pb.label : `PB ${i + 1}`}</div>
-                  <input type="range" min={0} max={100} value={pb?.level ?? 0} disabled={!pb} aria-label={`플레이백 ${i + 1}`}
+                  <input type="range" min={0} max={100} value={pb?.level ?? 0} disabled={!pb} aria-label={`플레이백 ${i + 1}`} data-ctl={`${id}-playbacks.${i}.level`}
                     onChange={(e) => set(`playbacks.${i}.level`, Number(e.target.value), false)}
                     onPointerUp={(e) => show({ op: 'dev', device: id, key: `playbacks.${i}.level`, value: Number(e.currentTarget.value) }, 0)}
                     className="h-24 accent-orange-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
@@ -509,27 +509,27 @@ function TigerTouchPanel({ game, id }) {
             })}
             <div className="shrink-0 w-14 flex flex-col items-center gap-1 border-l border-slate-700 pl-2">
               <div className="text-[9px] text-center text-rose-300 h-6">GRAND MASTER</div>
-              <input type="range" min={0} max={100} value={cs.gm} aria-label="그랜드 마스터" onChange={(e) => set('gm', Number(e.target.value), false)}
+              <input type="range" min={0} max={100} value={cs.gm} aria-label="그랜드 마스터" data-ctl={`${id}-gm`} onChange={(e) => set('gm', Number(e.target.value), false)}
                 onPointerUp={(e) => show({ op: 'dev', device: id, key: 'gm', value: Number(e.currentTarget.value) }, 0)} className="h-24 accent-rose-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
               <span className="text-[10px] font-mono">{cs.gm}</span>
             </div>
           </div>
-          <Row label="BLACKOUT" hint="켜면 모든 조명이 즉시 꺼집니다."><Toggle on={cs.blackout} color="red" onClick={() => set('blackout', !cs.blackout)}>BLACKOUT</Toggle></Row>
+          <Row label="BLACKOUT" hint="켜면 모든 조명이 즉시 꺼집니다."><Toggle ctl={`${id}-blackout`} on={cs.blackout} color="red" onClick={() => set('blackout', !cs.blackout)}>BLACKOUT</Toggle></Row>
         </>
       )}
       {tab === 'prog' && (
         <>
           <div className="text-[11px] text-slate-400">1) 조명 선택(SELECT)</div>
-          <div className="flex flex-wrap gap-1">{cs.patch.map((e) => <Toggle key={e.n} small on={(pr.sel ?? []).includes(e.n)} color="sky" onClick={() => toggleSel(e.n)}>{e.n}. {e.label}</Toggle>)}</div>
+          <div className="flex flex-wrap gap-1 rounded" data-ctl={`${id}-programmer.sel`}>{cs.patch.map((e) => <Toggle key={e.n} small ctl={`${id}-programmer.sel-${e.n}`} on={(pr.sel ?? []).includes(e.n)} color="sky" onClick={() => toggleSel(e.n)}>{e.n}. {e.label}</Toggle>)}</div>
           <div className="text-[11px] text-slate-400">2) 값 만들기</div>
-          <HSlider label="밝기 (Intensity)" value={pr.intensity ?? 0} onChange={(v) => set('programmer.intensity', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.intensity', value: v }, p)} display={`${pr.intensity ?? 0}%`} accent="accent-amber-400" />
-          <div className="flex flex-wrap gap-1">{COLORS.map(([c, n]) => <button key={c} type="button" title={n} aria-label={n} onClick={() => set('programmer.color', c)} className={`w-7 h-7 rounded-full border-2 ${pr.color === c ? 'border-white' : 'border-slate-700'}`} style={{ background: c }} />)}</div>
-          <HSlider label="PAN (좌우)" value={pr.pan ?? 0} min={-90} max={90} onChange={(v) => set('programmer.pan', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.pan', value: v }, p)} display={`${pr.pan ?? 0}°`} />
-          <HSlider label="TILT (상하)" value={pr.tilt ?? 0} min={-60} max={60} onChange={(v) => set('programmer.tilt', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.tilt', value: v }, p)} display={`${pr.tilt ?? 0}°`} />
+          <HSlider label="밝기 (Intensity)" ctl={`${id}-programmer.intensity`} value={pr.intensity ?? 0} onChange={(v) => set('programmer.intensity', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.intensity', value: v }, p)} display={`${pr.intensity ?? 0}%`} accent="accent-amber-400" />
+          <div className="flex flex-wrap gap-1 rounded" data-ctl={`${id}-programmer.color`}>{COLORS.map(([c, n]) => <button key={c} type="button" title={n} aria-label={n} data-ctl={`${id}-programmer.color-${c}`} onClick={() => set('programmer.color', c)} className={`w-7 h-7 rounded-full border-2 ${pr.color === c ? 'border-white' : 'border-slate-700'}`} style={{ background: c }} />)}</div>
+          <HSlider label="PAN (좌우)" ctl={`${id}-programmer.pan`} value={pr.pan ?? 0} min={-90} max={90} onChange={(v) => set('programmer.pan', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.pan', value: v }, p)} display={`${pr.pan ?? 0}°`} />
+          <HSlider label="TILT (상하)" ctl={`${id}-programmer.tilt`} value={pr.tilt ?? 0} min={-60} max={60} onChange={(v) => set('programmer.tilt', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.tilt', value: v }, p)} display={`${pr.tilt ?? 0}°`} />
           <div className="text-[11px] text-slate-400">3) RECORD → 저장할 플레이백 번호</div>
           <div className="flex flex-wrap gap-1">
-            {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" disabled={!(pr.sel ?? []).length} onClick={() => apply({ op: 'lightRecord', device: id, index: n, label: cs.playbacks[n - 1]?.label ?? `큐 ${n}` })} className="px-2 py-1 rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-xs font-bold">REC → PB {n}</button>)}
-            <button type="button" onClick={() => set('programmer', { sel: [], intensity: null, color: null, pan: null, tilt: null })} className="px-2 py-1 rounded bg-slate-700 text-xs">CLEAR</button>
+            {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" disabled={!(pr.sel ?? []).length} data-ctl={`${id}-lightRecord-${n}`} onClick={() => apply({ op: 'lightRecord', device: id, index: n, label: cs.playbacks[n - 1]?.label ?? `큐 ${n}` })} className="px-2 py-1 rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-xs font-bold">REC → PB {n}</button>)}
+            <button type="button" data-ctl={`${id}-programmer`} onClick={() => set('programmer', { sel: [], intensity: null, color: null, pan: null, tilt: null })} className="px-2 py-1 rounded bg-slate-700 text-xs">CLEAR</button>
           </div>
           {pr.color && <div className="text-[11px] text-slate-300">현재 색: {COLOR_NAMES[colorFamily(pr.color)]}</div>}
         </>
@@ -543,7 +543,7 @@ function TigerTouchPanel({ game, id }) {
                 <td>{e.n}</td><td>{e.label}</td><td className="text-center">{DEVICE_TYPES[e.type]?.name}</td>
                 <td className="text-center font-mono">{String(e.address).padStart(3, '0')}</td>
                 <td className="text-center font-mono text-slate-400">{e.address}~{e.address + (FOOTPRINT[e.type] ?? 8) - 1}</td>
-                <td className="text-right"><button type="button" onClick={() => apply({ op: 'patchRemove', device: id, n: e.n })} aria-label={`${e.n}번 패치 삭제`} className="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-red-700 text-[10px]">삭제</button></td>
+                <td className="text-right"><button type="button" data-ctl={`${id}-patchRemove-${e.n}`} onClick={() => apply({ op: 'patchRemove', device: id, n: e.n })} aria-label={`${e.n}번 패치 삭제`} className="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-red-700 text-[10px]">삭제</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -564,7 +564,7 @@ function TigerTouchPanel({ game, id }) {
                 className="w-36 rounded border border-slate-700 bg-slate-950 px-1.5 py-1 text-xs text-slate-100" />
             </Row>
             {clash && <div className="text-[11px] text-amber-300">⚠ {clash.n}번({clash.label})과 채널이 겹칩니다. 그대로 추가하면 패치 충돌이 납니다.</div>}
-            <button type="button" onClick={addPatch} className="px-3 py-1 rounded bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold">+ 패치 추가</button>
+            <button type="button" data-ctl={`${id}-patchAdd`} onClick={addPatch} className="px-3 py-1 rounded bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold">+ 패치 추가</button>
           </div>
           {st.unlimited && <p className="text-[10px] text-slate-500">스튜디오 모드에서는 조명을 놓으면 다음 빈 주소로 자동 패치됩니다. 직접 지우고 다시 패치해 볼 수도 있습니다.</p>}
         </>
@@ -586,10 +586,10 @@ function FixturePanel({ game, id }) {
   return (
     <Card title="조명기 설정" icon={Lightbulb}>
       <Row label="DMX 시작 주소" hint={`${fp}채널 모드: ${String(s.address).padStart(3, '0')} ~ ${String(s.address + fp - 1).padStart(3, '0')}번 채널 사용`}>
-        <Stepper value={s.address} min={1} max={512 - fp + 1} onChange={(v) => set('address', v)} fmt={(v) => String(v).padStart(3, '0')} label="DMX 주소" />
+        <Stepper ctl={`${id}-address`} value={s.address} min={1} max={512 - fp + 1} onChange={(v) => set('address', v)} fmt={(v) => String(v).padStart(3, '0')} label="DMX 주소" />
       </Row>
       <Row label="전원"><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
-      <Row label="DMX 터미네이터" hint="라인의 마지막 조명 OUT에 꽂아 신호 반사를 막습니다."><Toggle on={s.terminated} color="green" onClick={() => set('terminated', !s.terminated)}>{s.terminated ? '꽂힘' : '없음'}</Toggle></Row>
+      <Row label="DMX 터미네이터" hint="라인의 마지막 조명 OUT에 꽂아 신호 반사를 막습니다."><Toggle ctl={`${id}-terminated`} on={s.terminated} color="green" onClick={() => set('terminated', !s.terminated)}>{s.terminated ? '꽂힘' : '없음'}</Toggle></Row>
       <div className="text-[11px] space-y-0.5">
         <div className={r.receiving ? 'text-green-300' : 'text-amber-300'}>DMX 신호: {r.receiving ? `수신 중 (체인 ${r.depth}번째)` : '없음 — 케이블 확인'}</div>
         {r.flicker && <div className="text-red-300">깜빡임! {r.viaMic ? '라인 중간에 마이크(XLR) 케이블이 있습니다.' : '라인 끝 터미네이터가 필요합니다.'}</div>}
@@ -616,20 +616,20 @@ function ResolumePanel({ game, id }) {
         return (
           <div key={li} className="rounded border border-slate-700 p-1.5 space-y-1">
             <div className="flex items-center justify-between text-xs"><b className="text-rose-300">Layer {li + 1}</b><span className="font-mono text-slate-300">불투명도 {l.opacity}</span></div>
-            <div className="flex flex-wrap gap-1">
-              {clipIds.map((c) => <button key={c} type="button" onClick={() => set(`layers.${li}.clip`, l.clip === c ? null : c)} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${l.clip === c ? 'text-slate-900' : 'bg-slate-800 text-slate-300'}`} style={l.clip === c ? { background: CLIPS[c].color } : undefined}>{CLIPS[c].name}</button>)}
+            <div className="flex flex-wrap gap-1 rounded" data-ctl={`${id}-layers.${li}.clip`}>
+              {clipIds.map((c) => <button key={c} type="button" data-ctl={`${id}-layers.${li}.clip-${c}`} onClick={() => set(`layers.${li}.clip`, l.clip === c ? null : c)} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${l.clip === c ? 'text-slate-900' : 'bg-slate-800 text-slate-300'}`} style={l.clip === c ? { background: CLIPS[c].color } : undefined}>{CLIPS[c].name}</button>)}
             </div>
-            <input type="range" min={0} max={100} value={l.opacity} aria-label={`레이어 ${li + 1} 불투명도`} onChange={(e) => set(`layers.${li}.opacity`, Number(e.target.value), false)}
+            <input type="range" min={0} max={100} value={l.opacity} aria-label={`레이어 ${li + 1} 불투명도`} data-ctl={`${id}-layers.${li}.opacity`} onChange={(e) => set(`layers.${li}.opacity`, Number(e.target.value), false)}
               onPointerUp={(e) => show({ op: 'dev', device: id, key: `layers.${li}.opacity`, value: Number(e.currentTarget.value) }, l.opacity)} className="w-full accent-rose-500" />
           </div>
         );
       })}
-      <HSlider label="컴포지션 마스터" value={m.master} onChange={(v) => set('master', v, false)} accent="accent-rose-500" />
-      <Row label="재생"><Toggle on={m.playing} color="green" onClick={() => set('playing', !m.playing)}>{m.playing ? '▶ PLAY' : '❚❚'}</Toggle></Row>
-      <Row label="컴포지션 해상도" hint="출력할 화면(LED·프로젝터)의 해상도와 맞추세요."><Seg small value={m.compRes} options={[['1920x1080', '1920×1080'], ['1280x720', '1280×720']]} onChange={(v) => set('compRes', v)} /></Row>
+      <HSlider label="컴포지션 마스터" ctl={`${id}-master`} value={m.master} onChange={(v) => set('master', v, false)} accent="accent-rose-500" />
+      <Row label="재생"><Toggle ctl={`${id}-playing`} on={m.playing} color="green" onClick={() => set('playing', !m.playing)}>{m.playing ? '▶ PLAY' : '❚❚'}</Toggle></Row>
+      <Row label="컴포지션 해상도" hint="출력할 화면(LED·프로젝터)의 해상도와 맞추세요."><Seg small ctl={`${id}-compRes`} value={m.compRes} options={[['1920x1080', '1920×1080'], ['1280x720', '1280×720']]} onChange={(v) => set('compRes', v)} /></Row>
       {['out1', 'out2'].map((o) => (
         <Row key={o} label={`출력 ${o === 'out1' ? '1 (HDMI OUT 1)' : '2 (HDMI OUT 2)'}`}>
-          <Seg small value={m[o]} options={[['comp', '컴포지션'], ['layer1', 'L1'], ['layer2', 'L2'], ['layer3', 'L3'], ['off', 'OFF']]} onChange={(v) => set(o, v)} />
+          <Seg small ctl={`${id}-${o}`} value={m[o]} options={[['comp', '컴포지션'], ['layer1', 'L1'], ['layer2', 'L2'], ['layer3', 'L3'], ['off', 'OFF']]} onChange={(v) => set(o, v)} />
         </Row>
       ))}
     </Card>
@@ -667,19 +667,19 @@ function JoystickPanel({ game, id }) {
       <div className="flex flex-wrap gap-1">
         {cs.cams.map((_, i) => {
           const t = tally(i);
-          return <button key={i} type="button" onClick={() => apply({ op: 'ptz', device: id, act: 'select', value: i })}
+          return <button key={i} type="button" data-ctl={`${id}-ptz-select-${i}`} onClick={() => apply({ op: 'ptz', device: id, act: 'select', value: i })}
             className={`w-12 h-10 rounded font-bold text-xs border-2 ${cs.selected === i ? 'border-sky-300' : 'border-transparent'} ${t === 'pgm' ? 'bg-red-600 text-white' : t === 'pvw' ? 'bg-green-600 text-white' : camOf(i) ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-500'}`}>CAM {i + 1}</button>;
         })}
       </div>
       <div className="text-[11px] font-mono text-slate-400">대상 IP: {cs.cams[cs.selected] ?? '—'} · {target ? <span className="text-green-300">응답 있음</span> : <span className="text-red-300">응답 없음</span>}</div>
       <Row label={`CAM ${cs.selected + 1} IP 끝자리`} hint={`조이스틱 자신은 ${cs.ip} — 카메라 IP와 겹치면 안 됩니다.`}>
-        <Stepper value={selLast} min={1} max={254} onChange={(v) => setCams(cs.cams.map((ip, i) => (i === cs.selected ? `${selNet}.${v}` : ip)))} fmt={(v) => `.${v}`} label="카메라 IP 끝자리" />
+        <Stepper ctl={`${id}-cams`} value={selLast} min={1} max={254} onChange={(v) => setCams(cs.cams.map((ip, i) => (i === cs.selected ? `${selNet}.${v}` : ip)))} fmt={(v) => `.${v}`} label="카메라 IP 끝자리" />
         {cs.cams.length < 8 && <button type="button" onClick={() => setCams([...cs.cams, `${selNet}.${Math.max(20, ...cs.cams.map(lastOf)) + 1}`])} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs">+ CAM</button>}
         {found.length > cs.cams.length && <button type="button" onClick={() => setCams(found)} className="px-2 py-1 rounded bg-sky-700 hover:bg-sky-600 text-xs">네트워크에서 찾기 (+{found.length - cs.cams.length})</button>}
       </Row>
       {tally(cs.selected) === 'pgm' && <div className="text-xs font-bold text-red-300 animate-pulse">⚠ 이 카메라는 지금 방송 중입니다! 움직이지 마세요.</div>}
       <div className="flex gap-3 items-center">
-        <div ref={padRef} role="slider" aria-label="조이스틱 (PAN·TILT)" tabIndex={0}
+        <div ref={padRef} role="slider" aria-label="조이스틱 (PAN·TILT)" tabIndex={0} data-ctl={`${id}-ptz-aim`}
           onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); drag(e); }}
           onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture?.(e.pointerId)) drag(e); }}
           onPointerUp={() => { if (cam) game.show({ op: 'ptz', device: id, act: 'aim' }, 0); }}
@@ -689,15 +689,15 @@ function JoystickPanel({ game, id }) {
           <span className="absolute inset-x-0 bottom-1 text-center text-[9px] text-slate-500">PAN · TILT</span>
         </div>
         <div className="flex-1 space-y-1">
-          <HSlider label="ZOOM" value={Math.round((cam?.zoom ?? 0) * 100)} onChange={(v) => cam && aim(cam.pan, cam.tilt, v / 100)} display={`${Math.round((cam?.zoom ?? 0) * 100)}%`} />
+          <HSlider label="ZOOM" ctl={`${id}-ptz-zoom`} value={Math.round((cam?.zoom ?? 0) * 100)} onChange={(v) => cam && aim(cam.pan, cam.tilt, v / 100)} display={`${Math.round((cam?.zoom ?? 0) * 100)}%`} />
           {cam && <div className="text-[11px] font-mono text-slate-300">PAN {cam.pan}° · TILT {cam.tilt}°</div>}
           {T && <div className="text-[11px] text-slate-300">구도: <b>{nominal.ptz[target]?.framing ? T[nominal.ptz[target].framing].label : '대상 없음'}</b></div>}
         </div>
       </div>
       <div className="flex items-center gap-1 flex-wrap">
-        <Toggle small on={storeMode} color="amber" onClick={() => setStoreMode(!storeMode)}>STORE</Toggle>
+        <Toggle small ctl={`${id}-ptz-store`} on={storeMode} color="amber" onClick={() => setStoreMode(!storeMode)}>STORE</Toggle>
         {[1, 2, 3, 4, 5, 6].map((n) => (
-          <button key={n} type="button" disabled={!cam}
+          <button key={n} type="button" disabled={!cam} data-ctl={`${id}-ptz-preset-${n}`}
             onClick={() => { apply({ op: 'ptz', device: id, act: storeMode ? 'store' : 'recall', value: n }); setStoreMode(false); }}
             className={`w-9 h-8 rounded text-xs font-bold disabled:opacity-40 ${cam?.presets?.[n] ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}>{n}</button>
         ))}

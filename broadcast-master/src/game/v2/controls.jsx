@@ -67,11 +67,12 @@ export function Toggle({ on, onClick, children, color = 'red', title, small, dis
   );
 }
 
-export function Seg({ value, options, onChange, small }) {
+// ctl: 튜토리얼 연습이 짚을 이름 — 묶음은 ctl, 각 선택지는 `${ctl}-${값}`
+export function Seg({ value, options, onChange, small, ctl }) {
   return (
-    <div className="inline-flex flex-wrap rounded-md border border-slate-600 overflow-hidden">
+    <div className="inline-flex flex-wrap rounded-md border border-slate-600 overflow-hidden" data-ctl={ctl}>
       {options.map(([v, label]) => (
-        <button key={String(v)} type="button" onClick={() => onChange(v)} aria-pressed={value === v}
+        <button key={String(v)} type="button" onClick={() => onChange(v)} aria-pressed={value === v} data-ctl={ctl ? `${ctl}-${v}` : undefined}
           className={`${small ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs'} font-semibold border-r border-slate-700 last:border-r-0 ${value === v ? 'bg-sky-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
           {label}
         </button>
@@ -80,9 +81,9 @@ export function Seg({ value, options, onChange, small }) {
   );
 }
 
-export function Stepper({ value, min, max, onChange, width = 'w-14', fmt = (v) => v, label }) {
+export function Stepper({ value, min, max, onChange, width = 'w-14', fmt = (v) => v, label, ctl }) {
   return (
-    <div className="inline-flex items-center gap-1" aria-label={label}>
+    <div className="inline-flex items-center gap-1 rounded" aria-label={label} data-ctl={ctl}>
       <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value - 1, min, max))} aria-label={`${label ?? ''} 감소`}>−</button>
       <span className={`${width} text-center font-mono text-sm bg-slate-950 border border-slate-700 rounded py-1 text-slate-100 tabular-nums`}>{fmt(value)}</span>
       <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value + 1, min, max))} aria-label={`${label ?? ''} 증가`}>+</button>
@@ -112,12 +113,12 @@ export function Card({ title, icon: Icon, children, right }) {
 }
 
 // 가로 슬라이더 (드래그 끝에서 onCommit)
-export function HSlider({ label, value, min = 0, max = 100, step = 1, onChange, onCommit, display, accent = 'accent-sky-400' }) {
+export function HSlider({ label, value, min = 0, max = 100, step = 1, onChange, onCommit, display, accent = 'accent-sky-400', ctl }) {
   const startRef = useRef(null);
   return (
     <label className="block">
       <div className="flex justify-between text-[11px] text-slate-400 mb-0.5"><span>{label}</span><span className="font-mono text-slate-200 tabular-nums">{display ?? value}</span></div>
-      <input type="range" min={min} max={max} step={step} value={value}
+      <input type="range" min={min} max={max} step={step} value={value} data-ctl={ctl}
         onPointerDown={() => { startRef.current = value; }}
         onChange={(e) => onChange(Number(e.target.value))}
         onPointerUp={(e) => { onCommit?.(startRef.current ?? value, Number(e.currentTarget.value)); startRef.current = null; }}
