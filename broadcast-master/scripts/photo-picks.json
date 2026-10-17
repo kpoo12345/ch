@@ -11,7 +11,15 @@
    1
   ]
  },
- "mic_wireless_rx": null,
+ "mic_wireless_rx": {
+  "n": 2,
+  "crop": [
+   0,
+   0,
+   1,
+   0.63
+  ]
+ },
  "mic_headset": 2,
  "mic_lavalier": 0,
  "mic_gooseneck": {
@@ -42,13 +50,21 @@
  },
  "mixer_analog": 1,
  "mixer_digital": 0,
- "di_box": null,
+ "di_box": 7,
  "power_amp": 0,
  "iem": 1,
  "headphones": 0,
  "drum_kit": 0,
  "drum_kick_mic": 1,
- "drum_overheads": null,
+ "drum_overheads": {
+  "n": 6,
+  "crop": [
+   0,
+   0.05,
+   1,
+   0.85
+  ]
+ },
  "bass_guitar": 0,
  "snake_reel": 0,
  "adapter_y": null,
@@ -63,7 +79,7 @@
  "digital_piano": 0,
  "camcorder": 1,
  "ptz_camera": 0,
- "atem_mini": null,
+ "atem_mini": 0,
  "lighting_console": 0,
  "par_led": 0,
  "moving_head": 0,

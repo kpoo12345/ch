@@ -5,12 +5,15 @@
  * data-ctl 이름이 붙어 있다.
  *   장비 설정 (op dev)   `${장비}-${key}`            예: light-playbacks.0.level
  *   여러 선택지 중 하나    `${장비}-${key}-${값}`       예: vj-layers.2.clip-logo
- *   ATEM                 `${스위처}-preview-${n}` · `${스위처}-cut` · `${스위처}-auto`
+ *   PTZ 카메라 IP        `${카메라}-ip-${대역}` (예: cam1-ip-192.168.1) · `${카메라}-ip-last`
+ *   ATEM                 `${스위처}-program-${n}` · `-preview-${n}` · `-cut` · `-auto` · `-streaming` · `-recording` · `-pip`
  *   OBS (송출 PC 패널)    `${pc}-obs-${key}` (+ `-${값}`)
  *   PTZ 조이스틱          `${조이스틱}-ptz-select-${i}` · `-ptz-aim` · `-ptz-zoom` · `-ptz-store` · `-ptz-preset-${n}`
  *   자리 옮기기           `${장비}-move-${자리}`
  *   케이블 분리           `${패널 장비}-disconnect-${from}>${to}` (연결이 저장된 방향 그대로)
  *   조명 콘솔 탭          `${콘솔}-tab-pb` · `-tab-prog` · `-tab-patch`
+ *   조명 콘솔 저장·패치    `${콘솔}-lightRecord-${n}` · `-patchAdd` · `-patchRemove-${n}`
+ *   놓기 (패널 단추)       `${장비}-place` (연습은 미션 탭의 "+ 배치"로 안내하므로 ctlKeysOf는 쓰지 않는다)
  *
  * ctlKeysOf는 앞에서부터 찾아볼 이름 목록(가장 구체적인 것부터)을,
  * panelDeviceOf는 그 단추가 들어 있는 패널의 장비를 돌려준다.
@@ -129,6 +132,8 @@ export function findPracticeTarget(step, st, root = globalThis.document) {
   if (!root?.querySelector) return null;
   for (const key of ctlKeysOf(step, st)) {
     const el = root.querySelector(`[data-ctl="${String(key).replace(/["\\]/g, '\\$&')}"]`);
+    // STORE가 이미 켜져 있으면 (조이스틱 패널 안의 상태라 st에 없다) 다음 이름 = 저장할 번호로
+    if (el && /-ptz-store$/.test(key) && el.getAttribute?.('aria-pressed') === 'true') continue;
     if (el) return { el, key };
   }
   return null;

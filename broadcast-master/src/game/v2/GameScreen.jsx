@@ -21,6 +21,7 @@ import LabOverlay from './LabOverlay.jsx';
 import { PHRASES, TALK_VOICE } from '../data/phrases.js';
 import { patchBetaContext, openFeedback, subscribeBeta, enterGameScreen } from '../betaContext.js';
 import { connectGuide } from './connectGuide.js';
+import { panelDeviceOf, findPracticeTarget } from './practiceTarget.js';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -229,45 +230,45 @@ export default function GameScreen({
     const w = player.waiting;
     if (!w) return undefined;
     const narrow = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023px)').matches;
-    if (mixerAsk) {
-      setConsoleOpen(true);
-      // 해야 할 손잡이가 콘솔 스크롤 밖이면 보이게 굴리고 잠깐 반짝인다
-      const key = w.op === 'fade' ? (w.ch ? `ch${w.ch}-fader` : 'master-mainFader') : w.op === 'master' ? `master-${w.key}` : `ch${w.ch}-${w.key}`;
-      const t = setTimeout(() => {
-        const el = document.querySelector(`[data-ctl="${key}"]`) ?? document.querySelector(`[data-ctl="${w.op === 'ch' || w.ch ? `ch${w.ch}` : 'master'}"]`);
-        if (!el) return;
-        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-        document.querySelectorAll('.bm-target').forEach((x) => x.classList.remove('bm-target'));
-        el.classList.add('bm-target');
-        setTimeout(() => el.classList.remove('bm-target'), 4000);
-      }, 180);
-      return () => clearTimeout(t);
+    const panel = panelDeviceOf(w, st);
+    if (mixerAsk) setConsoleOpen(true);
+    else {
+      // 좁은 화면: 콘솔을 닫아 3D·연결표·장비 패널이 보이게
+      if (narrow) setConsoleOpen(false);
+      // 케이블 잇기는 어느 화면이든 연결표 탭을 펼친다 (3D에서 단자가 가려져도 표에서 같은 단자가 반짝인다)
+      if (w.op === 'connect') setTab('ports');
+      // 장비 설정·ATEM·OBS·분리 등: 그 단추가 든 장비 패널을 열고 카메라도 그쪽으로
+      else if (panel && st.devices[panel]?.placed) {
+        game.setSelected(panel); setTab('device');
+        if (!lockView) setFocusRequest({ id: panel, key: Date.now() });
+      } else if (w.op === 'disconnect') setTab('ports');
+      // 장비 놓기: 전체가 보이게 빼고, 미션 탭의 "+ 배치" 단추도 보이게
+      else if (w.op === 'place') {
+        setTab('mission');
+        if (!lockView) setFocusRequest({ id: 'overview', key: Date.now() });
+      }
     }
-    // 좁은 화면: 콘솔을 닫아 3D·연결표가 보이게, 케이블 잇기는 연결표 탭을 펼친다
-    if (narrow) setConsoleOpen(false);
-    // 케이블 잇기는 어느 화면이든 연결표 탭을 펼친다 (3D에서 단자가 가려져도 표에서 같은 단자가 반짝인다)
-    if (w.op === 'connect' || w.op === 'disconnect') setTab('ports');
-    // 장비 설정(전원 등): 그 장비를 골라 패널을 열고 카메라도 그쪽으로
-    if ((w.op === 'dev' || w.op === 'ptz') && st.devices[w.device]?.placed) {
-      game.setSelected(w.device); setTab('device');
-      if (!lockView) setFocusRequest({ id: w.device, key: Date.now() });
-      // 패널 안의 그 단추(전원 등)를 보이게 굴리고 반짝인다
-      const t = setTimeout(() => {
-        const el = document.querySelector(`[data-ctl="${w.device}-${w.key}"]`);
-        if (!el) return;
-        el.scrollIntoView({ block: 'center' });
-        document.querySelectorAll('.bm-target').forEach((x) => x.classList.remove('bm-target'));
-        el.classList.add('bm-target');
-        setTimeout(() => el.classList.remove('bm-target'), 6000);
-      }, 300);
-      return () => clearTimeout(t);
-    }
-    // 장비 놓기: 전체가 보이게 빼고, 미션 탭의 "+ 배치" 단추도 보이게
-    if (w.op === 'place') {
-      setTab('mission');
-      if (!lockView) setFocusRequest({ id: 'overview', key: Date.now() });
-    }
-    return undefined;
+    // 눌러야 할 단추를 찾아 보이게 굴리고, 그 단계가 끝날 때까지 반짝인다.
+    // 탭을 바꾸거나(조명 콘솔) 한 번 누를 때마다 다음 단추가 달라질 수 있어 잠깐마다 다시 찾는다
+    let shown = null;
+    let scrolled = null;
+    const unmark = () => { if (shown) shown.classList.remove('bm-target'); shown = null; };
+    const mark = () => {
+      const hit = findPracticeTarget(w, game.stRef.current);
+      if (hit?.el !== shown) unmark();
+      if (!hit) return;
+      shown = hit.el;
+      // 다시 그려지면서 class가 지워졌을 수 있다
+      if (!shown.classList.contains('bm-target')) shown.classList.add('bm-target');
+      if (scrolled !== hit.key) {
+        scrolled = hit.key;
+        shown.scrollIntoView({ block: mixerAsk ? 'nearest' : 'center', inline: 'nearest', behavior: 'smooth' });
+      }
+    };
+    document.querySelectorAll('.bm-target[data-ctl]').forEach((x) => x.classList.remove('bm-target'));
+    const t = setTimeout(mark, mixerAsk ? 180 : 300);
+    const iv = setInterval(mark, 500);
+    return () => { clearTimeout(t); clearInterval(iv); unmark(); };
   }, [player.waiting?.index]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {

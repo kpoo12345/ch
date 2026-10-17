@@ -110,3 +110,33 @@ test('quiz steps have a valid answer and no op (they wait for the player)', () =
   }));
   assert.deepEqual(bad, []);
 });
+
+test('every non-cable practice step names a control to flash, inside a panel that is open-able', async () => {
+  const { ctlKeysOf, panelDeviceOf } = await import('../src/game/v2/practiceTarget.js');
+  const bad = [];
+  TUTORIAL.forEach((part) => part.steps.forEach((s, i) => {
+    if (!s.practice || s.op === 'connect' || s.op === 'place') return;
+    const st = stateBefore(part, i);
+    const keys = ctlKeysOf(s, st);
+    if (!keys.length || keys.some((k) => /undefined|null/.test(k))) bad.push(`${part.id}#${i} ${s.op} keys ${keys.join(',')}`);
+    if (['ch', 'master', 'fade'].includes(s.op)) return; // 믹서 콘솔
+    const pd = panelDeviceOf(s, st);
+    if (!pd || !st.devices[pd]?.placed) bad.push(`${part.id}#${i} ${s.op} panel ${pd} not placed`);
+  }));
+  assert.deepEqual(bad, []);
+});
+
+test('findPracticeTarget: most specific name first, and an already-armed STORE moves on to the preset slot', async () => {
+  const { findPracticeTarget } = await import('../src/game/v2/practiceTarget.js');
+  const dom = (attrs) => ({ querySelector: (sel) => { const k = sel.match(/data-ctl="(.*)"\]$/)[1]; return attrs[k] ? { getAttribute: (a) => attrs[k][a] ?? null } : null; } });
+  const st = { devices: { joy: { id: 'joy', type: 'ptz_controller', placed: true } }, dev: {} };
+  const store = { op: 'ptz', device: 'joy', act: 'store', value: 2 };
+  assert.equal(findPracticeTarget(store, st, dom({ 'joy-ptz-store': {}, 'joy-ptz-preset-2': {} })).key, 'joy-ptz-store');
+  assert.equal(findPracticeTarget(store, st, dom({ 'joy-ptz-store': { 'aria-pressed': 'true' }, 'joy-ptz-preset-2': {} })).key, 'joy-ptz-preset-2');
+  // 조명 콘솔: 프로그래머 탭이 닫혀 있으면 탭 단추부터
+  const lc = { devices: { lc: { id: 'lc', type: 'lighting_console', placed: true } }, dev: { lc: { programmer: { sel: [] } } } };
+  const color = { op: 'dev', device: 'lc', key: 'programmer.color', value: 'red' };
+  assert.equal(findPracticeTarget(color, lc, dom({ 'lc-tab-prog': {} })).key, 'lc-tab-prog');
+  assert.equal(findPracticeTarget(color, lc, dom({ 'lc-tab-prog': {}, 'lc-programmer.color-red': {} })).key, 'lc-programmer.color-red');
+  assert.equal(findPracticeTarget(color, lc, dom({})), null);
+});

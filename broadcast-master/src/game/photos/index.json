@@ -303,5 +303,45 @@
   "author": "CLI",
   "license": "CC BY-SA 4.0",
   "url": "https://commons.wikimedia.org/wiki/File%3ASZLAMP_LED_Wall.jpg"
+ },
+ "di_box": {
+  "file": "di_box.jpg",
+  "title": "File:SAMSON-DI-Box.jpg",
+  "author": "Bene",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ASAMSON-DI-Box.jpg"
+ },
+ "drum_overheads": {
+  "file": "drum_overheads.jpg",
+  "title": "File:Blackbird Studio A - Drum recording - IMG 4744-drums-angle copy-2048x2120px - Blackbird Studio - Phil Madeira, Nov. 16-18, 2021 - The Blackbird Academy (2021-11-15 13.55.45).jpg",
+  "author": "The Blackbird Academy",
+  "license": "CC BY-SA 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ABlackbird_Studio_A_-_Drum_recording_-_IMG_4744-drums-angle_copy-2048x2120px_-_Blackbird_Studio_-_Phil_Madeira%2C_Nov._16-18%2C_2021_-_The_Blackbird_Academy_(2021-11-15_13.55.45).jpg",
+  "crop": [
+   0,
+   0.05,
+   1,
+   0.85
+  ]
+ },
+ "atem_mini": {
+  "file": "atem_mini.jpg",
+  "title": "File:Screenshot from 2022-08-15 16-49-34.png",
+  "author": "Josefine Hellroth Larsson (WMSE)",
+  "license": "CC BY 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AScreenshot_from_2022-08-15_16-49-34.png"
+ },
+ "mic_wireless_rx": {
+  "file": "mic_wireless_rx.jpg",
+  "title": "File:Mipro ACT-5814A on the table 20221224.jpg",
+  "author": "Solomon203",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3AMipro_ACT-5814A_on_the_table_20221224.jpg",
+  "crop": [
+   0,
+   0,
+   1,
+   0.63
+  ]
  }
 }
