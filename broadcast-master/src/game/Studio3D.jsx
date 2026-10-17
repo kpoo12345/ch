@@ -913,7 +913,8 @@ export function Port3D({ p, n, port, label, lift = 0, used, isPending, candidate
           onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'crosshair'; }}
           onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
         >
-          <sphereGeometry args={[hitR ?? (bare ? 0.019 : 0.042), 10, 8]} />
+          {/* 안내 중인 단자는 누르는 영역을 넓힌다 (믹서 단자는 3.5cm 간격이라 평소엔 키울 수 없다) */}
+          <sphereGeometry args={[(hitR ?? (bare ? 0.019 : 0.042)) * (guide ? 1.7 : 1), 10, 8]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       </group>

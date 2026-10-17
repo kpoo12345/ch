@@ -1,6 +1,6 @@
 // 로그인 없이 누구나 여는 웹사이트(GitHub Pages)용: dist/index.html → 저장소 맨 위 docs/index.html
 //  GitHub 저장소 설정 → Pages → "Deploy from a branch" → 이 브랜치 · /docs 폴더를 고르면 공개된다
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, existsSync } from 'node:fs';
 
 const src = readFileSync('dist/index.html', 'utf8');
 const out = new URL('../../docs/', import.meta.url);
@@ -23,4 +23,7 @@ if (html.indexOf('id="root"') > html.indexOf('<script type="module"')) throw new
 if (Math.abs(html.length - src.length) > 200) throw new Error(`크기가 이상하게 바뀌었습니다 (${src.length} → ${html.length})`);
 writeFileSync(new URL('index.html', out), html);
 writeFileSync(new URL('.nojekyll', out), '');
+// 목소리 묶음 (BM_VOICE_SPLIT=1로 만든 경우): dist/voice → docs/voice
+rmSync(new URL('voice/', out), { recursive: true, force: true });
+if (existsSync('dist/voice')) cpSync('dist/voice', new URL('voice/', out), { recursive: true });
 console.log(`docs/index.html (${(html.length / 1024).toFixed(0)} KB)`);

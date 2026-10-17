@@ -18,6 +18,10 @@ import Sandbox from './game/v2/Sandbox.jsx';
 import { getAudio } from './game/audio.js';
 import BetaFeedback from './game/BetaFeedback.jsx';
 import { setBetaContext, patchBetaContext, noteError, openFeedback } from './game/betaContext.js';
+import { loadVoice } from './game/speech.js';
+
+// 웹사이트판: 첫 화면이 뜬 뒤 짧은 한마디·무대 말소리 목소리를 조용히 받아 둔다
+if (typeof window !== 'undefined') setTimeout(() => loadVoice('common'), 2500);
 
 export default function BroadcastMasterGame() {
   // 화면에서 오류가 나도 의견 보내기는 살아 있게 (경계 밖에 둔다)

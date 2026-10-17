@@ -23,6 +23,7 @@ for (const x of lines) {
 writeFileSync(new URL('../../src/game/voice/pack.js', import.meta.url), `/* 자동 생성 파일 (scripts/voice/pack.mjs) — 미리 녹음한 내레이션. 직접 고치지 마세요. */
 export const VOICE_MIME = 'audio/webm; codecs=opus';
 export const VOICE_CREDIT = '음성: Supertonic 3 (Supertone, OpenRAIL-M) · sherpa-onnx로 생성';
+export const VOICE_SPLIT = false; // 웹사이트판은 pack-split.js로 바꿔 끼우고 파트별 파일을 따로 받는다
 export const VOICE_PACK = {
 ${entries.join('\n')}
 };

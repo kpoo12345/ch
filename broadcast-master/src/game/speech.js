@@ -3,7 +3,7 @@
  * 브라우저 speechSynthesis는 한 줄로만 말할 수 있으므로 여기서 순서를 정한다.
  * 내레이션이 우선이고, 내레이션이 끝나면 말소리가 다시 이어진다.
  * ===================================================================== */
-import { VOICE_PACK, VOICE_MIME } from './voice/pack.js';
+import { VOICE_PACK, VOICE_MIME, VOICE_SPLIT } from './voice/pack.js';
 import { ttsText, lineKey } from './voice/pronounce.js';
 import { timeStretch } from './voice/stretch.js';
 import { getAudio } from './audio.js';
@@ -15,6 +15,36 @@ export const speechOk = () => typeof window !== 'undefined' && 'speechSynthesis'
  *  2순위: Web Audio로 직접 재생(빠르기는 WSOLA로 늘이고 줄인다)
  *  둘 다 안 되면 브라우저 음성 합성 */
 const clipEntry = (who, text) => VOICE_PACK[lineKey(who, text)] ?? null;
+
+/* 웹사이트판: 목소리를 묶음(튜토리얼 파트 · common · story)별로 나중에 받는다. 한 파일판은 이미 다 들어 있어 바로 끝난다
+ *  loadVoice(묶음) → Promise<boolean> (받았으면 true, 못 받으면 false — 그 대사는 합성 음성으로 읽는다) */
+/* global __BUILD__ */
+const voiceLoads = new Map();
+const voiceWaiters = new Map();
+export function loadVoice(group) {
+  if (!VOICE_SPLIT || !group || typeof document === 'undefined') return Promise.resolve(true);
+  if (voiceLoads.has(group)) return voiceLoads.get(group);
+  if (!window.__bmVoice) {
+    window.__bmVoice = (g, data) => { Object.assign(VOICE_PACK, data); voiceWaiters.get(g)?.(true); voiceWaiters.delete(g); };
+  }
+  const p = new Promise((resolve) => {
+    voiceWaiters.set(group, resolve);
+    const s = document.createElement('script');
+    const v = typeof __BUILD__ !== 'undefined' ? `?v=${encodeURIComponent(__BUILD__)}` : '';
+    s.src = `voice/${group}.js${v}`;
+    s.async = true;
+    // 못 받았으면 다음에 다시 시도할 수 있게 지운다
+    s.onerror = () => { voiceWaiters.delete(group); voiceLoads.delete(group); resolve(false); };
+    document.head.appendChild(s);
+  });
+  voiceLoads.set(group, p);
+  return p;
+}
+// 기다리되 너무 오래는 아니게 (느린 망이면 합성 음성으로 먼저 시작)
+export const loadVoiceWithin = (groups, ms = 8000) => Promise.race([
+  Promise.all(groups.map(loadVoice)).then((r) => r.every(Boolean)),
+  new Promise((r) => setTimeout(() => r(false), ms)),
+]);
 let decodeFails = 0; // 녹음을 풀지 못한 횟수 — 두 번 실패하면 이 브라우저는 합성 음성으로만 읽는다
 export const hasClip = (who, text) => decodeFails < 2 && !!clipEntry(who, text);
 let elementOk = null; // <audio>로 재생이 되는지 (한 번 실패하면 Web Audio로)

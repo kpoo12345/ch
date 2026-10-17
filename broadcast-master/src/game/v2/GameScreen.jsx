@@ -7,7 +7,7 @@ import Venue3D from '../Venue3D.jsx';
 import { hasWebGL, NoWebGL } from '../kit3d.jsx';
 import { CABLES, DEVICE_TYPES } from '../engine.js';
 import { getAudio } from '../audio.js';
-import { setTalk, stopAllSpeech } from '../speech.js';
+import { setTalk, stopAllSpeech, loadVoice, loadVoiceWithin } from '../speech.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
 import { useGame, useScriptPlayer, faultText } from './useGame.js';
 import Console from './Console.jsx';
@@ -20,6 +20,7 @@ import ListenCompare from './ListenCompare.jsx';
 import LabOverlay from './LabOverlay.jsx';
 import { PHRASES, TALK_VOICE } from '../data/phrases.js';
 import { patchBetaContext, openFeedback, subscribeBeta, enterGameScreen } from '../betaContext.js';
+import { connectGuide } from './connectGuide.js';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -172,16 +173,29 @@ export default function GameScreen({
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 튜토리얼: 대본 자동 시작
+  // 튜토리얼: 그 파트 목소리를 받은 뒤 대본 자동 시작 (웹사이트판은 파트별로 따로 받는다 · 느리면 8초 뒤 그냥 시작)
+  const [voiceLoading, setVoiceLoading] = useState(false);
   useEffect(() => {
-    if (tutorial?.steps) player.start(tutorial.steps, { practice: tutorial.practice, auto: !!tutorial.auto, speed: loadProgress('bm2-speed', 1), onDone: tutorial.onDone, onStep: tutorial.onStep, from: tutorial.from ?? 0 });
+    if (!tutorial?.steps) return undefined;
+    let alive = true;
+    const t = setTimeout(() => { if (alive) setVoiceLoading(true); }, 250);
+    loadVoiceWithin([spec.id, 'common']).then(() => {
+      clearTimeout(t);
+      if (!alive) return;
+      setVoiceLoading(false);
+      player.start(tutorial.steps, { practice: tutorial.practice, auto: !!tutorial.auto, speed: loadProgress('bm2-speed', 1), onDone: tutorial.onDone, onStep: tutorial.onStep, from: tutorial.from ?? 0 });
+    });
+    return () => { alive = false; clearTimeout(t); };
   }, [tutorial?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 스토리: 정답 보기 해설 목소리는 미리 받아 둔다
+  useEffect(() => { if (mode === 'story') { loadVoice('story'); loadVoice('common'); } }, [mode]);
   useEffect(() => { if (initialAuto) startAuto(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startAuto = () => {
     if (!spec.solution) return;
     setShowBrief(false); setUsedAuto(true); game.reset(); setResetKey((k) => k + 1);
-    setTimeout(() => player.start(spec.solution, { speed: loadProgress('bm2-speed', 1), onDone: () => {} }), 400);
+    Promise.all([loadVoiceWithin(['story'], 6000), new Promise((r) => setTimeout(r, 400))])
+      .then(() => player.start(spec.solution, { speed: loadProgress('bm2-speed', 1), onDone: () => {} }));
   };
 
   // 선택한 장비 → 장비 탭
@@ -331,6 +345,9 @@ export default function GameScreen({
           )}
           {/* 알림 */}
           {game.toast && <Toast toast={game.toast} onDone={() => game.setToast(null)} />}
+          {voiceLoading && (
+            <div className="absolute left-1/2 top-12 z-20 -translate-x-1/2 rounded-full bg-slate-900/90 px-3 py-1 text-[12px] font-bold text-slate-200 shadow-lg pointer-events-none">선배 목소리 불러오는 중…</div>
+          )}
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
           {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} />}
@@ -583,32 +600,6 @@ function Result({ spec, stars, usedAuto, elapsed, onNext, onRetry, onExit, onClo
 function portLabel(st, d, p) {
   const def = DEVICE_TYPES[st.devices[d]?.type];
   return [...(def?.ins ?? []), ...(def?.outs ?? [])].find((x) => x.id === p)?.label ?? p;
-}
-
-// 케이블 잇기 연습의 지금 단계: 케이블 → 첫 단자 → 둘째 단자 (어느 쪽 끝부터 눌러도 된다)
-function connectGuide(w, st, cable, pending) {
-  if (!w || w.op !== 'connect') return null;
-  const [fd, fp] = w.from.split('.');
-  const [td, tp] = w.to.split('.');
-  if (!st.devices[fd]?.placed || !st.devices[td]?.placed) return null;
-  const at = (d, p) => !!pending && pending.d === d && pending.p === p;
-  const swap = at(td, tp);
-  const A = swap ? { d: td, p: tp } : { d: fd, p: fp };
-  const B = swap ? { d: fd, p: fp } : { d: td, p: tp };
-  const name = (e) => `${st.devices[e.d]?.name ?? DEVICE_TYPES[st.devices[e.d]?.type]?.name ?? e.d} ${portLabel(st, e.d, e.p)}`;
-  const cableOk = cable === w.cable;
-  const firstOk = at(A.d, A.p);
-  const stage = !cableOk ? 'cable' : firstOk ? 'second' : 'first';
-  return {
-    stage, cable: w.cable,
-    target: firstOk ? B : A,
-    wrongPending: !!pending && !at(fd, fp) && !at(td, tp),
-    steps: [
-      { text: `아래 케이블 가방에서 ${CABLES[w.cable]?.short ?? w.cable} 고르기`, done: cableOk, active: stage === 'cable' },
-      { text: `${name(A)} 누르기`, done: firstOk, active: stage === 'first' },
-      { text: `${name(B)} 누르기`, done: false, active: stage === 'second' },
-    ],
-  };
 }
 
 // 연습 단계에서 강조할 장비/단자
