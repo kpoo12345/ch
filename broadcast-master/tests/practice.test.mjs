@@ -140,3 +140,48 @@ test('findPracticeTarget: most specific name first, and an already-armed STORE m
   assert.equal(findPracticeTarget(color, lc, dom({ 'lc-tab-prog': {}, 'lc-programmer.color-red': {} })).key, 'lc-programmer.color-red');
   assert.equal(findPracticeTarget(color, lc, dom({})), null);
 });
+
+// 패널을 실제로 그려 보고 (서버 렌더) 연습이 짚을 이름이 그 안에 있는지
+test('the control each practice step flashes is really rendered in the panel that step opens', async () => {
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { ctlKeysOf, panelDeviceOf } = await import('../src/game/v2/practiceTarget.js');
+  const { DevicePanel } = await server.ssrLoadModule('/src/game/v2/DevicePanels.jsx');
+  const { default: Console } = await server.ssrLoadModule('/src/game/v2/Console.jsx');
+  const noop = () => {};
+  const bad = [];
+  let checked = 0;
+  TUTORIAL.forEach((part) => part.steps.forEach((s, i) => {
+    if (!s.practice || s.op === 'connect' || s.op === 'place') return;
+    const st = stateBefore(part, i);
+    const sim = computeSim(st, { talking: true, performing: true });
+    const game = { st, stRef: { current: st }, nominal: sim, actual: sim, apply: noop, show: noop, disconnect: noop, selCh: 0, setSelCh: noop };
+    const mixer = ['ch', 'master', 'fade'].includes(s.op);
+    const html = mixer
+      ? renderToStaticMarkup(React.createElement(Console, { game }))
+      : renderToStaticMarkup(React.createElement(DevicePanel, { game, id: panelDeviceOf(s, st) }));
+    const has = (k) => html.includes(`data-ctl="${k.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/>/g, '&gt;')}"`);
+    const keys = ctlKeysOf(s, st);
+    // 조명 콘솔은 다른 탭이 열려 있을 수 있다: 그 탭 단추가 있으면 된다
+    const tab = keys.find((k) => /-tab-/.test(k));
+    if (!has(keys[0]) && !(tab && has(tab))) bad.push(`${part.id}#${i} ${keys[0]} (${s.practice})`);
+    checked += 1;
+  }));
+  assert.ok(checked >= 40, `checked ${checked}`);
+  assert.deepEqual(bad, []);
+});
+
+// 연습 판정: 하기 전엔 통과가 아니고, 대본대로 하면 통과 (판정이 없는 동작은 저절로 넘어가 버린다)
+test('every practice step is not yet passed before the player acts, and passes once they do it', () => {
+  const bad = [];
+  TUTORIAL.forEach((part) => part.steps.forEach((s, i) => {
+    if (!s.practice || s.op === 'fade') return; // fade는 실제 손 동작(래치)으로만 판정한다
+    const before = stateBefore(part, i);
+    const ctx = (x) => ({ nominal: computeSim(x, { talking: true, performing: true }), latched: new Set(), talking: true });
+    if (opSatisfied(before, s, ctx(before), before)) bad.push(`${part.id}#${i} ${s.op} already passes before acting`);
+    const after = applyOp(before, s);
+    if (after.lastError) bad.push(`${part.id}#${i} ${s.op} scripted op fails: ${after.lastError}`);
+    else if (!opSatisfied(after, s, ctx(after), before)) bad.push(`${part.id}#${i} ${s.op} does not pass after the scripted op`);
+  }));
+  assert.deepEqual(bad, []);
+});

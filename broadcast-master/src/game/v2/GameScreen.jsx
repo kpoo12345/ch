@@ -249,23 +249,24 @@ export default function GameScreen({
       }
     }
     // 눌러야 할 단추를 찾아 보이게 굴리고, 그 단계가 끝날 때까지 반짝인다.
-    // 탭을 바꾸거나(조명 콘솔) 한 번 누를 때마다 다음 단추가 달라질 수 있어 잠깐마다 다시 찾는다
+    // 탭을 바꾸거나(조명 콘솔) 한 번 누를 때마다 다음 단추가 달라질 수 있어 잠깐마다 다시 찾는다.
+    // 표시는 React가 건드리지 않는 data-bm-target 속성으로 (class로 하면 단추 모양이 바뀔 때 지워진다)
     let shown = null;
     let scrolled = null;
-    const unmark = () => { if (shown) shown.classList.remove('bm-target'); shown = null; };
+    const unmark = () => { shown?.removeAttribute('data-bm-target'); shown = null; };
     const mark = () => {
       const hit = findPracticeTarget(w, game.stRef.current);
       if (hit?.el !== shown) unmark();
       if (!hit) return;
       shown = hit.el;
-      // 다시 그려지면서 class가 지워졌을 수 있다
-      if (!shown.classList.contains('bm-target')) shown.classList.add('bm-target');
+      if (!shown.hasAttribute('data-bm-target')) shown.setAttribute('data-bm-target', '');
       if (scrolled !== hit.key) {
         scrolled = hit.key;
-        shown.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        // 이미 다 보이면 그대로 두고, 가려져 있을 때만 가운데로 굴린다
+        if (!fullyVisible(shown)) shown.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
       }
     };
-    document.querySelectorAll('.bm-target[data-ctl]').forEach((x) => x.classList.remove('bm-target'));
+    document.querySelectorAll('[data-bm-target]').forEach((x) => x.removeAttribute('data-bm-target'));
     const t = setTimeout(mark, mixerAsk ? 180 : 300);
     const iv = setInterval(mark, 500);
     return () => { clearTimeout(t); clearInterval(iv); unmark(); };
@@ -481,6 +482,19 @@ function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint }) {
 }
 
 // 아직 놓지 않은 장비 — 3D 화면이 확대돼 "+ 배치" 단추가 안 보여도 여기서 놓을 수 있다
+// 요소가 화면과 자기를 감싼 스크롤 상자 안에 (가장자리 여유를 두고) 다 보이는지
+function fullyVisible(el, margin = 16) {
+  const r = el.getBoundingClientRect();
+  if (!r.width || r.top < margin || r.left < 0 || r.bottom > window.innerHeight - margin || r.right > window.innerWidth) return false;
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const cs = getComputedStyle(p);
+    if (!/(auto|scroll|hidden)/.test(cs.overflowY + cs.overflowX)) continue;
+    const pr = p.getBoundingClientRect();
+    if (r.top < pr.top + 4 || r.bottom > pr.bottom - 4 || r.left < pr.left || r.right > pr.right) return false;
+  }
+  return true;
+}
+
 function Unplaced({ game, only }) {
   const left = Object.values(game.st.devices).filter((d) => !d.placed && d.slot && (!only || d.id === only));
   if (!left.length) return null;

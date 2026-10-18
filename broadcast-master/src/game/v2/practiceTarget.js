@@ -135,6 +135,11 @@ export function findPracticeTarget(step, st, root = globalThis.document) {
     const el = root.querySelector(`[data-ctl="${String(key).replace(/["\\]/g, '\\$&')}"]`);
     // STORE가 이미 켜져 있으면 (조이스틱 패널 안의 상태라 st에 없다) 다음 이름 = 저장할 번호로
     if (el && /-ptz-store$/.test(key) && el.getAttribute?.('aria-pressed') === 'true') continue;
+    // 불러오기인데 STORE가 켜져 있으면 번호를 누르는 순간 저장돼 버린다 → STORE부터 꺼야 한다
+    if (el && step.op === 'ptz' && step.act === 'recall') {
+      const store = root.querySelector(`[data-ctl="${String(step.device).replace(/["\\]/g, '\\$&')}-ptz-store"]`);
+      if (store?.getAttribute?.('aria-pressed') === 'true') return { el: store, key: `${step.device}-ptz-store` };
+    }
     if (el) return { el, key };
   }
   return null;

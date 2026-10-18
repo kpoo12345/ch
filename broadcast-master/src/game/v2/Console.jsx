@@ -80,7 +80,7 @@ export default function Console({ game, compact }) {
             </div>
             {digital ? (
               <>
-                <select value={ch.patch ?? `local${c}`} onChange={(e) => apply({ op: 'ch', ch: c, key: 'patch', value: e.target.value, ...mx })}
+                <select value={ch.patch ?? `local${c}`} onChange={(e) => apply({ op: 'ch', ch: c, key: 'patch', value: e.target.value, ...mx })} data-ctl={`ch${c}-patch`}
                   className="w-full text-[9px] bg-slate-950 border border-slate-600 rounded text-slate-200" aria-label={`CH${c} 입력 패치`}>
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={`local${k}`}>IN: LOCAL {k}</option>)}
                   <option value="off">IN: OFF</option>
@@ -162,7 +162,7 @@ export default function Console({ game, compact }) {
         {!digital && <div className={`text-[9px] font-bold ${anyPfl ? 'text-orange-400' : 'text-slate-500'}`}>{anyPfl ? '● PFL: 헤드폰 = 선택 채널' : '헤드폰 = STEREO'}</div>}
         {digital && (
           <label className="w-full text-[9px] text-slate-400">USB 출력
-            <select value={M.usbOut} onChange={(e) => mapply('usbOut', e.target.value)}
+            <select value={M.usbOut} onChange={(e) => mapply('usbOut', e.target.value)} data-ctl="master-usbOut"
               className="w-full text-[10px] bg-slate-950 border border-slate-600 rounded text-slate-200">
               <option value="main">Main L/R</option><option value="aux1">AUX 1</option><option value="off">OFF</option>
             </select>
