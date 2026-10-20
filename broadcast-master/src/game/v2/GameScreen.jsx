@@ -252,16 +252,20 @@ export default function GameScreen({
     // 탭을 바꾸거나(조명 콘솔) 한 번 누를 때마다 다음 단추가 달라질 수 있어 잠깐마다 다시 찾는다.
     // 표시는 React가 건드리지 않는 data-bm-target 속성으로 (class로 하면 단추 모양이 바뀔 때 지워진다)
     let shown = null;
-    let scrolled = null;
+    let checked = null; // 마지막으로 보이는지 확인한 때의 단추 이름 + 스크롤 상자 모양
     const unmark = () => { shown?.removeAttribute('data-bm-target'); shown = null; };
     const mark = () => {
       const hit = findPracticeTarget(w, game.stRef.current);
       if (hit?.el !== shown) unmark();
-      if (!hit) return;
+      // 단추가 사라졌으면(다른 탭·다른 장비) 돌아왔을 때 다시 보이게 맞춘다
+      if (!hit) { checked = null; return; }
       shown = hit.el;
       if (!shown.hasAttribute('data-bm-target')) shown.setAttribute('data-bm-target', '');
-      if (scrolled !== hit.key) {
-        scrolled = hit.key;
+      // 단추가 바뀌었거나 스크롤 상자의 자리·높이가 바뀌었으면(휴대폰에서 "직접 해 보세요" 상자가 뜨는 등) 다시 본다.
+      // 플레이어가 직접 굴린 것은 상자 모양이 그대로라 건드리지 않는다
+      const sig = `${hit.key}|${scrollBoxShape(shown)}`;
+      if (checked !== sig) {
+        checked = sig;
         // 이미 다 보이면 그대로 두고, 가려져 있을 때만 가운데로 굴린다
         if (!fullyVisible(shown)) shown.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
       }
@@ -488,11 +492,25 @@ function fullyVisible(el, margin = 16) {
   if (!r.width || r.top < margin || r.left < 0 || r.bottom > window.innerHeight - margin || r.right > window.innerWidth) return false;
   for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
     const cs = getComputedStyle(p);
-    if (!/(auto|scroll|hidden)/.test(cs.overflowY + cs.overflowX)) continue;
+    const ov = cs.overflowY + cs.overflowX;
+    if (!/(auto|scroll|hidden)/.test(ov)) continue;
+    // 아무것도 잘라 내지 않는 상자(묶음 단추의 테두리 등)는 건너뛴다
+    if (p.scrollHeight <= p.clientHeight && p.scrollWidth <= p.clientWidth) continue;
+    const inset = /(auto|scroll)/.test(ov) ? 4 : 0;
     const pr = p.getBoundingClientRect();
-    if (r.top < pr.top + 4 || r.bottom > pr.bottom - 4 || r.left < pr.left || r.right > pr.right) return false;
+    if (r.top < pr.top + inset || r.bottom > pr.bottom - inset || r.left < pr.left || r.right > pr.right) return false;
   }
   return true;
+}
+
+// 요소를 감싼, 실제로 위아래로 굴러가는 상자의 자리·높이 (그 상자 자신의 스크롤로는 바뀌지 않는다)
+function scrollBoxShape(el) {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    if (!/(auto|scroll)/.test(getComputedStyle(p).overflowY) || p.scrollHeight <= p.clientHeight) continue;
+    const pr = p.getBoundingClientRect();
+    return `${Math.round(pr.top)}:${p.clientHeight}:${window.innerHeight}`;
+  }
+  return `${window.innerHeight}`;
 }
 
 function Unplaced({ game, only }) {
