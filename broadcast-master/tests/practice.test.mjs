@@ -19,7 +19,7 @@ after(() => server.close());
 const { opSatisfied } = await server.ssrLoadModule('/src/game/v2/useGame.js');
 
 // 대본을 i번째 단계 직전까지 실행한 상태 (유령 손이 하는 것과 같은 순서로)
-const STEP_OPS = new Set(['place', 'connect', 'disconnect', 'ch', 'master', 'dev', 'atem', 'obs', 'move', 'ptz']);
+const STEP_OPS = new Set(['place', 'connect', 'disconnect', 'ch', 'master', 'dev', 'atem', 'obs', 'move', 'ptz', 'lightRecord', 'patchAdd', 'patchRemove']);
 const stateBefore = (part, i) => {
   let st = buildRuntime(part);
   for (let k = 0; k < i; k += 1) {

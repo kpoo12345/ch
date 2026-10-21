@@ -11,8 +11,9 @@
  *   PTZ 조이스틱          `${조이스틱}-ptz-select-${i}` · `-ptz-aim` · `-ptz-zoom` · `-ptz-store` · `-ptz-preset-${n}`
  *   자리 옮기기           `${장비}-move-${자리}`
  *   케이블 분리           `${패널 장비}-disconnect-${from}>${to}` (연결이 저장된 방향 그대로)
- *   조명 콘솔 탭          `${콘솔}-tab-pb` · `-tab-prog` · `-tab-patch`
- *   조명 콘솔 저장·패치    `${콘솔}-lightRecord-${n}` · `-patchAdd` · `-patchRemove-${n}`
+ *   조명 콘솔 화면 탭      `${콘솔}-tab-prog` · `-tab-patch` (페이더·GM·RECORD·BLACKOUT은 늘 보인다)
+ *   조명 콘솔 큐 저장      `${콘솔}-record` → `${콘솔}-pbsel-${n}` (RECORD를 누른 뒤 플레이백의 파란 버튼)
+ *   조명 콘솔 패치         `${콘솔}-patchFill-${조명}`(패치 안 된 조명 단추) → `-patchAdd` · `-patchRemove-${n}`
  *   놓기                 미션 탭의 "+ 배치" 단추 `mission-place-${장비}` (장비 패널 안의 `${장비}-place`는 다음 후보)
  *
  * ctlKeysOf는 앞에서부터 찾아볼 이름 목록(가장 구체적인 것부터)을,
@@ -44,8 +45,8 @@ export function panelDeviceOf(step, st) {
 
 // 여러 선택지 중 하나를 고르는 장비 설정 (Seg·색 단추 등): 이름 뒤에 값이 붙는다
 const CHOICE_KEY = /^(programmer\.color|compRes|out\d)$/;
-// 조명 콘솔: 그 조작이 들어 있는 탭 (탭이 닫혀 있으면 탭 단추부터 짚는다)
-const consoleTab = (key) => (/^programmer(\.|$)/.test(key) ? 'prog' : /^(playbacks\.\d+\.level|gm|blackout)$/.test(key) ? 'pb' : null);
+// 조명 콘솔: 그 조작이 들어 있는 화면 탭 (탭이 닫혀 있으면 탭 단추부터 짚는다). 페이더·GM·BLACKOUT은 늘 보인다
+const consoleTab = (key) => (/^programmer\./.test(key) ? 'prog' : null);
 
 function devKeys(step, st) {
   const d = step.device, k = String(step.key), v = step.value;
@@ -117,8 +118,13 @@ export function ctlKeysOf(step, st) {
       const order = owners[0] === a.d ? owners : [owners[1], owners[0]];
       return order.flatMap((o) => ids.map((id) => `${o}-disconnect-${id}`));
     }
-    case 'lightRecord': return [`${d}-lightRecord-${step.index}`, `${d}-tab-prog`];
-    case 'patchAdd': return [`${d}-patchAdd`, `${d}-tab-patch`];
+    case 'lightRecord': return [`${d}-record`, `${d}-pbsel-${step.index}`];
+    case 'patchAdd': {
+      // 패치 안 된 조명 단추로 칸을 채우고 → + 패치 추가
+      const e = step.entry ?? {};
+      const fx = Object.values(st?.devices ?? {}).find((x) => x.type === e.type && st?.dev?.[x.id]?.address === e.address);
+      return [...(fx ? [`${d}-patchFill-${fx.id}`] : []), `${d}-patchAdd`, `${d}-tab-patch`];
+    }
     case 'patchRemove': return [`${d}-patchRemove-${step.n}`, `${d}-tab-patch`];
     // 믹서 콘솔 (Console.jsx): GameScreen이 쓰던 규칙과 같다
     case 'fade': return step.ch ? [`ch${step.ch}-fader`, `ch${step.ch}`] : ['master-mainFader', 'master'];
@@ -133,8 +139,8 @@ export function findPracticeTarget(step, st, root = globalThis.document) {
   if (!root?.querySelector) return null;
   for (const key of ctlKeysOf(step, st)) {
     const el = root.querySelector(`[data-ctl="${String(key).replace(/["\\]/g, '\\$&')}"]`);
-    // STORE가 이미 켜져 있으면 (조이스틱 패널 안의 상태라 st에 없다) 다음 이름 = 저장할 번호로
-    if (el && /-ptz-store$/.test(key) && el.getAttribute?.('aria-pressed') === 'true') continue;
+    // 이미 눌러 둔 준비 단추(PTZ STORE · 조명 RECORD · 채워 둔 패치 칸)는 패널 안의 상태라 st에 없다 → 다음 이름으로
+    if (el && /-(ptz-store|record|patchFill-[^-]+)$/.test(key) && el.getAttribute?.('aria-pressed') === 'true') continue;
     // 불러오기인데 STORE가 켜져 있으면 번호를 누르는 순간 저장돼 버린다 → STORE부터 꺼야 한다
     if (el && step.op === 'ptz' && step.act === 'recall') {
       const store = root.querySelector(`[data-ctl="${String(step.device).replace(/["\\]/g, '\\$&')}-ptz-store"]`);

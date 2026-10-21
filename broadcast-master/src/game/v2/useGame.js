@@ -625,6 +625,14 @@ export function opSatisfied(st, op, game, before) {
     case 'obs': return st.obs[op.key] === op.value;
     case 'fade': { const k = op.ch ? `ch${op.ch}` : 'main'; return !!game?.latched?.has(`${op.to <= 3 ? 'fadeOut' : 'fadeIn'}:${k}`); }
     case 'talk': return game ? game.talking === !!op.on || !op.on : true;
+    // 조명 콘솔: 그 플레이백에 새 장면이 들어갔는지 · 그 주소로 패치됐는지
+    case 'lightRecord': {
+      const cue = (x) => x?.dev?.[op.device]?.playbacks?.[op.index - 1]?.cue;
+      const now = cue(st);
+      return !!now?.fixtures?.length && (!before || JSON.stringify(now) !== JSON.stringify(cue(before)));
+    }
+    case 'patchAdd': return !!st.dev[op.device]?.patch?.some((e) => e.type === op.entry.type && e.address === op.entry.address);
+    case 'patchRemove': return !st.dev[op.device]?.patch?.some((e) => e.n === op.n);
     default: return true;
   }
 }

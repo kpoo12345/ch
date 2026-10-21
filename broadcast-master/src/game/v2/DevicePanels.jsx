@@ -472,10 +472,16 @@ function AtemPanel({ game, id }) {
 function TigerTouchPanel({ game, id }) {
   const { st, apply, show } = game;
   const cs = st.dev[id];
-  const [tab, setTab] = React.useState('pb');
+  // 터치스크린 화면만 탭으로 바꾼다. 페이더·GM·RECORD·BLACKOUT은 실제 콘솔처럼 늘 그 자리에 있다
+  const [tab, setTab] = React.useState('prog');
+  // RECORD를 누르면 저장할 플레이백(파란 버튼)을 고르는 상태가 된다 (실제 콘솔: RECORD → 플레이백 버튼)
+  const [rec, setRec] = React.useState(false);
   const set = (key, value, visual = true) => apply({ op: 'dev', device: id, key, value }, { visual });
   const pr = cs.programmer ?? {};
+  const hasSel = (pr.sel ?? []).length > 0;
+  useEffect(() => { if (!hasSel) setRec(false); }, [hasSel]);
   const toggleSel = (n) => { const sel = pr.sel ?? []; set('programmer.sel', sel.includes(n) ? sel.filter((x) => x !== n) : [...sel, n].sort()); };
+  const record = (n) => { apply({ op: 'lightRecord', device: id, index: n, label: cs.playbacks[n - 1]?.label ?? `큐 ${n}` }); setRec(false); };
   // 패치 편집: 종류 · 시작 주소(기본 = 다음 빈 주소) · 이름
   const [pType, setPType] = React.useState('par_led');
   const [pAddr, setPAddr] = React.useState(null);
@@ -488,49 +494,53 @@ function TigerTouchPanel({ game, id }) {
     apply({ op: 'patchAdd', device: id, entry: { type: pType, address: addr, label: pLabel.trim() || `${DEVICE_TYPES[pType].name} ${cs.patch.length + 1}` } });
     setPAddr(null); setPLabel('');
   };
+  const nPb = Math.max(5, cs.playbacks.length);
   return (
-    <Card title="Avolites Tiger Touch II" icon={Lightbulb} right={<Seg small ctl={`${id}-tab`} value={tab} options={[['pb', '플레이백'], ['prog', '프로그래머'], ['patch', '패치']]} onChange={setTab} />}>
-      {tab === 'pb' && (
-        <>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {Array.from({ length: Math.max(4, cs.playbacks.length) }, (_, i) => {
-              const pb = cs.playbacks[i];
-              return (
-                <div key={i} className="shrink-0 w-14 flex flex-col items-center gap-1">
-                  <div className="text-[9px] text-center text-slate-300 h-6 leading-tight">{pb ? pb.label : `PB ${i + 1}`}</div>
-                  <input type="range" min={0} max={100} value={pb?.level ?? 0} disabled={!pb} aria-label={`플레이백 ${i + 1}`} data-ctl={`${id}-playbacks.${i}.level`}
-                    onChange={(e) => set(`playbacks.${i}.level`, Number(e.target.value), false)}
-                    onPointerUp={(e) => show({ op: 'dev', device: id, key: `playbacks.${i}.level`, value: Number(e.currentTarget.value) }, 0)}
-                    className="h-24 accent-orange-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
-                  <span className="text-[10px] font-mono text-slate-200">{pb?.level ?? 0}</span>
-                  {pb && <span className="w-4 h-4 rounded-full border border-slate-600" style={{ background: pb.cue?.color ?? '#fff' }} />}
-                </div>
-              );
-            })}
-            <div className="shrink-0 w-14 flex flex-col items-center gap-1 border-l border-slate-700 pl-2">
-              <div className="text-[9px] text-center text-rose-300 h-6">GRAND MASTER</div>
-              <input type="range" min={0} max={100} value={cs.gm} aria-label="그랜드 마스터" data-ctl={`${id}-gm`} onChange={(e) => set('gm', Number(e.target.value), false)}
-                onPointerUp={(e) => show({ op: 'dev', device: id, key: 'gm', value: Number(e.currentTarget.value) }, 0)} className="h-24 accent-rose-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
-              <span className="text-[10px] font-mono">{cs.gm}</span>
+    <Card title="Avolites Tiger Touch II" icon={Lightbulb}>
+      <div className="text-[11px] text-slate-400">플레이백 페이더{rec && <b className="ml-1 text-red-300">· 저장할 플레이백의 파란 버튼을 누르세요</b>}</div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {Array.from({ length: nPb }, (_, i) => {
+          const pb = cs.playbacks[i];
+          return (
+            <div key={i} className="shrink-0 w-12 flex flex-col items-center gap-1">
+              <div className="text-[9px] text-center text-slate-300 h-6 leading-tight">{pb ? pb.label : `PB ${i + 1}`}</div>
+              <input type="range" min={0} max={100} value={pb?.level ?? 0} disabled={!pb} aria-label={`플레이백 ${i + 1}`} data-ctl={`${id}-playbacks.${i}.level`}
+                onChange={(e) => set(`playbacks.${i}.level`, Number(e.target.value), false)}
+                onPointerUp={(e) => show({ op: 'dev', device: id, key: `playbacks.${i}.level`, value: Number(e.currentTarget.value) }, 0)}
+                className="h-24 accent-orange-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
+              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-200">{pb && <span className="w-2.5 h-2.5 rounded-full border border-slate-600" style={{ background: pb.cue?.color ?? '#fff' }} />}{pb?.level ?? 0}</span>
+              <button type="button" disabled={!rec} data-ctl={`${id}-pbsel-${i + 1}`} onClick={() => record(i + 1)} aria-label={`플레이백 ${i + 1}에 저장`} title="RECORD를 누른 다음 저장할 플레이백을 고르는 버튼"
+                className={`w-9 h-7 rounded border text-[11px] font-black ${rec ? 'bg-sky-500 border-sky-200 text-white animate-pulse' : 'bg-sky-950 border-sky-900 text-sky-300/60'}`}>{i + 1}</button>
             </div>
-          </div>
-          <Row label="BLACKOUT" hint="켜면 모든 조명이 즉시 꺼집니다."><Toggle ctl={`${id}-blackout`} on={cs.blackout} color="red" onClick={() => set('blackout', !cs.blackout)}>BLACKOUT</Toggle></Row>
-        </>
-      )}
+          );
+        })}
+        <div className="shrink-0 w-14 flex flex-col items-center gap-1 border-l border-slate-700 pl-2">
+          <div className="text-[9px] text-center text-rose-300 h-6">GRAND MASTER</div>
+          <input type="range" min={0} max={100} value={cs.gm} aria-label="그랜드 마스터" data-ctl={`${id}-gm`} onChange={(e) => set('gm', Number(e.target.value), false)}
+            onPointerUp={(e) => show({ op: 'dev', device: id, key: 'gm', value: Number(e.currentTarget.value) }, 0)} className="h-24 accent-rose-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
+          <span className="text-[10px] font-mono">{cs.gm}</span>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Toggle ctl={`${id}-record`} on={rec} color="red" disabled={!hasSel} onClick={() => setRec(!rec)} title={hasSel ? '지금 프로그래머의 장면을 플레이백에 저장합니다. 누른 다음 파란 버튼을 고르세요.' : '프로그래머에서 조명을 먼저 고르세요.'}>RECORD</Toggle>
+        <button type="button" data-ctl={`${id}-programmer`} onClick={() => { set('programmer', { sel: [], intensity: null, color: null, pan: null, tilt: null }); setRec(false); }} title="프로그래머 비우기" className="px-2.5 py-1 rounded border border-slate-600 bg-slate-800 text-xs font-bold text-slate-200 hover:bg-slate-700">CLEAR</button>
+        <Toggle ctl={`${id}-blackout`} on={cs.blackout} color="red" onClick={() => set('blackout', !cs.blackout)} title="켜면 모든 조명이 즉시 꺼집니다.">BLACKOUT</Toggle>
+      </div>
+      <div className="flex items-center gap-2 border-t border-slate-800 pt-2">
+        <span className="text-[11px] text-slate-400">화면</span>
+        <Seg small ctl={`${id}-tab`} value={tab} options={[['prog', '프로그래머'], ['patch', '패치']]} onChange={setTab} />
+      </div>
       {tab === 'prog' && (
         <>
           <div className="text-[11px] text-slate-400">1) 조명 선택(SELECT)</div>
           <div className="flex flex-wrap gap-1 rounded" data-ctl={`${id}-programmer.sel`}>{cs.patch.map((e) => <Toggle key={e.n} small ctl={`${id}-programmer.sel-${e.n}`} on={(pr.sel ?? []).includes(e.n)} color="sky" onClick={() => toggleSel(e.n)}>{e.n}. {e.label}</Toggle>)}</div>
+          {cs.patch.length === 0 && <div className="text-[11px] text-amber-300">패치된 조명이 없어요. 패치 화면에서 먼저 등록하세요.</div>}
           <div className="text-[11px] text-slate-400">2) 값 만들기</div>
           <HSlider label="밝기 (Intensity)" ctl={`${id}-programmer.intensity`} value={pr.intensity ?? 0} onChange={(v) => set('programmer.intensity', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.intensity', value: v }, p)} display={`${pr.intensity ?? 0}%`} accent="accent-amber-400" />
           <div className="flex flex-wrap gap-1 rounded" data-ctl={`${id}-programmer.color`}>{COLORS.map(([c, n]) => <button key={c} type="button" title={n} aria-label={n} data-ctl={`${id}-programmer.color-${c}`} onClick={() => set('programmer.color', c)} className={`w-7 h-7 rounded-full border-2 ${pr.color === c ? 'border-white' : 'border-slate-700'}`} style={{ background: c }} />)}</div>
           <HSlider label="PAN (좌우)" ctl={`${id}-programmer.pan`} value={pr.pan ?? 0} min={-90} max={90} onChange={(v) => set('programmer.pan', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.pan', value: v }, p)} display={`${pr.pan ?? 0}°`} />
           <HSlider label="TILT (상하)" ctl={`${id}-programmer.tilt`} value={pr.tilt ?? 0} min={-60} max={60} onChange={(v) => set('programmer.tilt', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.tilt', value: v }, p)} display={`${pr.tilt ?? 0}°`} />
-          <div className="text-[11px] text-slate-400">3) RECORD → 저장할 플레이백 번호</div>
-          <div className="flex flex-wrap gap-1">
-            {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" disabled={!(pr.sel ?? []).length} data-ctl={`${id}-lightRecord-${n}`} onClick={() => apply({ op: 'lightRecord', device: id, index: n, label: cs.playbacks[n - 1]?.label ?? `큐 ${n}` })} className="px-2 py-1 rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-xs font-bold">REC → PB {n}</button>)}
-            <button type="button" data-ctl={`${id}-programmer`} onClick={() => set('programmer', { sel: [], intensity: null, color: null, pan: null, tilt: null })} className="px-2 py-1 rounded bg-slate-700 text-xs">CLEAR</button>
-          </div>
+          <div className="text-[11px] text-slate-400">3) 저장: 위의 RECORD → 저장할 플레이백의 파란 버튼</div>
           {pr.color && <div className="text-[11px] text-slate-300">현재 색: {COLOR_NAMES[colorFamily(pr.color)]}</div>}
         </>
       )}
@@ -552,7 +562,14 @@ function TigerTouchPanel({ game, id }) {
             <div className="text-[11px] font-bold text-slate-300">조명 패치 추가</div>
             {unpatched.length > 0 && (
               <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-400">패치 안 된 조명:
-                {unpatched.map((d) => <button key={d.id} type="button" onClick={() => { setPType(d.type); setPAddr(st.dev[d.id].address); setPLabel(d.name ?? ''); }} className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200">{d.name} ({String(st.dev[d.id].address).padStart(3, '0')})</button>)}
+                {unpatched.map((d) => {
+                  // 이 조명으로 아래 칸이 이미 채워져 있으면 눌린 것처럼 보인다 (연습 안내는 다음 단추로 넘어간다)
+                  const filled = pType === d.type && addr === st.dev[d.id].address;
+                  return (
+                    <button key={d.id} type="button" data-ctl={`${id}-patchFill-${d.id}`} aria-pressed={filled} onClick={() => { setPType(d.type); setPAddr(st.dev[d.id].address); setPLabel(d.name ?? ''); }}
+                      className={`px-1.5 py-0.5 rounded border ${filled ? 'bg-orange-600/30 border-orange-400 text-orange-100' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'}`}>{d.name} ({String(st.dev[d.id].address).padStart(3, '0')})</button>
+                  );
+                })}
               </div>
             )}
             <Row label="종류"><Seg small value={pType} options={[['par_led', 'LED 파 (8ch)'], ['moving_head', '무빙 헤드 (16ch)']]} onChange={setPType} /></Row>
