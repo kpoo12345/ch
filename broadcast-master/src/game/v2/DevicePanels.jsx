@@ -534,13 +534,13 @@ function TigerTouchPanel({ game, id }) {
         <>
           <div className="text-[11px] text-slate-400">1) 조명 선택(SELECT)</div>
           <div className="flex flex-wrap gap-1 rounded" data-ctl={`${id}-programmer.sel`}>{cs.patch.map((e) => <Toggle key={e.n} small ctl={`${id}-programmer.sel-${e.n}`} on={(pr.sel ?? []).includes(e.n)} color="sky" onClick={() => toggleSel(e.n)}>{e.n}. {e.label}</Toggle>)}</div>
-          {cs.patch.length === 0 && <div className="text-[11px] text-amber-300">패치된 조명이 없어요. 패치 화면에서 먼저 등록하세요.</div>}
+          {cs.patch.length === 0 && <div className="text-[11px] text-amber-300">패치된 조명이 없습니다. 패치 화면에서 먼저 등록하세요.</div>}
           <div className="text-[11px] text-slate-400">2) 값 만들기</div>
           <HSlider label="밝기 (Intensity)" ctl={`${id}-programmer.intensity`} value={pr.intensity ?? 0} onChange={(v) => set('programmer.intensity', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.intensity', value: v }, p)} display={`${pr.intensity ?? 0}%`} accent="accent-amber-400" />
           <div className="flex flex-wrap gap-1 rounded" data-ctl={`${id}-programmer.color`}>{COLORS.map(([c, n]) => <button key={c} type="button" title={n} aria-label={n} data-ctl={`${id}-programmer.color-${c}`} onClick={() => set('programmer.color', c)} className={`w-7 h-7 rounded-full border-2 ${pr.color === c ? 'border-white' : 'border-slate-700'}`} style={{ background: c }} />)}</div>
           <HSlider label="PAN (좌우)" ctl={`${id}-programmer.pan`} value={pr.pan ?? 0} min={-90} max={90} onChange={(v) => set('programmer.pan', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.pan', value: v }, p)} display={`${pr.pan ?? 0}°`} />
           <HSlider label="TILT (상하)" ctl={`${id}-programmer.tilt`} value={pr.tilt ?? 0} min={-60} max={60} onChange={(v) => set('programmer.tilt', v, false)} onCommit={(p, v) => show({ op: 'dev', device: id, key: 'programmer.tilt', value: v }, p)} display={`${pr.tilt ?? 0}°`} />
-          <div className="text-[11px] text-slate-400">3) 저장: 위의 RECORD → 저장할 플레이백의 파란 버튼</div>
+          <div className="text-[11px] text-slate-400">3) 저장: 위의 RECORD → 저장할 플레이백의 파란 버튼 · 다 저장했으면 CLEAR로 비웁니다</div>
           {pr.color && <div className="text-[11px] text-slate-300">현재 색: {COLOR_NAMES[colorFamily(pr.color)]}</div>}
         </>
       )}
@@ -564,7 +564,7 @@ function TigerTouchPanel({ game, id }) {
               <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-400">패치 안 된 조명:
                 {unpatched.map((d) => {
                   // 이 조명으로 아래 칸이 이미 채워져 있으면 눌린 것처럼 보인다 (연습 안내는 다음 단추로 넘어간다)
-                  const filled = pType === d.type && addr === st.dev[d.id].address;
+                  const filled = pType === d.type && addr === st.dev[d.id].address && pLabel === (d.name ?? '');
                   return (
                     <button key={d.id} type="button" data-ctl={`${id}-patchFill-${d.id}`} aria-pressed={filled} onClick={() => { setPType(d.type); setPAddr(st.dev[d.id].address); setPLabel(d.name ?? ''); }}
                       className={`px-1.5 py-0.5 rounded border ${filled ? 'bg-orange-600/30 border-orange-400 text-orange-100' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'}`}>{d.name} ({String(st.dev[d.id].address).padStart(3, '0')})</button>

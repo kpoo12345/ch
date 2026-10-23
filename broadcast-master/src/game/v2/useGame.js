@@ -494,7 +494,7 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
       speak(c, text, 0, speed, speechEnd, who);
     } else { setSpeaking(false); if (speech.current?.timer) clearTimeout(speech.current.timer); speech.current = null; }
     if (!c.action) {
-      if (sc.practice && step.practice) setWaiting({ ...step, index: i });
+      if (sc.practice && step.practice) setWaiting(waitingFor(step, i));
       else if (step.op === 'wait') later(() => { if (cur.current === c) { applied.current.add(i); c.action = true; bump(); } }, (step.ms ?? 1000) / (scriptRef.current?.speed ?? speed));
       // 퀴즈: 플레이어가 고를 때까지 기다린다 (자동 넘김일 때만 speechEnd가 잠시 뒤 답을 보여 준다)
       else if (step.quiz) setWaiting(null);
@@ -575,8 +575,8 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
   // 연습 단계 완료 감지
   useEffect(() => {
     if (!waiting || !scriptRef.current) return;
-    if (opSatisfied(game.stRef.current, waiting, game, snaps.current[waiting.index])) {
-      const i = waiting.index;
+    if (opSatisfied(game.stRef.current, waiting, game, snaps.current[waiting.at])) {
+      const i = waiting.at;
       applied.current.add(i);
       setWaiting(null);
       setPraised(true);
@@ -591,6 +591,10 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
 }
 
 // 연습 단계: 플레이어가 그 조작을 했는지 (수치는 근처면 인정)
+// 플레이어를 기다리는 연습 단계: 대본 단계 그대로 + 몇 번째 단계인지(at).
+// 단계 자신의 필드(조명 큐 저장의 index 등)를 덮어쓰지 않게 따로 둔다
+export const waitingFor = (step, at) => ({ ...step, at });
+
 export function opSatisfied(st, op, game, before) {
   // until: 'noFeedback' — 값만 맞추는 게 아니라 하울링이 실제로 멎어야 인정 (계산은 말하는 중 기준)
   if (op.until === 'noFeedback' && game?.nominal && (game.nominal.feedback || game.nominal.ringing)) return false;
@@ -615,7 +619,7 @@ export function opSatisfied(st, op, game, before) {
     case 'master': return near(st.master[op.key], op.value, 6);
     case 'dev': {
       const v = getPath(st.dev[op.device], op.key);
-      if (Array.isArray(op.value)) return JSON.stringify(v) === JSON.stringify(op.value);
+      if (op.value && typeof op.value === 'object') return JSON.stringify(v) === JSON.stringify(op.value);
       // 채널·주소·프리셋 번호는 정확히 같아야 한다 (근처 값은 다른 채널이다)
       if (/channel|address|preset|ip/i.test(op.key)) return v === op.value;
       return near(v, op.value, op.key.includes('gain') ? 6 : 5);
@@ -631,7 +635,11 @@ export function opSatisfied(st, op, game, before) {
       const now = cue(st);
       return !!now?.fixtures?.length && (!before || JSON.stringify(now) !== JSON.stringify(cue(before)));
     }
-    case 'patchAdd': return !!st.dev[op.device]?.patch?.some((e) => e.type === op.entry.type && e.address === op.entry.address);
+    case 'patchAdd': {
+      // 그 주소로 패치됐고, 다른 패치와 채널이 겹치지 않아야 한다 (겹치면 조명이 엉뚱하게 반응한다)
+      const e = st.dev[op.device]?.patch?.find((x) => x.type === op.entry.type && x.address === op.entry.address);
+      return !!e && !(game?.nominal?.light?.conflicts ?? []).some((pair) => pair.includes(e.n));
+    }
     case 'patchRemove': return !st.dev[op.device]?.patch?.some((e) => e.n === op.n);
     default: return true;
   }

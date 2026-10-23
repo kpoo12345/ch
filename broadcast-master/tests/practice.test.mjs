@@ -16,7 +16,7 @@ const server = await createServer({
   server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] },
 });
 after(() => server.close());
-const { opSatisfied } = await server.ssrLoadModule('/src/game/v2/useGame.js');
+const { opSatisfied, waitingFor } = await server.ssrLoadModule('/src/game/v2/useGame.js');
 
 // 대본을 i번째 단계 직전까지 실행한 상태 (유령 손이 하는 것과 같은 순서로)
 const STEP_OPS = new Set(['place', 'connect', 'disconnect', 'ch', 'master', 'dev', 'atem', 'obs', 'move', 'ptz', 'lightRecord', 'patchAdd', 'patchRemove']);
@@ -161,7 +161,7 @@ test('the control each practice step flashes is really rendered in the panel tha
       ? renderToStaticMarkup(React.createElement(Console, { game }))
       : renderToStaticMarkup(React.createElement(DevicePanel, { game, id: panelDeviceOf(s, st) }));
     const has = (k) => html.includes(`data-ctl="${k.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/>/g, '&gt;')}"`);
-    const keys = ctlKeysOf(s, st);
+    const keys = ctlKeysOf(waitingFor(s, i), st);
     // 조명 콘솔은 다른 탭이 열려 있을 수 있다: 그 탭 단추가 있으면 된다
     const tab = keys.find((k) => /-tab-/.test(k));
     if (!has(keys[0]) && !(tab && has(tab))) bad.push(`${part.id}#${i} ${keys[0]} (${s.practice})`);
@@ -178,10 +178,49 @@ test('every practice step is not yet passed before the player acts, and passes o
     if (!s.practice || s.op === 'fade') return; // fade는 실제 손 동작(래치)으로만 판정한다
     const before = stateBefore(part, i);
     const ctx = (x) => ({ nominal: computeSim(x, { talking: true, performing: true }), latched: new Set(), talking: true });
-    if (opSatisfied(before, s, ctx(before), before)) bad.push(`${part.id}#${i} ${s.op} already passes before acting`);
+    // 게임이 기다릴 때 쓰는 것과 똑같은 모양으로 (단계 필드를 덮어쓰면 여기서 걸린다)
+    const w = waitingFor(s, i);
+    if (opSatisfied(before, w, ctx(before), before)) bad.push(`${part.id}#${i} ${s.op} already passes before acting`);
     const after = applyOp(before, s);
     if (after.lastError) bad.push(`${part.id}#${i} ${s.op} scripted op fails: ${after.lastError}`);
-    else if (!opSatisfied(after, s, ctx(after), before)) bad.push(`${part.id}#${i} ${s.op} does not pass after the scripted op`);
+    else if (!opSatisfied(after, w, ctx(after), before)) bad.push(`${part.id}#${i} ${s.op} does not pass after the scripted op`);
   }));
   assert.deepEqual(bad, []);
+});
+
+test('the waiting step keeps the step own fields (a cue saved to playback 2 still says playback 2)', async () => {
+  const { ctlKeysOf } = await import('../src/game/v2/practiceTarget.js');
+  const step = { op: 'lightRecord', device: 'desk', index: 2, practice: 'x' };
+  const w = waitingFor(step, 25);
+  assert.equal(w.index, 2);
+  assert.equal(w.at, 25);
+  assert.deepEqual(ctlKeysOf(w, {}).slice(0, 2), ['desk-record', 'desk-pbsel-2']);
+});
+
+test('practiceTarget FOOTPRINT matches the sim', async () => {
+  const { FOOTPRINT } = await import('../src/game/v2/practiceTarget.js');
+  const sim = await import('../src/game/sim.js');
+  assert.deepEqual(FOOTPRINT, sim.FOOTPRINT);
+});
+
+// 파트 8 조명 이야기: 주소를 고치면 꺼지고, 패치해도 옛 큐엔 없어서 꺼져 있고, 새 큐를 올리면 둘 다 파랗게
+test('tut-show lighting story: R goes dark, stays dark after patching, and joins the new cue', () => {
+  const part = TUTORIAL.find((p) => p.id === 'tut-show');
+  const at = (pred) => part.steps.findIndex(pred);
+  const light = (i) => computeSim(stateBefore(part, i)).light.fixtures;
+  const iAddr = at((s) => s.op === 'dev' && s.key === 'address');
+  const iPatch = at((s) => s.op === 'patchAdd');
+  const iClear = at((s) => s.op === 'dev' && s.key === 'programmer');
+  const iUp = at((s) => s.op === 'dev' && s.key === 'playbacks.1.level');
+  assert.ok(iAddr > 0 && iPatch > iAddr && iClear > iPatch && iUp > iClear);
+  assert.equal(light(iAddr).p2.wrong, true, 'R reads L channels at 005');
+  assert.equal(light(iPatch).p2.intensity, 0, 'R is dark at 009 before the patch');
+  assert.equal(light(iPatch + 1).p2.intensity, 0, 'R stays dark in the old sermon cue after patching');
+  const end = light(iUp + 1);
+  for (const f of ['p1', 'p2']) {
+    assert.ok(end[f].intensity >= 0.9, `${f} lit by the new cue`);
+    assert.equal(end[f].color.toLowerCase(), '#2563eb', `${f} blue`);
+  }
+  // CLEAR 뒤엔 프로그래머가 비어 있다 (안 비우면 프로그래머 값이 먼저)
+  assert.deepEqual(stateBefore(part, iClear + 1).dev.desk.programmer.sel, []);
 });

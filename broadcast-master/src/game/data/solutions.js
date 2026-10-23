@@ -209,6 +209,7 @@ export const SOLUTIONS = {
     { say: '색은 파랑으로 할게요. 이 장면 이름이 찬양 블루거든요.', op: 'dev', device: 'desk', key: 'programmer.color', value: '#2563eb' },
     { say: 'TILT를 30도로 맞춰서 빛이 보컬 쪽을 향하게 할게요.', op: 'dev', device: 'desk', key: 'programmer.tilt', value: 30 },
     { say: 'RECORD를 눌러 플레이백 2번에 찬양 블루로 저장할게요. 공연 중엔 페이더 하나로 불러오면 돼요.', op: 'lightRecord', device: 'desk', index: 2, label: '찬양 블루' },
+    { say: '저장했으니 CLEAR로 프로그래머를 비워요. 안 비우면 프로그래머 값이 페이더보다 먼저라서 장면이 안 바뀌거든요.', op: 'dev', device: 'desk', key: 'programmer', value: { sel: [], intensity: null, color: null, pan: null, tilt: null } },
     { say: '그럼 재생해 볼게요. 플레이백 1번 프론트 워시를 올려서 보컬 얼굴부터 밝힐게요.', op: 'dev', device: 'desk', key: 'playbacks.0.level', value: 100 },
     { say: '이어서 플레이백 2번, 찬양 블루도 올려요.', op: 'dev', device: 'desk', key: 'playbacks.1.level', value: 100 },
     { say: '파란 무빙이랑 따뜻한 프론트 조명이 같이 무대를 채우죠. 깜빡임도 없고요.', op: 'wait', ms: 1200 },

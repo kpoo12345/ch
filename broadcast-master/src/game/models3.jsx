@@ -148,12 +148,12 @@ export function lightConsoleControl(key, value) {
   if (m) { const i = Number(m[1]); return [TT.pbX(i), 0.12, TT.pbZ + TT.pbLen / 2 - ((value ?? 0) / 100) * TT.pbLen]; }
   if (key === 'gm') return [TT.gmX, 0.12, TT.pbZ + TT.pbLen / 2 - ((value ?? 100) / 100) * TT.pbLen];
   if (key === 'blackout') return [TT.boX, 0.12, TT.boZ];
-  if (key === 'programmer.sel') return [TT.selX(Array.isArray(value) && value.length ? value[0] : 1), 0.115, TT.selZ];
   if (key === 'programmer.intensity') return [-0.2, 0.125, TT.encZ];
   if (key === 'programmer.pan') return [-0.08, 0.125, TT.encZ];
   if (key === 'programmer.tilt') return [0.04, 0.125, TT.encZ];
-  if (key === 'record') return [TT.recX, 0.115, TT.recZ];
-  return [0.05, 0.22, -0.2]; // 터치스크린 (색·패치)
+  // 큐 저장: RECORD 다음에 누르는 그 플레이백의 파란 버튼 (저장할 자리를 손이 짚는다)
+  if (key === 'record') return [TT.selX(value ?? 1), 0.115, TT.selZ];
+  return [0.05, 0.22, -0.2]; // 터치스크린 (조명 고르기·색·패치)
 }
 
 function drawTigerScreen(ctx, w, h, { cs, lightRes }) {
@@ -202,7 +202,8 @@ export function LightingConsoleModel({ cs, lightRes }) {
         <group key={i} position={[TT.pbX(i), 0.101, 0]}>
           <Fader position={[0, 0.001, TT.pbZ]} value={pbs[i]?.level ?? 0} length={TT.pbLen} color={pbs[i] ? '#f8fafc' : '#6b7280'} />
           <Lamp position={[0, 0.003, TT.pbZ - 0.085]} on={(pbs[i]?.level ?? 0) > 0} color="#f97316" size={[0.03, 0.006, 0.012]} offColor="#3a3f47" />
-          <Lamp position={[0, 0.003, TT.selZ]} on={!!cs.programmer?.sel?.includes(i + 1)} color="#38bdf8" size={[0.03, 0.006, 0.02]} offColor="#3a3f47" />
+          {/* 플레이백 파란 버튼: 큐가 저장돼 있으면 불이 들어온다 (2D 패널의 RECORD → 파란 버튼과 같은 자리) */}
+          <Lamp position={[0, 0.003, TT.selZ]} on={!!pbs[i]?.cue?.fixtures?.length} color="#38bdf8" size={[0.03, 0.006, 0.02]} offColor="#3a3f47" />
         </group>
       ))}
       {/* 그랜드 마스터 + 블랙아웃 */}

@@ -92,8 +92,7 @@ export function applyOp(stIn, op) {
       const i = op.index - 1;
       while (cs.playbacks.length <= i) cs.playbacks.push({ label: `PB ${cs.playbacks.length + 1}`, level: 0, cue: { fixtures: [] } });
       cs.playbacks[i] = { label: op.label ?? cs.playbacks[i].label, level: cs.playbacks[i].level ?? 0, cue };
-      // 저장 후 프로그래머 비우기 (실제 콘솔의 CLEAR)
-      cs.programmer = { sel: [], intensity: null, color: null, pan: null, tilt: null };
+      // 실제 콘솔처럼 저장해도 프로그래머는 그대로다. 비우는 건 CLEAR (안 비우면 프로그래머 값이 플레이백보다 먼저)
       return st;
     }
     case 'patchAdd': {

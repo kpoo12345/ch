@@ -2,7 +2,9 @@
  * 파트 8 · 빛과 화면 (교회 예배당). 조명 콘솔과 DMX(데이지 체인·주소) → 플레이백·그랜드 마스터·큐 저장
  * → 미디어 서버 레이어와 프로젝터 → PTZ 카메라 조이스틱·프리셋 → 스토리 모드로.
  * 앞 조명 R은 주소를 일부러 005로 틀어 놓고 콘솔 패치에도 빠뜨려 놨다. 페이더를 올리면 L 채널을 겹쳐 읽어 엉뚱한 색이 나오고,
- * 009로 고치면 콘솔이 모르는 주소라 아예 꺼지고, 패치에 009로 등록하면 그제야 L과 같이 켜진다.
+ * 009로 고치면 콘솔이 모르는 주소라 아예 꺼진다. 009로 패치해도 설교 조명 큐는 R을 패치하기 전에 저장한 거라 R 값이 없어서
+ * 계속 꺼져 있고, 1번 2번을 같이 넣은 찬양 큐를 만들어 올리면 그제야 둘 다 켜진다 (실제 콘솔과 같다).
+ * 큐 저장(RECORD → 플레이백 파란 버튼) 뒤에는 CLEAR로 프로그래머를 비운다. 안 비우면 프로그래머 값이 플레이백보다 먼저다.
  * 프로젝터는 꺼 둔 채로 시작해서, HDMI를 꽂아도 화면이 안 나오다가 전원을 켜면 레이어가 보인다. */
 export default {
   id: 'tut-show', venue: 'church', title: '파트 8 · 빛과 화면',
@@ -22,7 +24,7 @@ export default {
   inventory: { dmx: 2, hdmi: 1 },
   state: { devices: {
     p1: { address: 1 }, p2: { address: 5 },
-    desk: { patch: [{ n: 1, label: '앞 조명 L', type: 'par_led', address: 1 }], playbacks: [{ label: '설교 조명', level: 0, cue: { fixtures: [1, 2], intensity: 90, color: '#fff1d6' } }] },
+    desk: { patch: [{ n: 1, label: '앞 조명 L', type: 'par_led', address: 1 }], playbacks: [{ label: '설교 조명', level: 0, cue: { fixtures: [1], intensity: 90, color: '#fff1d6' } }, { label: '찬양 조명', level: 0, cue: { fixtures: [] } }] },
     vj: { layers: [{ clip: 'worship_bg', opacity: 100 }, { clip: 'lyrics', opacity: 100 }, { clip: null, opacity: 100 }], out1: 'comp' },
     proj: { power: false }, ptz1: { ip: '192.168.1.21', pan: 0, tilt: 0, zoom: 0.2 },
   } },
@@ -49,8 +51,8 @@ export default {
     { say: 'R 주소가 005로 돼 있네요. L 자리를 반쯤 겹쳐 읽으니까 엉뚱한 숫자를 받는 거예요. 009로 고쳐 봐요.', op: 'dev', device: 'p2', key: 'address', value: 9, practice: '앞 조명 R을 클릭하고 DMX 주소를 009로 맞춰 보세요.' },
     { who: 'junior', say: '어? 이번엔 오른쪽이 아예 꺼졌어요.', focus: 'p2' },
     { say: '콘솔이 009번에 조명이 있다는 걸 아직 몰라서 그래요. 콘솔에 조명을 등록하는 걸 패치라고 해요. R을 009로 패치해 봐요.', focus: 'desk', op: 'patchAdd', device: 'desk', entry: { type: 'par_led', address: 9, label: '앞 조명 R' }, practice: '콘솔 화면을 패치로 바꾸고, 앞 조명 R(009)을 고른 다음 + 패치 추가를 눌러 보세요.' },
-    { who: 'junior', say: '오, 이제 양쪽 색이 똑같아요!' },
-    { say: '조명 본체 주소랑 콘솔 패치 주소, 이 둘이 같아야 제대로 켜져요.' },
+    { who: 'junior', say: '패치했는데 오른쪽은 아직 꺼져 있어요.', focus: 'p2' },
+    { say: '설교 조명은 R을 패치하기 전에 저장한 큐라서 R 값이 없어요. 이따 큐를 새로 만들 때 1번 2번을 같이 넣을게요.' },
     { quiz: { q: '8채널 조명을 1번 주소에 놨어요. 바로 다음 조명은 몇 번에 둘까요?', options: ['9번', '2번', '8번'], answer: 0, explain: '첫 대가 1번부터 8번까지 쓰니까 다음은 9번이에요. 겹치면 서로 남의 숫자를 읽어요.' } },
 
     // 그랜드 마스터: 전체 출구
@@ -61,10 +63,13 @@ export default {
     // 큐 만들기: 고르고, 색 만들고, 저장하고, 바꿔 올리기
     { who: 'junior', say: '찬양 시간엔 다른 색이 좋을 것 같은데, 그런 장면은 어떻게 만들어요?' },
     { say: '프로그래머 화면에서 만들어요. 먼저 바꿀 조명을 골라요. 1번 2번 둘 다요.', op: 'dev', device: 'desk', key: 'programmer.sel', value: [1, 2], practice: '프로그래머 화면에서 1번과 2번 조명을 골라 보세요.' },
+    { say: '밝기부터 100으로 올려요. 오른쪽은 아직 어느 큐에도 없어서, 여기서 밝기를 줘야 켜져요.', op: 'dev', device: 'desk', key: 'programmer.intensity', value: 100, practice: '밝기(Intensity)를 100으로 올려 보세요.' },
     { say: '색은 파랑으로 가 보죠. 고른 조명이 바로 파랗게 바뀌는 거 보이죠?', op: 'dev', device: 'desk', key: 'programmer.color', value: '#2563eb', practice: '색 버튼에서 파랑을 눌러 보세요.' },
     { say: '이 상태를 2번 플레이백에 저장해요. RECORD를 누르고 2번 페이더 아래 파란 버튼을 누르면 돼요. 이렇게 저장한 장면 하나를 큐라고 불러요.', op: 'lightRecord', device: 'desk', index: 2, label: '찬양 조명', practice: 'RECORD를 누르고 2번 플레이백의 파란 버튼을 눌러 보세요.' },
+    { say: '저장했으면 CLEAR로 프로그래머를 비워요. 안 비우면 프로그래머 값이 먼저라서, 페이더를 내려도 조명이 그대로 켜져 있어요.', op: 'dev', device: 'desk', key: 'programmer', value: { sel: [], intensity: null, color: null, pan: null, tilt: null }, practice: 'CLEAR를 눌러 프로그래머를 비워 보세요.' },
     { say: '설교가 끝났다 치고 설교 조명을 내려요.', op: 'dev', device: 'desk', key: 'playbacks.0.level', value: 0, practice: '설교 조명 페이더(1번)를 맨 아래로 내려 보세요.' },
     { say: '이제 찬양 조명 페이더를 올려 봐요. 버튼 하나 없이 페이더로 장면이 바뀌죠.', op: 'dev', device: 'desk', key: 'playbacks.1.level', value: 100, practice: '찬양 조명 페이더(2번)를 올려 보세요.' },
+    { who: 'junior', say: '이번엔 오른쪽도 같이 파랗게 켜졌어요!' },
 
     // 화면: 미디어 서버 · 레이어 · 프로젝터
     { say: '이번엔 화면이에요. 가사랑 배경은 이 미디어 서버에서 나가요. 레이어를 쌓는데, 위에 있는 게 앞에 보이죠.', focus: 'vj', show: { concept: 'layers' } },

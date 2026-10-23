@@ -274,7 +274,7 @@ export default function GameScreen({
     const t = setTimeout(mark, mixerAsk ? 180 : 300);
     const iv = setInterval(mark, 500);
     return () => { clearTimeout(t); clearInterval(iv); unmark(); };
-  }, [player.waiting?.index]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [player.waiting?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
     const id = player.narration?.focus;

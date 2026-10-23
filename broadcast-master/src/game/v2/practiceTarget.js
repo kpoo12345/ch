@@ -21,6 +21,9 @@
  * 아무것도 가져오지 않는다 (sim.js와 같은 규칙을 여기 그대로 쓴다).
  * ===================================================================== */
 
+// 조명 한 대가 쓰는 DMX 채널 수 (sim.js FOOTPRINT와 같아야 한다 — tests/practice.test.mjs가 확인)
+export const FOOTPRINT = { par_led: 8, moving_head: 16 };
+
 const endOf = (s) => { const [d, p] = String(s ?? '').split('.'); return { d, p: p ?? null }; };
 const getPath = (obj, path) => String(path).split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 const connKey = (c) => `${c.from.d}.${c.from.p}>${c.to.d}.${c.to.p}`;
@@ -118,12 +121,16 @@ export function ctlKeysOf(step, st) {
       const order = owners[0] === a.d ? owners : [owners[1], owners[0]];
       return order.flatMap((o) => ids.map((id) => `${o}-disconnect-${id}`));
     }
-    case 'lightRecord': return [`${d}-record`, `${d}-pbsel-${step.index}`];
+    // RECORD → 그 플레이백의 파란 버튼. 고른 조명이 없어 RECORD가 꺼져 있으면 프로그래머의 조명 고르기로
+    case 'lightRecord': return [`${d}-record`, `${d}-pbsel-${step.index}`, `${d}-programmer.sel`, `${d}-tab-prog`];
     case 'patchAdd': {
       // 패치 안 된 조명 단추로 칸을 채우고 → + 패치 추가
       const e = step.entry ?? {};
       const fx = Object.values(st?.devices ?? {}).find((x) => x.type === e.type && st?.dev?.[x.id]?.address === e.address);
-      return [...(fx ? [`${d}-patchFill-${fx.id}`] : []), `${d}-patchAdd`, `${d}-tab-patch`];
+      // 그 자리와 채널이 겹치는 엉뚱한 패치가 있으면 그것부터 지운다
+      const fp = FOOTPRINT[e.type] ?? 8;
+      const stray = (st?.dev?.[d]?.patch ?? []).filter((x) => !(x.type === e.type && x.address === e.address) && x.address < e.address + fp && e.address < x.address + (FOOTPRINT[x.type] ?? 8));
+      return [...stray.map((x) => `${d}-patchRemove-${x.n}`), ...(fx ? [`${d}-patchFill-${fx.id}`] : []), `${d}-patchAdd`, `${d}-tab-patch`];
     }
     case 'patchRemove': return [`${d}-patchRemove-${step.n}`, `${d}-tab-patch`];
     // 믹서 콘솔 (Console.jsx): GameScreen이 쓰던 규칙과 같다
@@ -141,6 +148,8 @@ export function findPracticeTarget(step, st, root = globalThis.document) {
     const el = root.querySelector(`[data-ctl="${String(key).replace(/["\\]/g, '\\$&')}"]`);
     // 이미 눌러 둔 준비 단추(PTZ STORE · 조명 RECORD · 채워 둔 패치 칸)는 패널 안의 상태라 st에 없다 → 다음 이름으로
     if (el && /-(ptz-store|record|patchFill-[^-]+)$/.test(key) && el.getAttribute?.('aria-pressed') === 'true') continue;
+    // 아직 누를 수 없는 RECORD·파란 버튼(고른 조명이 없거나 RECORD 전)은 건너뛰고 그 앞 단계를 짚는다
+    if (el && /-(record|pbsel-\d+)$/.test(key) && el.disabled) continue;
     // 불러오기인데 STORE가 켜져 있으면 번호를 누르는 순간 저장돼 버린다 → STORE부터 꺼야 한다
     if (el && step.op === 'ptz' && step.act === 'recall') {
       const store = root.querySelector(`[data-ctl="${String(step.device).replace(/["\\]/g, '\\$&')}-ptz-store"]`);
