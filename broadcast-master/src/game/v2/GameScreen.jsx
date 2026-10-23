@@ -21,7 +21,7 @@ import LabOverlay from './LabOverlay.jsx';
 import { PHRASES, TALK_VOICE } from '../data/phrases.js';
 import { patchBetaContext, openFeedback, subscribeBeta, enterGameScreen } from '../betaContext.js';
 import { connectGuide } from './connectGuide.js';
-import { panelDeviceOf, findPracticeTarget } from './practiceTarget.js';
+import { panelDeviceOf, findPracticeTarget, programmerMiss } from './practiceTarget.js';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -213,6 +213,8 @@ export default function GameScreen({
   const cableChoices = st.unlimited ? Object.keys(CABLES) : inv.map(([k]) => k);
   // 케이블 잇기 연습: ① 케이블 고르기 → ② 첫 단자 → ③ 둘째 단자를 한 단계씩 짚어 준다 (카메라도 그 단자로)
   const guide = useMemo(() => connectGuide(player.waiting, st, game.cable, game.pending), [player.waiting, st, game.cable, game.pending]);
+  // 큐 저장 연습인데 프로그래머가 저장할 장면과 달라졌으면(CLEAR를 잘못 누르는 등) 다시 만들라고 알린다
+  const redo = player.waiting?.redo && programmerMiss(player.waiting, st) ? player.waiting.redo : null;
   const highlight = guide ? { device: guide.target.d, port: guide.target.p } : player.waiting ? targetOf(player.waiting, st) : null;
   // 연습 중 엉뚱한 단자를 골라 두었으면 풀어 준다 (반짝이는 단자를 누르면 바로 이어지게)
   useEffect(() => {
@@ -357,10 +359,10 @@ export default function GameScreen({
           )}
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
-          {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} />}
+          {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} />}
           {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
-        {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} inline />}
+        {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} inline />}
 
         {/* 사이드 패널 */}
         <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'h-[38vh]'} lg:h-auto lg:flex-none`}>

@@ -88,6 +88,19 @@ function devKeys(step, st) {
   return keys;
 }
 
+// 큐 저장 단계: 프로그래머가 저장할 장면(expect)과 어디부터 다른지 ('sel' | 'intensity' | 'color' | null)
+// (CLEAR를 잘못 눌러 비웠을 때 무엇부터 다시 할지 짚고, 연습 상자에 다시 만들라는 말을 띄운다)
+export function programmerMiss(step, st) {
+  const e = step?.op === 'lightRecord' ? step.expect : null;
+  if (!e) return null;
+  const pr = st?.dev?.[step.device]?.programmer ?? {};
+  const sel = pr.sel ?? [];
+  if (e.fixtures && (e.fixtures.some((n) => !sel.includes(n)) || sel.some((n) => !e.fixtures.includes(n)))) return 'sel';
+  if (e.intensity != null && Math.abs((pr.intensity ?? 0) - e.intensity) > 5) return 'intensity';
+  if (e.color && String(pr.color ?? '').toLowerCase() !== e.color.toLowerCase()) return 'color';
+  return null;
+}
+
 // 앞에서부터 찾아볼 data-ctl 이름 목록 (가장 구체적인 것부터). 모르는 단계는 []
 export function ctlKeysOf(step, st) {
   if (!step) return [];
@@ -128,14 +141,10 @@ export function ctlKeysOf(step, st) {
     // RECORD → 그 플레이백의 파란 버튼. 고른 조명이 없어 RECORD가 꺼져 있으면 프로그래머의 조명 고르기로
     case 'lightRecord': {
       const e = step.expect;
-      const pr = st?.dev?.[d]?.programmer ?? {};
-      const fix = [];
-      if (e?.fixtures) {
-        const sel = pr.sel ?? [];
-        if (e.fixtures.some((n) => !sel.includes(n)) || sel.some((n) => !e.fixtures.includes(n))) fix.push(...devKeys({ device: d, key: 'programmer.sel', value: e.fixtures }, st));
-      }
-      if (!fix.length && e?.intensity != null && Math.abs((pr.intensity ?? 0) - e.intensity) > 5) fix.push(`${d}-programmer.intensity`, `${d}-tab-prog`);
-      if (!fix.length && e?.color && String(pr.color ?? '').toLowerCase() !== e.color.toLowerCase()) fix.push(`${d}-programmer.color-${e.color}`, `${d}-tab-prog`);
+      const miss = programmerMiss(step, st);
+      const fix = miss === 'sel' ? devKeys({ device: d, key: 'programmer.sel', value: e.fixtures }, st)
+        : miss === 'intensity' ? [`${d}-programmer.intensity`, `${d}-tab-prog`]
+          : miss === 'color' ? [`${d}-programmer.color-${e.color}`, `${d}-tab-prog`] : [];
       return [...fix, `${d}-record`, `${d}-pbsel-${step.index}`, `${d}-programmer.sel`, `${d}-tab-prog`];
     }
     case 'patchAdd': {

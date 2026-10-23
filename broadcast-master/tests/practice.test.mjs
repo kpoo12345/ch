@@ -227,3 +227,17 @@ test('tut-show lighting story: R goes dark, stays dark after patching, and joins
   // CLEAR 뒤엔 프로그래머가 비어 있다 (안 비우면 프로그래머 값이 먼저)
   assert.deepEqual(stateBefore(part, iClear + 1).dev.desk.programmer.sel, []);
 });
+
+test('record step: an emptied programmer points back to select → brightness → colour before RECORD', async () => {
+  const { ctlKeysOf, programmerMiss } = await import('../src/game/v2/practiceTarget.js');
+  const step = TUTORIAL.find((p) => p.id === 'tut-show').steps.find((s) => s.op === 'lightRecord');
+  const st = (pr) => ({ devices: { desk: { type: 'lighting_console' } }, dev: { desk: { programmer: { sel: [], intensity: null, color: null, ...pr } } } });
+  assert.equal(programmerMiss(step, st({})), 'sel');
+  assert.equal(ctlKeysOf(step, st({}))[0], 'desk-programmer.sel-1');
+  assert.equal(programmerMiss(step, st({ sel: [1, 2] })), 'intensity');
+  assert.equal(ctlKeysOf(step, st({ sel: [1, 2] }))[0], 'desk-programmer.intensity');
+  assert.equal(programmerMiss(step, st({ sel: [1, 2], intensity: 100 })), 'color');
+  assert.equal(programmerMiss(step, st({ sel: [1, 2], intensity: 100, color: '#2563eb' })), null);
+  assert.equal(ctlKeysOf(step, st({ sel: [1, 2], intensity: 100, color: '#2563eb' }))[0], 'desk-record');
+  assert.ok(step.redo, 'the step explains what to redo');
+});

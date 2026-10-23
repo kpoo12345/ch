@@ -65,7 +65,7 @@ export default {
     { say: '프로그래머 화면에서 만들어요. 먼저 바꿀 조명을 골라요. 1번 2번 둘 다요.', op: 'dev', device: 'desk', key: 'programmer.sel', value: [1, 2], practice: '프로그래머 화면에서 1번과 2번 조명을 골라 보세요.' },
     { say: '밝기부터 100으로 올려요. 오른쪽은 아직 어느 큐에도 없어서, 여기서 밝기를 줘야 켜져요.', focus: 'p2', op: 'dev', device: 'desk', key: 'programmer.intensity', value: 100, practice: '밝기(Intensity)를 100으로 올려 보세요.' },
     { say: '색은 파랑으로 가 보죠. 고른 조명이 바로 파랗게 바뀌는 거 보이죠?', focus: 'overview', op: 'dev', device: 'desk', key: 'programmer.color', value: '#2563eb', practice: '색 버튼에서 파랑을 눌러 보세요.' },
-    { say: '이 상태를 2번 플레이백에 저장해요. RECORD를 누르고 2번 플레이백의 파란 버튼을 누르면 돼요. 이렇게 저장한 장면 하나를 큐라고 불러요.', op: 'lightRecord', device: 'desk', index: 2, label: '찬양 조명', expect: { fixtures: [1, 2], color: '#2563eb', intensity: 100 }, practice: 'RECORD를 누르고 2번 플레이백의 파란 버튼을 눌러 보세요.' },
+    { say: '이 상태를 2번 플레이백에 저장해요. RECORD를 누르고 2번 플레이백의 파란 버튼을 누르면 돼요. 이렇게 저장한 장면 하나를 큐라고 불러요.', op: 'lightRecord', device: 'desk', index: 2, label: '찬양 조명', expect: { fixtures: [1, 2], color: '#2563eb', intensity: 100 }, redo: '저장할 장면이 아직 달라요. 1번 2번을 고르고 밝기 100, 파랑으로 다시 만든 다음 RECORD를 눌러요.', practice: 'RECORD를 누르고 2번 플레이백의 파란 버튼을 눌러 보세요.' },
     { say: '저장했으면 CLEAR로 프로그래머를 비워요. 안 비우면 프로그래머 값이 먼저라서, 페이더를 내려도 조명이 그대로 켜져 있어요.', op: 'dev', device: 'desk', key: 'programmer', value: { sel: [], intensity: null, color: null, pan: null, tilt: null }, practice: 'CLEAR를 눌러 프로그래머를 비워 보세요.' },
     { say: '설교가 끝났다 치고 설교 조명을 내려요.', op: 'dev', device: 'desk', key: 'playbacks.0.level', value: 0, practice: '설교 조명 페이더(1번)를 맨 아래로 내려 보세요.' },
     { say: '이제 찬양 조명 페이더를 올려 봐요. 버튼 하나 없이 페이더로 장면이 바뀌죠.', op: 'dev', device: 'desk', key: 'playbacks.1.level', value: 100, practice: '찬양 조명 페이더(2번)를 올려 보세요.' },

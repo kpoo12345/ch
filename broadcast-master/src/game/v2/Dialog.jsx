@@ -15,7 +15,7 @@ const SPEEDS = [1, 1.5, 2];
 
 const LAB_NAME = { fade: '페이드 실습실', eq: 'EQ 실습실', fx: '울림(리버브) 실습실' };
 
-export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab, inline = false, guide = null }) {
+export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab, inline = false, guide = null, redo = null }) {
   const { script, narration, waiting, speaking, praised, quiz } = player;
   const [shown, setShown] = useState(0);
   // 설명 카드 접기: 직접 해 보는 동안은 저절로 접어 대상이 가려지지 않게, X로 접은 카드는 그 장면 동안 접힌 채로
@@ -129,6 +129,7 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
                     <Wand2 size={13} /> 보여 주세요
                   </button>
                 </div>
+                {redo && <p className="mt-1 text-[12px] font-bold text-amber-100">↳ {redo}</p>}
                 {/* 케이블 잇기: 지금 할 일 하나만 크게, 끝난 일은 체크 */}
                 {guide && !inline && (
                   <ol className="mt-1.5 grid gap-1 sm:grid-cols-3" aria-label="연결 순서">
