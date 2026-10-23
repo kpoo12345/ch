@@ -84,9 +84,9 @@ export function Seg({ value, options, onChange, small, ctl }) {
 export function Stepper({ value, min, max, onChange, width = 'w-14', fmt = (v) => v, label, ctl }) {
   return (
     <div className="inline-flex items-center gap-1 rounded" aria-label={label} data-ctl={ctl}>
-      <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value - 1, min, max))} aria-label={`${label ?? ''} 감소`}>−</button>
+      <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value - 1, min, max))} aria-label={`${label ?? ''} 감소`} data-ctl={ctl ? `${ctl}-dec` : undefined}>−</button>
       <span className={`${width} text-center font-mono text-sm bg-slate-950 border border-slate-700 rounded py-1 text-slate-100 tabular-nums`}>{fmt(value)}</span>
-      <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value + 1, min, max))} aria-label={`${label ?? ''} 증가`}>+</button>
+      <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value + 1, min, max))} aria-label={`${label ?? ''} 증가`} data-ctl={ctl ? `${ctl}-inc` : undefined}>+</button>
     </div>
   );
 }

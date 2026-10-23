@@ -4,6 +4,7 @@
  * 장비 패널(DevicePanels.jsx)·믹서 콘솔(Console.jsx)의 조작 부품에는
  * data-ctl 이름이 붙어 있다.
  *   장비 설정 (op dev)   `${장비}-${key}`            예: light-playbacks.0.level
+ *   숫자 한 칸씩 (Stepper) `${장비}-${key}-inc` · `-dec`  (목표 쪽 단추를 먼저 짚는다)
  *   여러 선택지 중 하나    `${장비}-${key}-${값}`       예: vj-layers.2.clip-logo
  *   PTZ 카메라 IP        `${카메라}-ip-${대역}` (예: cam1-ip-192.168.1) · `${카메라}-ip-last`
  *   ATEM                 `${스위처}-program-${n}` · `-preview-${n}` · `-cut` · `-auto` · `-streaming` · `-recording` · `-pip`
@@ -76,6 +77,9 @@ function devKeys(step, st) {
   } else if (CHOICE_KEY.test(k)) {
     keys.push(`${d}-${k}-${v}`, `${d}-${k}`);
   } else {
+    // 숫자를 한 칸씩 바꾸는 단추(Stepper)면 목표 쪽 단추(+ / −)부터. 슬라이더처럼 그런 단추가 없으면 그냥 넘어간다
+    const now = getPath(cur, k);
+    if (typeof v === 'number' && typeof now === 'number' && now !== v) keys.push(`${d}-${k}-${v > now ? 'inc' : 'dec'}`);
     keys.push(`${d}-${k}`);
   }
   const type = st?.devices?.[d]?.type;

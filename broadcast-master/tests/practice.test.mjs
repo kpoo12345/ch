@@ -164,7 +164,10 @@ test('the control each practice step flashes is really rendered in the panel tha
     const keys = ctlKeysOf(waitingFor(s, i), st);
     // 조명 콘솔은 다른 탭이 열려 있을 수 있다: 그 탭 단추가 있으면 된다
     const tab = keys.find((k) => /-tab-/.test(k));
-    if (!has(keys[0]) && !(tab && has(tab))) bad.push(`${part.id}#${i} ${keys[0]} (${s.practice})`);
+    // +/− 단추 이름은 Stepper일 때만 있다 → 그 다음 이름이 있으면 된다. 채널 줄·MASTER 통째 반짝임은 인정하지 않는다
+    const named = keys.filter((k) => !/^(master|ch\d+)$/.test(k));
+    const first = named.find((k) => !/-(inc|dec)$/.test(k));
+    if (!has(first) && !named.some((k) => /-(inc|dec)$/.test(k) && has(k)) && !(tab && has(tab))) bad.push(`${part.id}#${i} ${first} (${s.practice})`);
     checked += 1;
   }));
   assert.ok(checked >= 40, `checked ${checked}`);
