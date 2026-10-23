@@ -278,7 +278,8 @@ export default function GameScreen({
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
     const id = player.narration?.focus;
-    if (id && !lockView && st.devices[id]?.placed) setFocusRequest({ id, key: Date.now() });
+    // 'overview'는 전체 보기 (조명 두 대처럼 여러 곳을 같이 봐야 할 때)
+    if (id && !lockView && (id === 'overview' || st.devices[id]?.placed)) setFocusRequest({ id, key: Date.now() });
   }, [player.narration?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
   // 다음 장면으로 넘어가면 실습실은 닫는다
   useEffect(() => { setLab(null); player.setHold(false); }, [player.narration?.i]); // eslint-disable-line react-hooks/exhaustive-deps

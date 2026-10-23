@@ -81,7 +81,7 @@ for (const part of TUTORIAL) {
       if (s.who) assert.ok(['senior', 'junior'].includes(s.who), `${w}: who ${s.who}`);
       if (s.say) assert.ok(s.say.length <= 140, `${w}: line too long (${s.say.length})`);
       if (s.practice) assert.ok(s.op, `${w}: practice without op`);
-      if (s.focus) assert.ok(ids.has(s.focus), `${w}: focus ${s.focus}`);
+      if (s.focus) assert.ok(ids.has(s.focus) || s.focus === 'overview', `${w}: focus ${s.focus}`);
       if (s.show) { if (s.show.items) { assert.ok(s.show.items.length >= 2 && s.show.items.length <= 3, `${w}: 2~3 items`); s.show.items.forEach((c) => checkCard(c, w)); } else checkCard(s.show, w); }
       if (s.quiz) {
         assert.ok(s.quiz.q && Array.isArray(s.quiz.options) && s.quiz.options.length >= 2, `${w}: quiz shape`);

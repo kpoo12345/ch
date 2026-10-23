@@ -14,7 +14,7 @@
  *            photo id는 data/photos.js의 PHOTOS. 사진이 아직 없으면 그 항목의 model/connector 그림으로 대신한다
  *   quiz     { q, options: [..], answer: 정답 번호(0부터), explain } — 맞히면 칭찬 후 다음, 틀리면 설명을 보여 주고 다시
  *   lab      { lab: 'fade' | 'eq' | 'fx', goal } — 실습실을 열어 직접 만져 본다 (닫으면 다음)
- *   focus    장비 id — 카메라가 그 장비로 다가간다
+ *   focus    장비 id — 카메라가 그 장비로 다가간다 ('overview'면 전체 보기)
  *   op ...   조작 (place, connect, dev, ch, master, fade, move, atem, obs, ptz, talk, perform, wait …)
  *   practice "직접 해 보세요" 안내. 이게 있는 조작 장면은 직접 해보기가 켜져 있으면 플레이어가 해낼 때까지 기다린다
  * ===================================================================== */

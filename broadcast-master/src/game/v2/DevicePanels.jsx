@@ -476,12 +476,19 @@ function TigerTouchPanel({ game, id }) {
   const [tab, setTab] = React.useState('prog');
   // RECORD를 누르면 저장할 플레이백(파란 버튼)을 고르는 상태가 된다 (실제 콘솔: RECORD → 플레이백 버튼)
   const [rec, setRec] = React.useState(false);
+  // 이미 큐가 있는 플레이백은 한 번 더 눌러야 덮어쓴다 (실제 콘솔도 덮어쓸지 묻는다)
+  const [replace, setReplace] = React.useState(null);
+  const bankRef = useRef(null);
+  useEffect(() => { setReplace(null); if (rec) bankRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [rec]);
   const set = (key, value, visual = true) => apply({ op: 'dev', device: id, key, value }, { visual });
   const pr = cs.programmer ?? {};
   const hasSel = (pr.sel ?? []).length > 0;
   useEffect(() => { if (!hasSel) setRec(false); }, [hasSel]);
   const toggleSel = (n) => { const sel = pr.sel ?? []; set('programmer.sel', sel.includes(n) ? sel.filter((x) => x !== n) : [...sel, n].sort()); };
-  const record = (n) => { apply({ op: 'lightRecord', device: id, index: n, label: cs.playbacks[n - 1]?.label ?? `큐 ${n}` }); setRec(false); };
+  const record = (n) => {
+    if (cs.playbacks[n - 1]?.cue?.fixtures?.length && replace !== n) { setReplace(n); return; }
+    apply({ op: 'lightRecord', device: id, index: n, label: cs.playbacks[n - 1]?.label ?? `큐 ${n}` }); setRec(false);
+  };
   // 패치 편집: 종류 · 시작 주소(기본 = 다음 빈 주소) · 이름
   const [pType, setPType] = React.useState('par_led');
   const [pAddr, setPAddr] = React.useState(null);
@@ -498,19 +505,19 @@ function TigerTouchPanel({ game, id }) {
   return (
     <Card title="Avolites Tiger Touch II" icon={Lightbulb}>
       <div className="text-[11px] text-slate-400">플레이백 페이더{rec && <b className="ml-1 text-red-300">· 저장할 플레이백의 파란 버튼을 누르세요</b>}</div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div ref={bankRef} className="flex gap-2 overflow-x-auto pb-1">
         {Array.from({ length: nPb }, (_, i) => {
           const pb = cs.playbacks[i];
           return (
             <div key={i} className="shrink-0 w-12 flex flex-col items-center gap-1">
               <div className="text-[9px] text-center text-slate-300 h-6 leading-tight">{pb ? pb.label : `PB ${i + 1}`}</div>
+              <button type="button" disabled={!rec} data-ctl={`${id}-pbsel-${i + 1}`} onClick={() => record(i + 1)} aria-label={`플레이백 ${i + 1}에 저장`} title="RECORD를 누른 다음 저장할 플레이백을 고르는 버튼"
+                className={`w-9 h-7 rounded border text-[11px] font-black ${replace === i + 1 ? 'bg-amber-400 border-amber-200 text-slate-900' : rec ? 'bg-sky-500 border-sky-200 text-white animate-pulse' : 'bg-sky-950 border-sky-900 text-sky-300/60'}`}>{i + 1}</button>
               <input type="range" min={0} max={100} value={pb?.level ?? 0} disabled={!pb} aria-label={`플레이백 ${i + 1}`} data-ctl={`${id}-playbacks.${i}.level`}
                 onChange={(e) => set(`playbacks.${i}.level`, Number(e.target.value), false)}
                 onPointerUp={(e) => show({ op: 'dev', device: id, key: `playbacks.${i}.level`, value: Number(e.currentTarget.value) }, 0)}
                 className="h-24 accent-orange-500" style={{ writingMode: 'vertical-lr', direction: 'rtl' }} />
-              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-200">{pb && <span className="w-2.5 h-2.5 rounded-full border border-slate-600" style={{ background: pb.cue?.color ?? '#fff' }} />}{pb?.level ?? 0}</span>
-              <button type="button" disabled={!rec} data-ctl={`${id}-pbsel-${i + 1}`} onClick={() => record(i + 1)} aria-label={`플레이백 ${i + 1}에 저장`} title="RECORD를 누른 다음 저장할 플레이백을 고르는 버튼"
-                className={`w-9 h-7 rounded border text-[11px] font-black ${rec ? 'bg-sky-500 border-sky-200 text-white animate-pulse' : 'bg-sky-950 border-sky-900 text-sky-300/60'}`}>{i + 1}</button>
+              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-200">{pb?.cue?.fixtures?.length > 0 && <span className="w-2.5 h-2.5 rounded-full border border-slate-600" style={{ background: pb.cue.color ?? '#fff' }} />}{pb?.level ?? 0}</span>
             </div>
           );
         })}
@@ -526,6 +533,7 @@ function TigerTouchPanel({ game, id }) {
         <button type="button" data-ctl={`${id}-programmer`} onClick={() => { set('programmer', { sel: [], intensity: null, color: null, pan: null, tilt: null }); setRec(false); }} title="프로그래머 비우기" className="px-2.5 py-1 rounded border border-slate-600 bg-slate-800 text-xs font-bold text-slate-200 hover:bg-slate-700">CLEAR</button>
         <Toggle ctl={`${id}-blackout`} on={cs.blackout} color="red" onClick={() => set('blackout', !cs.blackout)} title="켜면 모든 조명이 즉시 꺼집니다.">BLACKOUT</Toggle>
       </div>
+      {rec && <div className="text-[11px] font-bold text-red-300">{replace ? `${replace}번에는 이미 큐가 있습니다. ${replace}번을 한 번 더 누르면 덮어씁니다.` : '위 페이더 줄에서 저장할 플레이백의 파란 번호 버튼을 누르세요. 다시 RECORD를 누르면 취소됩니다.'}</div>}
       <div className="flex items-center gap-2 border-t border-slate-800 pt-2">
         <span className="text-[11px] text-slate-400">화면</span>
         <Seg small ctl={`${id}-tab`} value={tab} options={[['prog', '프로그래머'], ['patch', '패치']]} onChange={setTab} />

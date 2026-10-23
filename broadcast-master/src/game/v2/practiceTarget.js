@@ -126,7 +126,18 @@ export function ctlKeysOf(step, st) {
       return order.flatMap((o) => ids.map((id) => `${o}-disconnect-${id}`));
     }
     // RECORD → 그 플레이백의 파란 버튼. 고른 조명이 없어 RECORD가 꺼져 있으면 프로그래머의 조명 고르기로
-    case 'lightRecord': return [`${d}-record`, `${d}-pbsel-${step.index}`, `${d}-programmer.sel`, `${d}-tab-prog`];
+    case 'lightRecord': {
+      const e = step.expect;
+      const pr = st?.dev?.[d]?.programmer ?? {};
+      const fix = [];
+      if (e?.fixtures) {
+        const sel = pr.sel ?? [];
+        if (e.fixtures.some((n) => !sel.includes(n)) || sel.some((n) => !e.fixtures.includes(n))) fix.push(...devKeys({ device: d, key: 'programmer.sel', value: e.fixtures }, st));
+      }
+      if (!fix.length && e?.intensity != null && Math.abs((pr.intensity ?? 0) - e.intensity) > 5) fix.push(`${d}-programmer.intensity`, `${d}-tab-prog`);
+      if (!fix.length && e?.color && String(pr.color ?? '').toLowerCase() !== e.color.toLowerCase()) fix.push(`${d}-programmer.color-${e.color}`, `${d}-tab-prog`);
+      return [...fix, `${d}-record`, `${d}-pbsel-${step.index}`, `${d}-programmer.sel`, `${d}-tab-prog`];
+    }
     case 'patchAdd': {
       // 패치 안 된 조명 단추로 칸을 채우고 → + 패치 추가
       const e = step.entry ?? {};

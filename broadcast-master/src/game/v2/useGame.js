@@ -633,7 +633,14 @@ export function opSatisfied(st, op, game, before) {
     case 'lightRecord': {
       const cue = (x) => x?.dev?.[op.device]?.playbacks?.[op.index - 1]?.cue;
       const now = cue(st);
-      return !!now?.fixtures?.length && (!before || JSON.stringify(now) !== JSON.stringify(cue(before)));
+      if (!now?.fixtures?.length) return false;
+      // 시작할 때와 같은 큐면 아직 저장 안 한 것
+      if (before && JSON.stringify(now) === JSON.stringify(cue(before))) return false;
+      // expect: 이 큐에 들어가야 할 조명·색·밝기 (잘못 눌러 엉뚱한 장면을 저장하면 다시 하게)
+      const e = op.expect;
+      if (!e) return true;
+      const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+      return (!e.fixtures || same(now.fixtures, e.fixtures)) && (!e.color || String(now.color).toLowerCase() === e.color.toLowerCase()) && (e.intensity == null || Math.abs((now.intensity ?? 0) - e.intensity) <= 5);
     }
     case 'patchAdd': {
       // 그 주소로 패치됐고, 다른 패치와 채널이 겹치지 않아야 한다 (겹치면 조명이 엉뚱하게 반응한다)

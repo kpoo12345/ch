@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Hand, ChevronLeft, ChevronRight, Pause, Play, X, Headphones, Wand2, CheckCircle2, FastForward, Sprout, FlaskConical, XCircle, Image as ImageIcon } from 'lucide-react';
 import { Seg, Toggle } from './controls.jsx';
 import { saveProgress } from '../ui.jsx';
@@ -22,6 +22,10 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
   const [cardHidden, setCardHidden] = useState(null); // 접은 장면의 seq
   const cardOpen = !!narration?.show && cardHidden !== narration.seq && !waiting;
   const seqRef = useRef(null);
+  // 연습 상자 높이: 통과해서 칭찬으로 바뀔 때 같은 높이를 남겨 둔다 (휴대폰에서 아래 패널이 손가락 밑에서 튀어 오르지 않게)
+  const boxRef = useRef(null);
+  const boxH = useRef(0);
+  useLayoutEffect(() => { if (boxRef.current) boxH.current = boxRef.current.offsetHeight; });
   const text = narration?.text ?? '';
   // 글자 나타내기: 지금 읽는 부분(offset부터)을 음성 길이에 맞춰. 음성이 단어 위치를 알려 주면(pos) 그만큼은 바로 보인다.
   // 속도를 바꾸면 읽던 곳부터 새 속도로 다시 계산된다
@@ -114,7 +118,7 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
               {text.slice(0, shown)}<span className="text-transparent">{text.slice(shown)}</span>
             </p>
             {waiting && full && (
-              <div className="mt-1.5 rounded-lg border border-amber-400/60 bg-amber-500/10 px-2.5 py-1.5 text-sm font-bold text-amber-200" onClick={(e) => e.stopPropagation()}>
+              <div ref={boxRef} className="mt-1.5 rounded-lg border border-amber-400/60 bg-amber-500/10 px-2.5 py-1.5 text-sm font-bold text-amber-200" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-start gap-1.5">
                   <Hand size={16} className="mt-0.5 shrink-0 animate-bounce" />
                   {/* 케이블 잇기 안내가 있으면 긴 설명 대신 "지금 할 일" 하나 (좁은 화면) · 넓은 화면은 설명 + 아래 순서 */}
@@ -164,7 +168,7 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
               </button>
             )}
             {praised && (
-              <div className="mt-1.5 text-sm font-bold text-green-300 flex items-center gap-1"><CheckCircle2 size={16} /> 좋아요, 잘했어요!</div>
+              <div className="mt-1.5 text-sm font-bold text-green-300 flex items-start gap-1" style={{ minHeight: boxH.current || undefined }}><CheckCircle2 size={16} className="mt-0.5 shrink-0" /> 좋아요, 잘했어요!</div>
             )}
           </div>
         </div>
