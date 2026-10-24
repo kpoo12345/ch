@@ -10,7 +10,7 @@ import { getAudio } from '../audio.js';
 import { setTalk, stopAllSpeech, loadVoice, loadVoiceWithin } from '../speech.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
 import { useGame, useScriptPlayer, faultText, waitingFor } from './useGame.js';
-import { planOf, skipDone, doneLive } from './storyGuide.js';
+import { planOf, skipDone, doneLive, finishSteps, guideText } from './storyGuide.js';
 import Console from './Console.jsx';
 import { DevicePanel } from './DevicePanels.jsx';
 import PortBoard from './PortBoard.jsx';
@@ -76,14 +76,21 @@ export default function GameScreen({
   const [guideOn, setGuideOn] = useState(false);
   const [usedGuide, setUsedGuide] = useState(false);
   const [gCur, setGCur] = useState(0);
+  // 지금 따라가는 할 일 목록: 처음엔 정답 계획, 다 했는데 안 끝나면 남은 목표에 맞춘 할 일
+  const [gList, setGList] = useState(null);
   const gBefore = useRef(null);
   const startGuide = () => {
     if (!plan.length || player.script) return;
     gBefore.current = game.stRef.current;
+    setGList(plan);
     setGCur(skipDone(plan, 0, game.stRef.current, game));
     setGuideOn(true); setUsedGuide(true); setTab('mission');
   };
-  const storyAsk = guideOn && !player.script && !cleared && gCur < plan.length ? waitingFor(plan[gCur].op, `g${gCur}`) : null;
+  const gSteps = gList ?? plan;
+  const guiding = guideOn && !player.script && !cleared;
+  const storyAsk = guiding && gCur < gSteps.length ? waitingFor(gSteps[gCur].op, `g${gSteps === plan ? 'p' : 'f'}${gCur}`) : null;
+  // 짚을 할 일을 다 했는데도 안 끝났을 때 보여 줄 남은 목표
+  const guideLeft = guiding && gCur >= gSteps.length ? game.objectives.filter((o) => !o.ok) : null;
   // 지금 짚을 단계: 튜토리얼 "직접 해 보기" 또는 스토리 길잡이
   const ask = player.waiting ?? storyAsk;
   const [labels, setLabels] = useState(false);
@@ -129,7 +136,7 @@ export default function GameScreen({
 
   // 자동 진행 중에는 대본이 끝난 뒤에 결과 창을 띄운다
   const scriptRunning = !!player.script && !player.script.done;
-  const dialogBelow = narrow && ((!!player.script && !!(player.narration || player.waiting)) || !!storyAsk);
+  const dialogBelow = narrow && ((!!player.script && !!(player.narration || player.waiting)) || !!storyAsk || !!guideLeft?.length);
   useEffect(() => { if (cleared && mode === 'story' && !scriptRunning) { const t = setTimeout(() => setResultOpen(true), 900); return () => clearTimeout(t); } return undefined; }, [cleared, mode, scriptRunning]);
 
   /* ----- 오디오 ----- */
@@ -300,13 +307,21 @@ export default function GameScreen({
   }, [ask?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   // 스토리 길잡이: 짚은 단계를 해내면 다음 할 일로 (이미 해 둔 단계는 건너뛴다)
   useEffect(() => {
-    if (!storyAsk) return;
-    if (!doneLive(plan, gCur, st, gBefore.current, game)) return;
-    gBefore.current = st;
-    const nk = skipDone(plan, gCur + 1, st, game);
-    setGCur(nk);
-    if (nk < plan.length) game.notify('ok', '좋아요! 다음 할 일을 짚어 줄게요.');
-  }, [st, game.talking, game.latched, storyAsk?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!guiding) return;
+    if (gCur < gSteps.length) {
+      if (!doneLive(gSteps, gCur, st, gBefore.current, game)) return;
+      gBefore.current = st;
+      const nk = skipDone(gSteps, gCur + 1, st, game);
+      setGCur(nk);
+      if (nk < gSteps.length) { game.notify('ok', '좋아요! 다음 할 일을 짚어 줄게요.'); return; }
+    }
+    // 다 했는데 미션이 안 끝났다: 정답 계획을 처음부터 다시 훑어 어긋난 곳을 짚고, 없으면 남은 목표에 맞춘 할 일
+    const k = skipDone(plan, 0, st, game);
+    if (k < plan.length) { gBefore.current = st; setGList(plan); setGCur(k); return; }
+    const extra = finishSteps(game.objectives.filter((o) => !o.ok));
+    const k2 = skipDone(extra, 0, st, game);
+    if (k2 < extra.length) { gBefore.current = st; setGList(extra); setGCur(k2); }
+  }, [st, game.talking, game.latched, storyAsk?.at, guiding]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
     const id = player.narration?.focus;
@@ -390,11 +405,11 @@ export default function GameScreen({
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
           {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} />}
-          {!dialogBelow && storyAsk && <StoryGuideCard item={plan[gCur]} n={gCur + 1} total={plan.length} guide={guide} onClose={() => setGuideOn(false)} onDo={() => doForMe(plan[gCur].op)} />}
+          {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} />}
           {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
         {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} inline />}
-        {dialogBelow && storyAsk && <StoryGuideCard inline item={plan[gCur]} n={gCur + 1} total={plan.length} guide={guide} onClose={() => setGuideOn(false)} onDo={() => doForMe(plan[gCur].op)} />}
+        {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} />}
 
         {/* 사이드 패널 */}
         <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'h-[38vh]'} lg:h-auto lg:flex-none`}>
@@ -492,27 +507,28 @@ function Toast({ toast, onDone }) {
   return <div role="status" className={`absolute top-2 left-1/2 -translate-x-1/2 max-w-[86%] rounded-lg border px-3 py-1.5 text-xs sm:text-sm shadow-lg ${cls}`}>{toast.text}</div>;
 }
 
-// 스토리 길잡이 카드: 지금 할 일 한 줄 + 선배가 왜 그렇게 하는지 (케이블은 순서대로)
-const GUIDE_DO = {
-  place: '미션 탭에서 반짝이는 "+ 배치"를 누르세요.',
-  disconnect: '반짝이는 케이블의 "분리"를 누르세요.',
-  ch: '믹서 콘솔에서 반짝이는 곳을 맞추세요.',
-  master: '믹서 콘솔에서 반짝이는 곳을 맞추세요.',
-  fade: '믹서 콘솔에서 반짝이는 페이더를 2~3초에 걸쳐 천천히 움직이세요.',
-  talk: '아래 "자동 말하기"를 켜거나 "말하기"를 누르고 있어 보세요.',
-  move: '반짝이는 자리로 옮기세요.',
-};
-function StoryGuideCard({ item, n, total, guide, inline = false, onClose, onDo }) {
+// 스토리 길잡이 카드: 지금 할 일 한 줄(목표 값까지) + 선배가 왜 그렇게 하는지 (케이블은 순서대로)
+// left: 짚을 할 일을 다 했는데도 남은 목표가 있으면 그 목록
+function StoryGuideCard({ item, n, total, st, guide, left = null, inline = false, onClose, onDo, onAuto }) {
   const say = item?.step?.say;
+  const box = inline ? 'shrink-0 border-y border-amber-400/50 bg-slate-950 px-3 py-2' : 'absolute inset-x-2 bottom-2 z-20 mx-auto max-w-2xl rounded-xl border border-amber-400/60 bg-slate-950/95 p-3 shadow-2xl';
   return (
-    <div className={inline ? 'shrink-0 border-y border-amber-400/50 bg-slate-950 px-3 py-2' : 'absolute inset-x-2 bottom-2 z-20 mx-auto max-w-2xl rounded-xl border border-amber-400/60 bg-slate-950/95 p-3 shadow-2xl'} role="status" aria-label="다음 할 일">
+    <div className={box} role="status" aria-label="다음 할 일">
       <div className="flex items-center gap-2">
         <Compass size={16} className="shrink-0 text-amber-300" />
-        <b className="text-sm text-amber-200">다음 할 일 <span className="font-mono text-[11px] text-amber-300/80">{n}/{total}</span></b>
-        <button type="button" onClick={onDo} className="ml-auto flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[12px] font-bold text-slate-200 hover:bg-slate-700" title="이 한 단계만 유령 손이 대신 합니다"><Hand size={13} /> 대신 해 주세요</button>
-        <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-800" aria-label="길잡이 끄기" title="길잡이 끄기"><X size={15} /></button>
+        {left
+          ? <b className="text-sm text-amber-200">거의 다 됐어요!</b>
+          : <b className="text-sm text-amber-200">다음 할 일 <span className="font-mono text-[11px] text-amber-300/80">{n}/{total}</span></b>}
+        {!left && <button type="button" onClick={onDo} className="ml-auto flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[12px] font-bold text-slate-200 hover:bg-slate-700" title="이 한 단계만 유령 손이 대신 합니다"><Hand size={13} /> 대신 해 주세요</button>}
+        <button type="button" onClick={onClose} className={`${left ? 'ml-auto ' : ''}rounded p-1 text-slate-400 hover:bg-slate-800`} aria-label="길잡이 끄기" title="길잡이 끄기"><X size={15} /></button>
       </div>
-      {guide ? (
+      {left ? (
+        <>
+          <p className="mt-1 text-sm text-amber-100">아직 남은 목표가 있어요. 미션 탭의 목표와 상태 칸을 확인해 보세요.</p>
+          <ul className="mt-1 space-y-0.5 text-[12px] text-slate-200">{left.map((o, k) => <li key={k} className="flex gap-1.5"><Circle size={12} className="mt-0.5 shrink-0 text-slate-500" />{o.label}</li>)}</ul>
+          {onAuto && <button type="button" onClick={onAuto} className="mt-1.5 rounded-md bg-violet-600/80 px-2 py-1 text-[12px] font-bold text-white hover:bg-violet-500">정답 보기로 처음부터 보기</button>}
+        </>
+      ) : guide ? (
         <ol className="mt-1.5 grid gap-1 sm:grid-cols-3" aria-label="연결 순서">
           {guide.steps.map((g, k) => (
             <li key={k} className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] leading-snug ${g.done ? 'bg-green-900/30 text-green-200' : g.active ? 'bg-amber-400 text-slate-900 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
@@ -521,8 +537,8 @@ function StoryGuideCard({ item, n, total, guide, inline = false, onClose, onDo }
             </li>
           ))}
         </ol>
-      ) : <p className="mt-1 text-sm font-bold text-amber-100">{GUIDE_DO[item?.op?.op] ?? '장비 패널에서 반짝이는 곳을 맞추세요.'}</p>}
-      {say && <p className="mt-1 text-[12px] leading-relaxed text-slate-300"><span className="font-bold text-violet-300">서진 선배</span> · {say}</p>}
+      ) : <p className="mt-1 text-sm font-bold text-amber-100">{guideText(item?.op, st)}</p>}
+      {!left && say && <p className="mt-1 text-[12px] leading-relaxed text-slate-300"><span className="font-bold text-violet-300">서진 선배</span> · {say}</p>}
     </div>
   );
 }

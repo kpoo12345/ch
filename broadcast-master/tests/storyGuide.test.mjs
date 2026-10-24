@@ -13,7 +13,7 @@ const server = await createServer({
   server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] },
 });
 after(() => server.close());
-const { planOf, skipDone, doneLive } = await server.ssrLoadModule('/src/game/v2/storyGuide.js');
+const { planOf, skipDone, doneLive, doneNow, finishSteps, guideText } = await server.ssrLoadModule('/src/game/v2/storyGuide.js');
 const { ctlKeysOf } = await server.ssrLoadModule('/src/game/v2/practiceTarget.js');
 const { buildRuntime, computeSim, checkObjective } = await server.ssrLoadModule('/src/game/sim.js');
 const { applyOp, noteOnAirMove, notePop, latchTalk } = await server.ssrLoadModule('/src/game/ops.js');
@@ -98,3 +98,49 @@ for (const spec of stages) {
     assert.deepEqual(bad, []);
   });
 }
+
+test('story guide waits for values close enough for the mission goal, not just the tutorial tolerance', () => {
+  const spec = stages.find((s) => s.id === 'seminar-2');
+  const plan = planOf(spec);
+  const k = plan.findIndex((x) => x.op.op === 'ch' && x.op.key === 'gain' && x.op.value === 0);
+  assert.ok(k >= 0);
+  const p = player(spec);
+  p.act({ op: 'ch', ch: plan[k].op.ch, key: 'gain', value: 5 });
+  assert.equal(doneNow(plan, k, p.st, p.ctx()), false, 'gain 5 is not close enough to 0 for the level goal');
+  p.act({ op: 'ch', ch: plan[k].op.ch, key: 'gain', value: 1 });
+  assert.equal(doneNow(plan, k, p.st, p.ctx()), true);
+});
+
+test('story guide finish steps: a pop from powering the speaker too early is fixed by switching it off and on last', () => {
+  const withPop = stages.filter((s) => s.objectives.some((o) => o.check.type === 'noPop'));
+  assert.ok(withPop.length > 0, 'some missions check for pops');
+  let checked = 0;
+  for (const spec of withPop) {
+    const dev = spec.objectives.find((o) => o.check.type === 'noPop').check.device;
+    const plan = planOf(spec);
+    const pk = plan.findIndex((x) => x.op.op === 'dev' && x.op.device === dev && x.op.key === 'power' && x.op.value === true);
+    if (pk < 0) continue;
+    const p = player(spec);
+    // 실수: 스피커(앰프) 전원부터 켜고 나서 케이블을 꽂는다
+    p.act(plan[pk].op);
+    plan.forEach((x, k) => { if (k !== pk) p.act(x.op); });
+    const left = p.cleared();
+    if (!left.length) continue; // 이 미션은 그 순서로도 퍽이 안 난다
+    const unmet = spec.objectives.filter((o) => left.includes(o.label));
+    const extra = finishSteps(unmet);
+    assert.ok(extra.length > 0, `${spec.id}: no finish steps for ${left.join(', ')}`);
+    extra.forEach((x) => p.act(x.op));
+    assert.deepEqual(p.cleared(), [], `${spec.id}: still not cleared after the finish steps`);
+    checked += 1;
+  }
+  assert.ok(checked >= 1, 'at least one pop scenario was exercised');
+});
+
+test('story guide text names the target value and reads naturally', () => {
+  const st = { devices: { p2: { name: '앞 조명 R' } } };
+  assert.equal(guideText({ op: 'ch', ch: 2, key: 'gain', value: 0 }, st), '믹서 콘솔 CH2 GAIN 값을 0에 맞추세요.');
+  assert.equal(guideText({ op: 'dev', device: 'p2', key: 'address', value: 9 }, st), '앞 조명 R의 DMX 주소를 009로 맞추세요.');
+  assert.equal(guideText({ op: 'dev', device: 'p2', key: 'address', value: 30 }, st), '앞 조명 R의 DMX 주소를 030으로 맞추세요.');
+  // 정답 계획의 모든 단계가 빈 말 없이 설명된다
+  for (const spec of stages) for (const x of planOf(spec)) assert.ok(!/undefined|null/.test(guideText(x.op, buildRuntime(spec))), `${spec.id} ${x.i}`);
+});
