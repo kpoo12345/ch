@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Lightbulb, Wand2, Music, Volume2, VolumeX, Mic, Tag, Lock, Unlock, Video, RotateCcw, CheckCircle2, Circle, Star, ChevronRight,
-  SlidersHorizontal, Cable, ListChecks, Cpu, ScrollText, Ear, Guitar, MessageSquare, MessageSquarePlus,
+  SlidersHorizontal, Cable, ListChecks, Cpu, ScrollText, Ear, Guitar, MessageSquare, MessageSquarePlus, Compass, X, Hand,
 } from 'lucide-react';
 import Venue3D from '../Venue3D.jsx';
 import { hasWebGL, NoWebGL } from '../kit3d.jsx';
@@ -9,7 +9,8 @@ import { CABLES, DEVICE_TYPES } from '../engine.js';
 import { getAudio } from '../audio.js';
 import { setTalk, stopAllSpeech, loadVoice, loadVoiceWithin } from '../speech.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
-import { useGame, useScriptPlayer, faultText } from './useGame.js';
+import { useGame, useScriptPlayer, faultText, waitingFor } from './useGame.js';
+import { planOf, skipDone, doneLive } from './storyGuide.js';
 import Console from './Console.jsx';
 import { DevicePanel } from './DevicePanels.jsx';
 import PortBoard from './PortBoard.jsx';
@@ -70,6 +71,21 @@ export default function GameScreen({
   const [showBrief, setShowBrief] = useState(mode === 'story');
   const [hints, setHints] = useState(0);
   const [usedAuto, setUsedAuto] = useState(false);
+  // 스토리 길잡이: 힌트를 다 봐도 막히면 정답 풀이에서 "다음 할 일" 하나를 반짝여 짚어 준다 (쓰면 ★2까지)
+  const plan = useMemo(() => (mode === 'story' ? planOf(spec) : []), [spec, mode]);
+  const [guideOn, setGuideOn] = useState(false);
+  const [usedGuide, setUsedGuide] = useState(false);
+  const [gCur, setGCur] = useState(0);
+  const gBefore = useRef(null);
+  const startGuide = () => {
+    if (!plan.length || player.script) return;
+    gBefore.current = game.stRef.current;
+    setGCur(skipDone(plan, 0, game.stRef.current, game));
+    setGuideOn(true); setUsedGuide(true); setTab('mission');
+  };
+  const storyAsk = guideOn && !player.script && !cleared && gCur < plan.length ? waitingFor(plan[gCur].op, `g${gCur}`) : null;
+  // 지금 짚을 단계: 튜토리얼 "직접 해 보기" 또는 스토리 길잡이
+  const ask = player.waiting ?? storyAsk;
   const [labels, setLabels] = useState(false);
   const [lockView, setLockView] = useState(false);
   const [follow, setFollow] = useState(true);
@@ -113,7 +129,7 @@ export default function GameScreen({
 
   // 자동 진행 중에는 대본이 끝난 뒤에 결과 창을 띄운다
   const scriptRunning = !!player.script && !player.script.done;
-  const dialogBelow = narrow && !!player.script && !!(player.narration || player.waiting);
+  const dialogBelow = narrow && ((!!player.script && !!(player.narration || player.waiting)) || !!storyAsk);
   useEffect(() => { if (cleared && mode === 'story' && !scriptRunning) { const t = setTimeout(() => setResultOpen(true), 900); return () => clearTimeout(t); } return undefined; }, [cleared, mode, scriptRunning]);
 
   /* ----- 오디오 ----- */
@@ -192,9 +208,14 @@ export default function GameScreen({
   useEffect(() => { if (mode === 'story') { loadVoice('story'); loadVoice('common'); } }, [mode]);
   useEffect(() => { if (initialAuto) startAuto(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 길잡이 "대신 해 주세요": 이 한 단계만 유령 손이 한다
+  const doForMe = (op) => {
+    if (op.op === 'talk') { game.setAutoTalk(true); return; }
+    game.apply(op);
+  };
   const startAuto = () => {
     if (!spec.solution) return;
-    setShowBrief(false); setUsedAuto(true); game.reset(); setResetKey((k) => k + 1);
+    setShowBrief(false); setUsedAuto(true); setGuideOn(false); game.reset(); setResetKey((k) => k + 1);
     Promise.all([loadVoiceWithin(['story'], 6000), new Promise((r) => setTimeout(r, 400))])
       .then(() => player.start(spec.solution, { speed: loadProgress('bm2-speed', 1), onDone: () => {} }));
   };
@@ -212,10 +233,10 @@ export default function GameScreen({
   const inv = Object.entries(st.cables).filter(([k]) => CABLES[k]);
   const cableChoices = st.unlimited ? Object.keys(CABLES) : inv.map(([k]) => k);
   // 케이블 잇기 연습: ① 케이블 고르기 → ② 첫 단자 → ③ 둘째 단자를 한 단계씩 짚어 준다 (카메라도 그 단자로)
-  const guide = useMemo(() => connectGuide(player.waiting, st, game.cable, game.pending), [player.waiting, st, game.cable, game.pending]);
+  const guide = useMemo(() => connectGuide(ask, st, game.cable, game.pending), [ask?.at, st, game.cable, game.pending]); // eslint-disable-line react-hooks/exhaustive-deps
   // 큐 저장 연습인데 프로그래머가 저장할 장면과 달라졌으면(CLEAR를 잘못 누르는 등) 다시 만들라고 알린다
   const redo = player.waiting?.redo && programmerMiss(player.waiting, st) ? player.waiting.redo : null;
-  const highlight = guide ? { device: guide.target.d, port: guide.target.p } : player.waiting ? targetOf(player.waiting, st) : null;
+  const highlight = guide ? { device: guide.target.d, port: guide.target.p } : ask ? targetOf(ask, st) : null;
   // 연습 중 엉뚱한 단자를 골라 두었으면 풀어 준다 (반짝이는 단자를 누르면 바로 이어지게)
   useEffect(() => {
     if (guide?.wrongPending) { game.setPending(null); game.notify('info', '연습 중이에요. 반짝이는 단자부터 눌러 보세요.'); }
@@ -227,9 +248,9 @@ export default function GameScreen({
     setFocusRequest({ id: guide.target.d, port: guide.target.p, key: Date.now() });
   }, [guideKey]); // eslint-disable-line react-hooks/exhaustive-deps
   // 믹서 손잡이를 돌려야 하는 단계면 콘솔을 저절로 열고, 닫혀 있으면 단추를 반짝인다
-  const mixerAsk = !!player.waiting && ['ch', 'master', 'fade'].includes(player.waiting.op);
+  const mixerAsk = !!ask && ['ch', 'master', 'fade'].includes(ask.op);
   useEffect(() => {
-    const w = player.waiting;
+    const w = ask;
     if (!w) return undefined;
     const narrow = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023px)').matches;
     const panel = panelDeviceOf(w, st);
@@ -276,7 +297,16 @@ export default function GameScreen({
     const t = setTimeout(mark, mixerAsk ? 180 : 300);
     const iv = setInterval(mark, 500);
     return () => { clearTimeout(t); clearInterval(iv); unmark(); };
-  }, [player.waiting?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ask?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 스토리 길잡이: 짚은 단계를 해내면 다음 할 일로 (이미 해 둔 단계는 건너뛴다)
+  useEffect(() => {
+    if (!storyAsk) return;
+    if (!doneLive(plan, gCur, st, gBefore.current, game)) return;
+    gBefore.current = st;
+    const nk = skipDone(plan, gCur + 1, st, game);
+    setGCur(nk);
+    if (nk < plan.length) game.notify('ok', '좋아요! 다음 할 일을 짚어 줄게요.');
+  }, [st, game.talking, game.latched, storyAsk?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
     const id = player.narration?.focus;
@@ -296,7 +326,7 @@ export default function GameScreen({
   const onePending = game.pending ? `${st.devices[game.pending.d]?.name ?? game.pending.d} · ${portLabel(st, game.pending.d, game.pending.p)}` : null;
   const doneCount = game.objectives.filter((o) => o.ok).length;
 
-  const stars = usedAuto ? 1 : Math.max(1, (hints > 0 ? 2 : 3) - (overtime ? 1 : 0));
+  const stars = usedAuto ? 1 : Math.max(1, (hints > 0 || usedGuide ? 2 : 3) - (overtime ? 1 : 0));
   useEffect(() => {
     if (!cleared || mode !== 'story') return;
     const prog = loadProgress('bm2-progress', {});
@@ -318,7 +348,7 @@ export default function GameScreen({
               {spec.timeLimit ? fmtTime(Math.max(0, spec.timeLimit - elapsed)) : fmtTime(elapsed)}
             </span>
             <span className="hidden sm:inline text-xs text-slate-300 tabular-nums">{doneCount}/{game.objectives.length}</span>
-            <button type="button" onClick={() => { setHints((h) => Math.min((spec.hints?.length ?? 0), h + 1)); setTab('mission'); }} className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 text-xs font-bold"><Lightbulb size={14} /> <span className="hidden sm:inline">힌트</span></button>
+            <button type="button" onClick={() => { if (hints >= (spec.hints?.length ?? 0) && plan.length && !guideOn) startGuide(); else { setHints((h) => Math.min((spec.hints?.length ?? 0), h + 1)); setTab('mission'); } }} className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 text-xs font-bold" title="글 힌트를 하나씩 보여 주고, 다 보면 다음 할 일을 짚어 줍니다"><Lightbulb size={14} /> <span className="hidden sm:inline">힌트</span></button>
             {spec.solution && <button type="button" onClick={startAuto} className="flex items-center gap-1 px-2 py-1 rounded bg-violet-500/20 text-violet-200 hover:bg-violet-500/30 text-xs font-bold" title="정답을 유령 손이 직접 보여 줍니다"><Wand2 size={14} /> <span className="hidden sm:inline">정답 보기</span></button>}
           </>
         )}
@@ -360,9 +390,11 @@ export default function GameScreen({
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
           {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} />}
+          {!dialogBelow && storyAsk && <StoryGuideCard item={plan[gCur]} n={gCur + 1} total={plan.length} guide={guide} onClose={() => setGuideOn(false)} onDo={() => doForMe(plan[gCur].op)} />}
           {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
         {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} inline />}
+        {dialogBelow && storyAsk && <StoryGuideCard inline item={plan[gCur]} n={gCur + 1} total={plan.length} guide={guide} onClose={() => setGuideOn(false)} onDo={() => doForMe(plan[gCur].op)} />}
 
         {/* 사이드 패널 */}
         <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'h-[38vh]'} lg:h-auto lg:flex-none`}>
@@ -380,7 +412,8 @@ export default function GameScreen({
           <div className="flex-1 overflow-y-auto p-3 space-y-3 overscroll-contain">
             {tab === 'add' && sandbox && <sandbox.Panel game={game} placing={placing} setPlacing={setPlacing} />}
             {tab === 'mission' && (
-              <MissionPanel spec={spec} game={game} tutorial={mode === 'tutorial'} placeAsk={player.waiting?.op === 'place' ? player.waiting.device : null} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))} />
+              <MissionPanel spec={spec} game={game} tutorial={mode === 'tutorial'} placeAsk={player.waiting?.op === 'place' ? player.waiting.device : null} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))}
+                guideReady={plan.length > 0 && !player.script && !cleared} guideOn={guideOn} onGuide={() => (guideOn ? setGuideOn(false) : startGuide())} />
             )}
             {tab === 'device' && (game.selected && st.devices[game.selected]
               ? <DevicePanel key={game.selected} game={game} id={game.selected} />
@@ -410,11 +443,11 @@ export default function GameScreen({
             })}
           </div>
           <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-            <button type="button"
+            <button type="button" data-ctl="talk-ptt"
               onPointerDown={(e) => { e.preventDefault(); getAudio().unlock(); game.setPtt(true); }} onPointerUp={() => game.setPtt(false)} onPointerLeave={() => game.setPtt(false)} onPointerCancel={() => game.setPtt(false)}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black select-none touch-none ${game.ptt ? 'bg-red-500 text-white shadow-[0_0_14px_rgba(239,68,68,.7)]' : 'bg-slate-700 text-slate-100 hover:bg-slate-600'}`}
               title="누르고 있는 동안 말합니다 (스페이스바)"><Mic size={14} /> 말하기</button>
-            <Toggle small on={game.autoTalk} color="green" onClick={() => game.setAutoTalk(!game.autoTalk)} title="진행자가 계속 말하게 하기">자동 말하기</Toggle>
+            <Toggle small ctl="talk-auto" on={game.autoTalk} color="green" onClick={() => game.setAutoTalk(!game.autoTalk)} title="진행자가 계속 말하게 하기">자동 말하기</Toggle>
             {(st.venue === 'live_stage' || Object.values(st.devices).some((d) => INSTRUMENTS.has(d.type))) && (
               <Toggle small on={game.performing} color="green" onClick={() => game.setPerforming(!game.performing)} title="밴드 연주"><Guitar size={12} className="inline" /> 연주</Toggle>
             )}
@@ -459,7 +492,42 @@ function Toast({ toast, onDone }) {
   return <div role="status" className={`absolute top-2 left-1/2 -translate-x-1/2 max-w-[86%] rounded-lg border px-3 py-1.5 text-xs sm:text-sm shadow-lg ${cls}`}>{toast.text}</div>;
 }
 
-function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint }) {
+// 스토리 길잡이 카드: 지금 할 일 한 줄 + 선배가 왜 그렇게 하는지 (케이블은 순서대로)
+const GUIDE_DO = {
+  place: '미션 탭에서 반짝이는 "+ 배치"를 누르세요.',
+  disconnect: '반짝이는 케이블의 "분리"를 누르세요.',
+  ch: '믹서 콘솔에서 반짝이는 곳을 맞추세요.',
+  master: '믹서 콘솔에서 반짝이는 곳을 맞추세요.',
+  fade: '믹서 콘솔에서 반짝이는 페이더를 2~3초에 걸쳐 천천히 움직이세요.',
+  talk: '아래 "자동 말하기"를 켜거나 "말하기"를 누르고 있어 보세요.',
+  move: '반짝이는 자리로 옮기세요.',
+};
+function StoryGuideCard({ item, n, total, guide, inline = false, onClose, onDo }) {
+  const say = item?.step?.say;
+  return (
+    <div className={inline ? 'shrink-0 border-y border-amber-400/50 bg-slate-950 px-3 py-2' : 'absolute inset-x-2 bottom-2 z-20 mx-auto max-w-2xl rounded-xl border border-amber-400/60 bg-slate-950/95 p-3 shadow-2xl'} role="status" aria-label="다음 할 일">
+      <div className="flex items-center gap-2">
+        <Compass size={16} className="shrink-0 text-amber-300" />
+        <b className="text-sm text-amber-200">다음 할 일 <span className="font-mono text-[11px] text-amber-300/80">{n}/{total}</span></b>
+        <button type="button" onClick={onDo} className="ml-auto flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[12px] font-bold text-slate-200 hover:bg-slate-700" title="이 한 단계만 유령 손이 대신 합니다"><Hand size={13} /> 대신 해 주세요</button>
+        <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-800" aria-label="길잡이 끄기" title="길잡이 끄기"><X size={15} /></button>
+      </div>
+      {guide ? (
+        <ol className="mt-1.5 grid gap-1 sm:grid-cols-3" aria-label="연결 순서">
+          {guide.steps.map((g, k) => (
+            <li key={k} className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] leading-snug ${g.done ? 'bg-green-900/30 text-green-200' : g.active ? 'bg-amber-400 text-slate-900 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
+              <span className={`shrink-0 h-4 w-4 rounded-full text-[10px] font-black flex items-center justify-center ${g.done ? 'bg-green-500 text-slate-900' : g.active ? 'bg-slate-900 text-amber-300' : 'bg-slate-700 text-slate-300'}`}>{g.done ? '✓' : k + 1}</span>
+              <span>{g.text}</span>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="mt-1 text-sm font-bold text-amber-100">{GUIDE_DO[item?.op?.op] ?? '장비 패널에서 반짝이는 곳을 맞추세요.'}</p>}
+      {say && <p className="mt-1 text-[12px] leading-relaxed text-slate-300"><span className="font-bold text-violet-300">서진 선배</span> · {say}</p>}
+    </div>
+  );
+}
+
+function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint, guideReady, guideOn, onGuide }) {
   const { objectives, st } = game;
   return (
     <div className="space-y-3">
@@ -481,6 +549,13 @@ function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint }) {
           {spec.hints.slice(0, hints).map((h, i) => <div key={i} className="rounded bg-amber-950/40 border border-amber-800/50 p-2 text-xs text-amber-100"><b>힌트 {i + 1}</b> · {h}</div>)}
           {hints < spec.hints.length && <button type="button" onClick={onHint} className="text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1"><Lightbulb size={13} /> 힌트 {hints + 1} 보기</button>}
         </div>
+      )}
+      {/* 글 힌트로도 막히면: 정답 풀이에서 다음 할 일 하나만 반짝여 짚어 준다 */}
+      {!tutorial && (guideReady || guideOn) && (
+        <button type="button" onClick={onGuide} aria-pressed={!!guideOn}
+          className={`w-full flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-bold ${guideOn ? 'border-amber-300 bg-amber-400 text-slate-900' : 'border-amber-500/60 bg-amber-950/40 text-amber-200 hover:bg-amber-900/40'}`}>
+          <Compass size={14} /> {guideOn ? '길잡이 끄기' : '다음 할 일 짚어 주기'}{!guideOn && <span className="font-normal text-amber-300/80">· 쓰면 ★2까지</span>}
+        </button>
       )}
       {spec.briefing && <details className="text-xs text-slate-400"><summary className="cursor-pointer">상황 설명 다시 보기</summary>{spec.briefing.map((b, i) => <p key={i} className="mt-1 leading-relaxed">{b}</p>)}</details>}
       {st.faults.length > 0 && <div className="text-[11px] text-slate-400">이 현장에는 숨은 문제 {st.faults.length}개가 있습니다. 소리·화면이 가는 길을 따라가며 찾아보세요.</div>}

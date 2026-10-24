@@ -716,6 +716,15 @@ function JoystickPanel({ game, id }) {
         <div className="flex-1 space-y-1">
           <HSlider label="ZOOM" ctl={`${id}-ptz-zoom`} value={Math.round((cam?.zoom ?? 0) * 100)} onChange={(v) => cam && aim(cam.pan, cam.tilt, v / 100)} display={`${Math.round((cam?.zoom ?? 0) * 100)}%`} />
           {cam && <div className="text-[11px] font-mono text-slate-300">PAN {cam.pan}° · TILT {cam.tilt}°</div>}
+          {/* 미세 조정: 손가락으로 판을 정확히 맞추기 어려울 때 한 번에 2°씩 */}
+          <div className="flex items-center gap-1" aria-label="미세 조정">
+            <span className="text-[10px] text-slate-500">미세</span>
+            {[['left', '◀', -2, 0, '왼쪽'], ['up', '▲', 0, 2, '위'], ['down', '▼', 0, -2, '아래'], ['right', '▶', 2, 0, '오른쪽']].map(([k, sym, dp, dt, label]) => (
+              <button key={k} type="button" disabled={!cam} data-ctl={`${id}-ptz-nudge-${k}`} aria-label={`${label}으로 2도`}
+                onClick={() => { aim(Math.max(-90, Math.min(90, cam.pan + dp)), Math.max(-40, Math.min(40, cam.tilt + dt)), cam.zoom); game.show({ op: 'ptz', device: id, act: 'aim' }, 0); }}
+                className="w-8 h-8 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-100 disabled:opacity-40">{sym}</button>
+            ))}
+          </div>
           {T && <div className="text-[11px] text-slate-300">구도: <b>{nominal.ptz[target]?.framing ? T[nominal.ptz[target].framing].label : '대상 없음'}</b></div>}
         </div>
       </div>

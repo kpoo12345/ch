@@ -27,6 +27,8 @@ export default {
     desk: { patch: [{ n: 1, label: '앞 조명 L', type: 'par_led', address: 1 }], playbacks: [{ label: '설교 조명', level: 0, cue: { fixtures: [1], intensity: 90, color: '#fff1d6' } }, { label: '찬양 조명', level: 0, cue: { fixtures: [] } }] },
     vj: { layers: [{ clip: 'worship_bg', opacity: 100 }, { clip: 'lyrics', opacity: 100 }, { clip: null, opacity: 100 }], out1: 'comp' },
     proj: { power: false }, ptz1: { ip: '192.168.1.21', pan: 0, tilt: 0, zoom: 0.2 },
+    // 조이스틱은 지난번에 쓰던 CAM 2(이 예배당엔 없는 카메라)에 머물러 있다 → CAM 1을 골라야 말이 통한다
+    joy: { selected: 1 },
   } },
   objectives: [], talk: 'auto', performing: false,
   steps: [
@@ -85,12 +87,12 @@ export default {
     // PTZ 카메라 · 조이스틱 · 프리셋
     { say: '마지막은 옆벽에 달린 PTZ 카메라예요. 좌우, 위아래, 줌을 원격으로 움직이죠.', focus: 'ptz1', show: { photo: 'ptz_camera' } },
     { who: 'junior', say: '카메라맨이 없는데 저걸 누가 돌려요?' },
-    { say: '방송실 조이스틱이요. 카메라랑 조이스틱이 같은 공유기에 랜선으로 물려 있어서 말이 통해요. 1번 카메라를 골라 보죠.', focus: 'joy', show: { concept: 'ipnet' }, op: 'ptz', device: 'joy', act: 'select', value: 0 },
-    { say: '방향을 돌리고 줌을 당겨서 설교자를 크게 잡아요. 화면에 구도가 설교자 클로즈업으로 바뀌죠.', op: 'ptz', device: 'joy', act: 'aim', pan: 32, tilt: -8, zoom: 0.7 },
-    { say: '이 구도를 STORE 누르고 1번에 저장해요. 이게 프리셋이에요.', op: 'ptz', device: 'joy', act: 'store', value: 1 },
+    { say: '방송실 조이스틱이요. 카메라랑 조이스틱이 같은 공유기에 랜선으로 물려 있어서 말이 통해요. 1번 카메라를 골라 보죠.', focus: 'joy', show: { concept: 'ipnet' }, op: 'ptz', device: 'joy', act: 'select', value: 0, practice: 'PTZ 조이스틱을 클릭하고 CAM 1을 골라 보세요.' },
+    { say: '방향을 돌리고 줌을 당겨서 설교자를 크게 잡아요. 화면에 구도가 설교자 클로즈업으로 바뀌죠.', op: 'ptz', device: 'joy', act: 'aim', pan: 32, tilt: -8, zoom: 0.7, framing: 'pastor', practice: '조이스틱으로 방향을 맞추고 ZOOM을 올려서, 구도가 \'설교자 클로즈업\'이 되게 해 보세요. 가까이 오면 화살표로 조금씩 맞춰요.' },
+    { say: '이 구도를 STORE 누르고 1번에 저장해요. 이게 프리셋이에요.', op: 'ptz', device: 'joy', act: 'store', value: 1, framing: 'pastor', practice: 'STORE를 누르고 1번 버튼을 눌러 보세요.' },
     { who: 'junior', say: '저장하면 뭐가 좋아요? 그때그때 돌리면 되잖아요.' },
     { say: '보여 줄게요. 일부러 강단 전체로 넓게 빼 볼게요.', op: 'ptz', device: 'joy', act: 'aim', pan: 30, tilt: -6, zoom: 0.1 },
-    { say: '이제 1번 버튼만 눌러 봐요. 설교자 클로즈업으로 바로 돌아오죠. 그래서 혼자서도 여러 대를 돌려요.', op: 'ptz', device: 'joy', act: 'recall', value: 1 },
+    { say: '이제 1번 버튼만 눌러 봐요. 설교자 클로즈업으로 바로 돌아오죠. 그래서 혼자서도 여러 대를 돌려요.', op: 'ptz', device: 'joy', act: 'recall', value: 1, practice: '1번 프리셋 버튼을 눌러 보세요.' },
     { say: '대신 조심할 게 있어요. 버튼이 빨간불이면 지금 방송에 나가는 카메라예요. 그건 절대 건드리면 안 돼요.' },
     { quiz: { q: '조이스틱의 2번 카메라 버튼이 빨간불이에요. 지금 2번 프리셋을 불러도 될까요?', options: ['안 된다, 방송 중인 화면이 움직인다', '된다, 프리셋은 순식간이라 괜찮다', '된다, 빨간불은 배터리 부족이다'], answer: 0, explain: '빨간불은 지금 방송에 나가는 카메라예요. 다른 카메라로 넘긴 다음에 움직여요.' } },
 

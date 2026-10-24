@@ -10,7 +10,9 @@
  *   ATEM                 `${스위처}-program-${n}` · `-preview-${n}` · `-cut` · `-auto` · `-streaming` · `-recording` · `-pip`
  *   OBS (송출 PC 패널)    `${pc}-obs-${key}` (+ `-${값}`)
  *   PTZ 조이스틱          `${조이스틱}-ptz-select-${i}` · `-ptz-aim` · `-ptz-zoom` · `-ptz-store` · `-ptz-preset-${n}`
+ *                         미세 조정 화살표 `-ptz-nudge-left|right|up|down` (한 번에 2°)
  *   자리 옮기기           `${장비}-move-${자리}`
+ *   말하기                `talk-auto`(자동 말하기) · `talk-ptt`(누르고 말하기) — 아래 막대
  *   케이블 분리           `${패널 장비}-disconnect-${from}>${to}` (연결이 저장된 방향 그대로)
  *   조명 콘솔 화면 탭      `${콘솔}-tab-prog` · `-tab-patch` (페이더·GM·RECORD·BLACKOUT은 늘 보인다)
  *   조명 콘솔 큐 저장      `${콘솔}-record` → `${콘솔}-pbsel-${n}` (RECORD를 누른 뒤 플레이백의 파란 버튼)
@@ -28,6 +30,14 @@ export const FOOTPRINT = { par_led: 8, moving_head: 16 };
 const endOf = (s) => { const [d, p] = String(s ?? '').split('.'); return { d, p: p ?? null }; };
 const getPath = (obj, path) => String(path).split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 const connKey = (c) => `${c.from.d}.${c.from.p}>${c.to.d}.${c.to.p}`;
+
+// PTZ 조이스틱이 지금 고른 카메라의 상태 (조이스틱 카메라 목록 IP와 같은 IP의 PTZ)
+const ptzCam = (st, joy) => {
+  const j = st?.dev?.[joy];
+  const ip = j?.cams?.[j.selected];
+  const id = ip == null ? null : Object.keys(st?.dev ?? {}).find((x) => st.devices?.[x]?.type === 'ptz' && st.dev[x]?.ip === ip);
+  return id ? st.dev[id] : null;
+};
 
 // 송출 PC: 놓인 PC가 먼저, 없으면 아무 PC
 export function pcIdOf(st) {
@@ -121,13 +131,27 @@ export function ctlKeysOf(step, st) {
     case 'ptz':
       switch (step.act) {
         case 'select': return [`${d}-ptz-select-${step.value}`];
-        case 'aim': return step.zoom != null ? [`${d}-ptz-aim`, `${d}-ptz-zoom`] : [`${d}-ptz-aim`];
+        case 'aim': {
+          // 멀면 조이스틱 판 · 가까우면 그쪽 화살표(한 칸 2°) · 방향이 맞으면 ZOOM
+          const cam = ptzCam(st, d);
+          const keys = [];
+          if (cam && step.pan != null && step.tilt != null) {
+            const dp = step.pan - cam.pan, dt = step.tilt - cam.tilt;
+            if (Math.abs(dp) > 12 || Math.abs(dt) > 8) keys.push(`${d}-ptz-aim`);
+            else if (Math.abs(dp) > 3) keys.push(`${d}-ptz-nudge-${dp > 0 ? 'right' : 'left'}`);
+            else if (Math.abs(dt) > 3) keys.push(`${d}-ptz-nudge-${dt > 0 ? 'up' : 'down'}`);
+            else if (step.zoom != null && Math.abs(step.zoom - cam.zoom) > 0.1) keys.push(`${d}-ptz-zoom`);
+          }
+          return [...keys, `${d}-ptz-aim`, `${d}-ptz-zoom`];
+        }
         case 'store': return [`${d}-ptz-store`, `${d}-ptz-preset-${step.value}`];
         case 'recall': return [`${d}-ptz-preset-${step.value}`];
         default: return [];
       }
     case 'place': return d ? [`mission-place-${d}`, `${d}-place`] : [];
     case 'move': return [`${d}-move-${step.slot}`];
+    // 말하기: 아래 막대의 "자동 말하기" (누르고 있는 "말하기"보다 쉽다)
+    case 'talk': return step.on ? ['talk-auto', 'talk-ptt'] : [];
     case 'disconnect': {
       const a = endOf(step.from), b = endOf(step.to);
       const same = (x, y) => x.d === y.d && x.p === y.p;

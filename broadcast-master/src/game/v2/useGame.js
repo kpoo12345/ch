@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind, mixerStateOf, ATEM_DEFAULT } from '../sim.js';
+import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind, mixerStateOf, ATEM_DEFAULT, framingOf } from '../sim.js';
 import { applyOp, opToAction, noteOnAirMove, notePop, getPath } from '../ops.js';
 import { getAudio } from '../audio.js';
 import { MISMATCH_TIP, DEVICE_TYPES, CABLES } from '../engine.js';
@@ -591,6 +591,13 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
 }
 
 // 연습 단계: 플레이어가 그 조작을 했는지 (수치는 근처면 인정)
+// 조이스틱이 지금 고른 카메라 (조이스틱의 카메라 목록 IP와 같은 IP의 PTZ)
+export function ptzCamOf(st, joy) {
+  const j = st?.dev?.[joy];
+  const ip = j?.cams?.[j.selected];
+  return ip == null ? null : Object.keys(st.dev).find((id) => st.devices[id]?.type === 'ptz' && st.dev[id]?.ip === ip) ?? null;
+}
+
 // 플레이어를 기다리는 연습 단계: 대본 단계 그대로 + 몇 번째 단계인지(at).
 // 단계 자신의 필드(조명 큐 저장의 index 등)를 덮어쓰지 않게 따로 둔다
 export const waitingFor = (step, at) => ({ ...step, at });
@@ -612,8 +619,10 @@ export function opSatisfied(st, op, game, before) {
       return st.connections.some((c) => (ok(c.from, fd, fp) && ok(c.to, td, tp)) || (ok(c.from, td, tp) && ok(c.to, fd, fp)));
     }
     case 'disconnect': {
-      const [fd, fp] = op.from.split('.');
-      return !st.connections.some((c) => c.from.d === fd && c.from.p === fp);
+      // 그 케이블(두 끝)이 빠졌는지. 한쪽 단자에 다른 케이블을 새로 꽂아도 된다 (예: 기타를 믹서에서 빼고 DI에 꽂기)
+      const [fd, fp] = op.from.split('.'), [td, tp] = op.to.split('.');
+      const is = (e, d, p) => e.d === d && e.p === p;
+      return !st.connections.some((c) => (is(c.from, fd, fp) && is(c.to, td, tp)) || (is(c.from, td, tp) && is(c.to, fd, fp)));
     }
     case 'ch': return near(st.channels[op.ch - 1]?.[op.key] ?? (op.key === 'lowCutFreq' ? 100 : undefined), op.value, op.key === 'gain' ? 6 : op.key === 'fader' ? 6 : op.key === 'lowCutFreq' ? 30 : 3);
     case 'master': return near(st.master[op.key], op.value, 6);
@@ -641,6 +650,26 @@ export function opSatisfied(st, op, game, before) {
       if (!e) return true;
       const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
       return (!e.fixtures || same(now.fixtures, e.fixtures)) && (!e.color || String(now.color).toLowerCase() === e.color.toLowerCase()) && (e.intensity == null || Math.abs((now.intensity ?? 0) - e.intensity) <= 5);
+    }
+    // PTZ 조이스틱: 고른 카메라 번호 · 구도(framing) · 프리셋 저장 · 불러오기
+    case 'ptz': {
+      if (op.act === 'select') return st.dev[op.device]?.selected === op.value;
+      const id = ptzCamOf(st, op.device);
+      const cam = id ? st.dev[id] : null;
+      if (!cam) return false;
+      const framed = (s) => framingOf(st.venue, st.devices[id].slot, s);
+      const close = (a, b) => !!a && !!b && Math.abs(a.pan - b.pan) <= 1 && Math.abs(a.tilt - b.tilt) <= 1 && Math.abs(a.zoom - b.zoom) <= 0.02;
+      if (op.act === 'aim') {
+        if (op.framing) return framed(cam) === op.framing;
+        return Math.abs(cam.pan - (op.pan ?? cam.pan)) <= 3 && Math.abs(cam.tilt - (op.tilt ?? cam.tilt)) <= 3 && Math.abs(cam.zoom - (op.zoom ?? cam.zoom)) <= 0.05;
+      }
+      const p = cam.presets?.[op.value];
+      if (op.act === 'store') {
+        const old = before && ptzCamOf(before, op.device) === id ? before.dev[id]?.presets?.[op.value] : undefined;
+        return !!p && close(p, cam) && JSON.stringify(p) !== JSON.stringify(old) && (!op.framing || framed(p) === op.framing);
+      }
+      if (op.act === 'recall') return close(p, cam);
+      return false;
     }
     case 'patchAdd': {
       // 그 주소로 패치됐고, 다른 패치와 채널이 겹치지 않아야 한다 (겹치면 조명이 엉뚱하게 반응한다)
