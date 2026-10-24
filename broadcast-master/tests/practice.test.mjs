@@ -241,3 +241,17 @@ test('record step: an emptied programmer points back to select â†’ brightness â†
   assert.equal(ctlKeysOf(step, st({ sel: [1, 2], intensity: 100, color: '#2563eb' }))[0], 'desk-record');
   assert.ok(step.redo, 'the step explains what to redo');
 });
+
+test('PTZ store step: a framing that drifted off points back to the joystick before STORE', async () => {
+  const { ctlKeysOf, practiceMiss } = await import('../src/game/v2/practiceTarget.js');
+  const step = TUTORIAL.find((p) => p.id === 'tut-show').steps.find((s) => s.op === 'ptz' && s.act === 'store');
+  const st = (cam) => ({ devices: { joy: { type: 'ptz_controller' }, ptz1: { type: 'ptz' } }, dev: { joy: { cams: ['192.168.1.21'], selected: 0 }, ptz1: { ip: '192.168.1.21', ...cam } } });
+  assert.equal(practiceMiss(step, st({ pan: 32, tilt: -8, zoom: 0.7 })), false);
+  assert.equal(ctlKeysOf(step, st({ pan: 32, tilt: -8, zoom: 0.7 }))[0], 'joy-ptz-store');
+  assert.equal(practiceMiss(step, st({ pan: 10, tilt: -8, zoom: 0.7 })), true);
+  assert.equal(ctlKeysOf(step, st({ pan: 10, tilt: -8, zoom: 0.7 }))[0], 'joy-ptz-aim');
+  assert.equal(ctlKeysOf(step, st({ pan: 27, tilt: -8, zoom: 0.7 }))[0], 'joy-ptz-store', 'still inside the framing');
+  assert.equal(ctlKeysOf(step, st({ pan: 24, tilt: -8, zoom: 0.7 }))[0], 'joy-ptz-nudge-right');
+  assert.equal(ctlKeysOf(step, st({ pan: 32, tilt: -8, zoom: 0.3 }))[0], 'joy-ptz-zoom');
+  assert.ok(step.redo);
+});

@@ -304,9 +304,13 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     const from = Math.max(0, Math.min(steps.length - 1, opts.from ?? 0));
     for (let k = 0; k < from; k += 1) {
       const st0 = steps[k];
+      // 그 장면을 시작하기 전 상태: "이전"으로 돌아왔을 때 되돌릴 곳 (없으면 같은 동작이 두 번 적용된다)
+      snaps.current[k] = clone(game.stRef.current);
+      metaSnaps.current[k] = { latched: [...(game.latched ?? [])], performing: game.performing };
       if (!hasOp(st0) || st0.op === 'wait') continue;
       const op = st0.op === 'fade' ? (st0.ch ? { op: 'ch', ch: st0.ch, key: 'fader', value: st0.to, ...(st0.mixer ? { mixer: st0.mixer } : {}) } : { op: 'master', key: 'mainFader', value: st0.to, ...(st0.mixer ? { mixer: st0.mixer } : {}) }) : st0;
-      game.apply(op, { visual: false, quiet: true });
+      // 퍽 시연(pop)은 이어 볼 때 다시 터뜨리지 않는다
+      game.apply({ ...op, pop: false }, { visual: false, quiet: true });
       applied.current.add(k);
     }
     idx.current = from;
@@ -414,6 +418,8 @@ export function useScriptPlayer(game, { voiceOn = true } = {}) {
     if (!step || !hasOp(step) || applied.current.has(i)) return false;
     applied.current.add(i);
     game.apply(step, { speed: s.speed, quiet: true, visual });
+    // 플레이어가 골라 둔 단자가 남아 있으면 다음 연습에서 "엉뚱한 단자"로 잘못 꾸중한다
+    if (step.op === 'connect' || step.op === 'disconnect') game.setPending?.(null);
     return true;
   };
   // 다음/이전: 건너뛰어도 그 단계의 동작은 적용, 뒤로 가면 그 단계를 시작하기 전 상태로 되돌린다
@@ -616,7 +622,9 @@ export function opSatisfied(st, op, game, before) {
       // 번호가 있는 단자(채널·스네이크·ATEM 입력 등)는 정확히 그 단자여야 한다. 번호 없는 같은 종류 단자(PC USB 1/2)만 서로 인정
       const numbered = (p) => /\d/.test(p);
       const ok = (e, d, p) => e.d === d && (e.p === p || (!numbered(p) && !numbered(e.p) && portKind(st.devices[d]?.type, e.p) === portKind(st.devices[d]?.type, p)));
-      return st.connections.some((c) => (ok(c.from, fd, fp) && ok(c.to, td, tp)) || (ok(c.from, td, tp) && ok(c.to, fd, fp)));
+      // DMX와 마이크(XLR) 선은 단자가 같아서 꽂히지만 다른 선이다 → DMX 단계는 DMX 선이어야 인정
+      const cableOk = (c) => op.cable !== 'dmx' || c.cable === 'dmx';
+      return st.connections.some((c) => cableOk(c) && ((ok(c.from, fd, fp) && ok(c.to, td, tp)) || (ok(c.from, td, tp) && ok(c.to, fd, fp))));
     }
     case 'disconnect': {
       // 그 케이블(두 끝)이 빠졌는지. 한쪽 단자에 다른 케이블을 새로 꽂아도 된다 (예: 기타를 믹서에서 빼고 DI에 꽂기)

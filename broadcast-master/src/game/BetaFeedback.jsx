@@ -16,7 +16,9 @@ const ISSUE_URL = 'https://github.com/kpoo12345/ch/issues/new';
 const ISSUE_TEXT_MAX = 600; // 주소 길이 제한 때문에 GitHub로는 앞부분만 넘긴다
 // 아이패드는 맥처럼 보이므로 터치 지점 수로 가린다
 const device = () => (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) ? '모바일·태블릿' : '데스크톱');
-const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } };
+// 3D 가능 여부는 한 번만 잰다 (글자를 칠 때마다 새 WebGL을 만들면 휴대폰에서 입력이 느려진다)
+let webglOk = null;
+const webgl = () => { if (webglOk == null) { try { const c = document.createElement('canvas'); webglOk = !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { webglOk = false; } } return webglOk; };
 // 문제를 따라가는 데 필요한 환경 정보 (이름·이메일 같은 개인 정보는 넣지 않는다)
 const envInfo = () => ({
   ua: navigator.userAgent.slice(0, 200), dpr: window.devicePixelRatio ?? 1, touch: navigator.maxTouchPoints ?? 0,

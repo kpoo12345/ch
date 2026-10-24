@@ -13,7 +13,7 @@ const server = await createServer({
   server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] },
 });
 after(() => server.close());
-const { planOf, skipDone, doneLive, doneNow, finishSteps, guideText } = await server.ssrLoadModule('/src/game/v2/storyGuide.js');
+const { planOf, skipDone, doneLive, doneNow, finishSteps, guideText, advanceGuide } = await server.ssrLoadModule('/src/game/v2/storyGuide.js');
 const { ctlKeysOf } = await server.ssrLoadModule('/src/game/v2/practiceTarget.js');
 const { buildRuntime, computeSim, checkObjective } = await server.ssrLoadModule('/src/game/sim.js');
 const { applyOp, noteOnAirMove, notePop, latchTalk } = await server.ssrLoadModule('/src/game/ops.js');
@@ -49,7 +49,7 @@ function player(spec) {
     const sim = computeSim(st, { talking: true, performing: true });
     return spec.objectives.filter((o) => !checkObjective(o.check, st, sim, { latched: [...latched] })).map((o) => o.label);
   };
-  return { act, ctx, cleared, get st() { return st; } };
+  return { act, ctx, cleared, latched, get st() { return st; } };
 }
 
 // 길잡이를 따라간다: 짚은 단계를 하면 그 단계가 끝난 것으로 보여야 하고, 끝까지 가면 미션 완료
@@ -172,4 +172,102 @@ test('story solutions survive every numeric value being off by the guide toleran
     }
   }
   assert.deepEqual(bad, []);
+});
+
+// 게임 화면과 똑같이 길잡이를 돌린다 (advanceGuide를 상태가 바뀔 때마다), 플레이어는 짚어 준 것만 한다
+const unmetOf = (spec, p) => {
+  const sim = computeSim(p.st, { talking: true, performing: true });
+  return spec.objectives.filter((o) => !checkObjective(o.check, p.st, sim, { latched: [...p.latched] }));
+};
+function runGuide(spec, p, { act, limit = 200 } = {}) {
+  const plan = planOf(spec);
+  let g = { phase: 'plan', list: plan, cur: skipDone(plan, 0, p.st, p.ctx()) };
+  let before = p.st;
+  const notes = [];
+  const doIt = act ?? ((x) => {
+    // 페이더가 이미 목표 자리면 카드 말대로 반대쪽 끝에 둔 다음 페이드
+    if (x.op.op === 'fade') {
+      const now = x.op.ch ? p.st.channels[x.op.ch - 1].fader : p.st.master.mainFader;
+      if (Math.abs(now - x.op.to) <= 3) p.act(x.op.ch ? { op: 'ch', ch: x.op.ch, key: 'fader', value: x.op.to <= 3 ? 75 : 0 } : { op: 'master', key: 'mainFader', value: x.op.to <= 3 ? 75 : 0 });
+    }
+    p.act(x.op);
+  });
+  for (let n = 0; n < limit; n += 1) {
+    for (let s = 0; s < 30; s += 1) {
+      const r = advanceGuide(g, { plan, st: p.st, before, game: p.ctx(), unmet: unmetOf(spec, p) });
+      if (!r) break;
+      notes.push(r.note);
+      g = { phase: r.phase, list: r.phase === 'plan' ? plan : r.list, cur: r.cur };
+      before = p.st;
+    }
+    if (!unmetOf(spec, p).length) return { cleared: true, notes, g };
+    const item = g.list[g.cur];
+    if (!item) return { cleared: false, left: unmetOf(spec, p).map((o) => o.check.type), notes, g };
+    doIt(item, g);
+  }
+  return { cleared: false, timeout: true, notes, g };
+}
+
+test('story guide state machine clears every mission from the start', () => {
+  const bad = [];
+  for (const spec of stages) {
+    const p = player(spec);
+    const r = runGuide(spec, p);
+    if (!r.cleared) bad.push(`${spec.id}: ${r.timeout ? 'loops' : `left ${r.left}`}`);
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('ptz-2: moving the on-air PTZ first ends on the remaining-goals card instead of looping', () => {
+  const spec = stages.find((s) => s.id === 'ptz-2');
+  const p = player(spec);
+  const plan = planOf(spec);
+  const recall = plan.find((x) => x.op.op === 'ptz' && x.op.act === 'recall');
+  p.act(plan.find((x) => x.op.op === 'ptz' && x.op.act === 'select').op);
+  p.act(recall.op); // 방송 중에 움직여 버렸다
+  const r = runGuide(spec, p);
+  assert.equal(r.cleared, false);
+  assert.ok(!r.timeout, 'the guide must not loop');
+  assert.deepEqual(r.left, ['noOnAirMove']);
+});
+
+test('ptz-2: cutting back early makes the guide return to the CUT before moving the PTZ', () => {
+  const spec = stages.find((s) => s.id === 'ptz-2');
+  const p = player(spec);
+  let cutBack = false;
+  const r = runGuide(spec, p, {
+    act: (x, g) => {
+      // PTZ를 움직이라고 짚은 첫 순간, 플레이어가 먼저 CUT으로 PTZ를 방송에 되돌려 놓는다
+      if (!cutBack && x.op.op === 'ptz' && x.op.act === 'recall') { cutBack = true; p.act({ op: 'atem', key: 'cut' }); return; }
+      p.act(x.op);
+    },
+  });
+  assert.ok(cutBack);
+  assert.ok(r.notes.includes('back-air'), `notes ${r.notes}`);
+  assert.equal(r.cleared, true, 'after going back to the CUT the mission still clears');
+});
+
+test('light-3: a mic (XLR) cable on the DMX jacks does not count, and the guide does not loop', () => {
+  const spec = stages.find((s) => s.id === 'light-3');
+  const plan = planOf(spec);
+  const k = plan.findIndex((x) => x.op.op === 'connect' && x.op.cable === 'dmx');
+  assert.ok(k > 0);
+  const p = player(spec);
+  for (let j = 0; j < k; j += 1) p.act(plan[j].op);
+  p.act({ ...plan[k].op, cable: 'xlr' });
+  assert.equal(doneLive(plan, k, p.st, null, p.ctx()), false, 'XLR on DMX jacks is not the DMX step');
+  const r = runGuide(spec, p);
+  assert.ok(!r.timeout, 'no loop');
+});
+
+test('seminar-4: a fader yanked to 0 first is rescued by raising it and fading slowly', () => {
+  const spec = stages.find((s) => s.id === 'seminar-4');
+  const plan = planOf(spec);
+  const fade = plan.find((x) => x.op.op === 'fade' && x.op.to <= 3);
+  assert.ok(fade, 'seminar-4 has a fade-out');
+  const p = player(spec);
+  p.act({ op: 'ch', ch: fade.op.ch, key: 'fader', value: 0 }); // 뚝 내려 버렸다
+  assert.match(guideText(fade.op, p.st), /먼저 75까지 올린 다음/);
+  const r = runGuide(spec, p);
+  assert.equal(r.cleared, true, `left ${r.left}`);
 });

@@ -10,7 +10,8 @@ export function Knob({ label, value, min = 0, max = 100, step = 1, onChange, onC
   const start = useRef(null);
   const frac = (value - min) / (max - min);
   const ang = -135 + frac * 270;
-  const set = (v) => onChange?.(clamp(Math.round(v / step) * step, min, max));
+  // 값이 실제로 바뀔 때만 알린다 (끌 때마다 게임 전체를 다시 계산하면 휴대폰에서 버벅인다)
+  const set = (v) => { const n = clamp(Math.round(v / step) * step, min, max); if (n !== value) onChange?.(n); };
   return (
     <div className={`flex flex-col items-center select-none rounded-md ${disabled ? 'opacity-40' : ''}`} title={title} data-ctl={ctl}>
       <div

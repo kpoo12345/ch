@@ -10,7 +10,7 @@ import { getAudio } from '../audio.js';
 import { setTalk, stopAllSpeech, loadVoice, loadVoiceWithin } from '../speech.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
 import { useGame, useScriptPlayer, faultText, waitingFor } from './useGame.js';
-import { planOf, skipDone, doneLive, finishSteps, guideText } from './storyGuide.js';
+import { planOf, skipDone, guideText, advanceGuide } from './storyGuide.js';
 import Console from './Console.jsx';
 import { DevicePanel } from './DevicePanels.jsx';
 import PortBoard from './PortBoard.jsx';
@@ -22,7 +22,7 @@ import LabOverlay from './LabOverlay.jsx';
 import { PHRASES, TALK_VOICE } from '../data/phrases.js';
 import { patchBetaContext, openFeedback, subscribeBeta, enterGameScreen } from '../betaContext.js';
 import { connectGuide } from './connectGuide.js';
-import { panelDeviceOf, findPracticeTarget, programmerMiss } from './practiceTarget.js';
+import { panelDeviceOf, findPracticeTarget, practiceMiss } from './practiceTarget.js';
 
 /* =====================================================================
  * 게임 화면 — 3D 장소 + 미션/장비/연결 패널 + 믹서 콘솔 + 케이블 가방
@@ -76,19 +76,20 @@ export default function GameScreen({
   const [guideOn, setGuideOn] = useState(false);
   const [usedGuide, setUsedGuide] = useState(false);
   const [gCur, setGCur] = useState(0);
-  // 지금 따라가는 할 일 목록: 처음엔 정답 계획, 다 했는데 안 끝나면 남은 목표에 맞춘 할 일
+  // 지금 따라가는 할 일 목록: 처음엔 정답 계획(plan 단계), 끝까지 했는데 안 끝나면 마무리(finish 단계)
   const [gList, setGList] = useState(null);
+  const [gPhase, setGPhase] = useState('plan');
   const gBefore = useRef(null);
   const startGuide = () => {
     if (!plan.length || player.script) return;
     gBefore.current = game.stRef.current;
-    setGList(plan);
+    setGPhase('plan'); setGList(plan);
     setGCur(skipDone(plan, 0, game.stRef.current, game));
     setGuideOn(true); setUsedGuide(true); setTab('mission');
   };
   const gSteps = gList ?? plan;
   const guiding = guideOn && !player.script && !cleared;
-  const storyAsk = guiding && gCur < gSteps.length ? waitingFor(gSteps[gCur].op, `g${gSteps === plan ? 'p' : 'f'}${gCur}`) : null;
+  const storyAsk = guiding && gCur < gSteps.length ? waitingFor(gSteps[gCur].op, `g${gPhase}${gCur}:${gSteps[gCur].i}`) : null;
   // 짚을 할 일을 다 했는데도 안 끝났을 때 보여 줄 남은 목표
   const guideLeft = guiding && gCur >= gSteps.length ? game.objectives.filter((o) => !o.ok) : null;
   // 지금 짚을 단계: 튜토리얼 "직접 해 보기" 또는 스토리 길잡이
@@ -218,7 +219,18 @@ export default function GameScreen({
   // 길잡이 "대신 해 주세요": 이 한 단계만 유령 손이 한다
   const doForMe = (op) => {
     if (op.op === 'talk') { game.setAutoTalk(true); return; }
+    // 페이드: 페이더가 이미 목표 자리면 반대쪽 끝에 둔 다음 천천히 (0→0은 페이드가 아니다)
+    if (op.op === 'fade') {
+      const now = op.ch ? game.stRef.current.channels[op.ch - 1]?.fader : game.stRef.current.master.mainFader;
+      if (Math.abs((now ?? 0) - op.to) <= 3) {
+        const start = op.to <= 3 ? 75 : 0;
+        game.apply(op.ch ? { op: 'ch', ch: op.ch, key: 'fader', value: start } : { op: 'master', key: 'mainFader', value: start }, { visual: false });
+        setTimeout(() => game.apply(op), 400);
+        return;
+      }
+    }
     game.apply(op);
+    if (op.op === 'connect' || op.op === 'disconnect') game.setPending(null);
   };
   const startAuto = () => {
     if (!spec.solution) return;
@@ -242,7 +254,7 @@ export default function GameScreen({
   // 케이블 잇기 연습: ① 케이블 고르기 → ② 첫 단자 → ③ 둘째 단자를 한 단계씩 짚어 준다 (카메라도 그 단자로)
   const guide = useMemo(() => connectGuide(ask, st, game.cable, game.pending), [ask?.at, st, game.cable, game.pending]); // eslint-disable-line react-hooks/exhaustive-deps
   // 큐 저장 연습인데 프로그래머가 저장할 장면과 달라졌으면(CLEAR를 잘못 누르는 등) 다시 만들라고 알린다
-  const redo = player.waiting?.redo && programmerMiss(player.waiting, st) ? player.waiting.redo : null;
+  const redo = player.waiting?.redo && practiceMiss(player.waiting, st) ? player.waiting.redo : null;
   const highlight = guide ? { device: guide.target.d, port: guide.target.p } : ask ? targetOf(ask, st) : null;
   // 연습 중 엉뚱한 단자를 골라 두었으면 풀어 준다 (반짝이는 단자를 누르면 바로 이어지게)
   useEffect(() => {
@@ -308,20 +320,13 @@ export default function GameScreen({
   // 스토리 길잡이: 짚은 단계를 해내면 다음 할 일로 (이미 해 둔 단계는 건너뛴다)
   useEffect(() => {
     if (!guiding) return;
-    if (gCur < gSteps.length) {
-      if (!doneLive(gSteps, gCur, st, gBefore.current, game)) return;
-      gBefore.current = st;
-      const nk = skipDone(gSteps, gCur + 1, st, game);
-      setGCur(nk);
-      if (nk < gSteps.length) { game.notify('ok', '좋아요! 다음 할 일을 짚어 줄게요.'); return; }
-    }
-    // 다 했는데 미션이 안 끝났다: 정답 계획을 처음부터 다시 훑어 어긋난 곳을 짚고, 없으면 남은 목표에 맞춘 할 일
-    const k = skipDone(plan, 0, st, game);
-    if (k < plan.length) { gBefore.current = st; setGList(plan); setGCur(k); return; }
-    const extra = finishSteps(game.objectives.filter((o) => !o.ok));
-    const k2 = skipDone(extra, 0, st, game);
-    if (k2 < extra.length) { gBefore.current = st; setGList(extra); setGCur(k2); }
-  }, [st, game.talking, game.latched, storyAsk?.at, guiding]); // eslint-disable-line react-hooks/exhaustive-deps
+    const r = advanceGuide({ phase: gPhase, list: gSteps, cur: gCur }, { plan, st, before: gBefore.current, game, unmet: game.objectives.filter((o) => !o.ok) });
+    if (!r) return;
+    gBefore.current = st;
+    setGPhase(r.phase); setGList(r.phase === 'plan' ? plan : r.list); setGCur(r.cur);
+    const msg = { 'back-air': '이 PTZ 카메라가 지금 방송 중이에요. 먼저 다른 카메라로 넘겨요.', 'back-aim': '구도가 풀렸어요. 다시 맞춘 다음 저장해요.', next: '좋아요! 다음 할 일을 짚어 줄게요.', finish: '거의 다 됐어요! 남은 곳을 짚어 줄게요.' }[r.note];
+    if (msg) game.notify(r.note === 'back-air' ? 'err' : r.note.startsWith('back') ? 'info' : 'ok', msg);
+  }, [st, game.talking, game.latched, storyAsk?.at, guiding, gPhase]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
     const id = player.narration?.focus;
@@ -405,11 +410,11 @@ export default function GameScreen({
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
           {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} />}
-          {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} />}
+          {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
           {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
         {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} inline />}
-        {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} />}
+        {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
 
         {/* 사이드 패널 */}
         <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'h-[38vh]'} lg:h-auto lg:flex-none`}>
@@ -509,7 +514,7 @@ function Toast({ toast, onDone }) {
 
 // 스토리 길잡이 카드: 지금 할 일 한 줄(목표 값까지) + 선배가 왜 그렇게 하는지 (케이블은 순서대로)
 // left: 짚을 할 일을 다 했는데도 남은 목표가 있으면 그 목록
-function StoryGuideCard({ item, n, total, st, guide, left = null, inline = false, onClose, onDo, onAuto }) {
+function StoryGuideCard({ item, n, total, finishing = false, st, guide, left = null, inline = false, onClose, onDo, onAuto, onRestart }) {
   const say = item?.step?.say;
   const box = inline ? 'shrink-0 border-y border-amber-400/50 bg-slate-950 px-3 py-2' : 'absolute inset-x-2 bottom-2 z-20 mx-auto max-w-2xl rounded-xl border border-amber-400/60 bg-slate-950/95 p-3 shadow-2xl';
   return (
@@ -518,7 +523,7 @@ function StoryGuideCard({ item, n, total, st, guide, left = null, inline = false
         <Compass size={16} className="shrink-0 text-amber-300" />
         {left
           ? <b className="text-sm text-amber-200">거의 다 됐어요!</b>
-          : <b className="text-sm text-amber-200">다음 할 일 <span className="font-mono text-[11px] text-amber-300/80">{n}/{total}</span></b>}
+          : <b className="text-sm text-amber-200">다음 할 일 <span className="font-mono text-[11px] text-amber-300/80">{finishing ? '마무리' : `${n}/${total}`}</span></b>}
         {!left && <button type="button" onClick={onDo} className="ml-auto flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[12px] font-bold text-slate-200 hover:bg-slate-700" title="이 한 단계만 유령 손이 대신 합니다"><Hand size={13} /> 대신 해 주세요</button>}
         <button type="button" onClick={onClose} className={`${left ? 'ml-auto ' : ''}rounded p-1 text-slate-400 hover:bg-slate-800`} aria-label="길잡이 끄기" title="길잡이 끄기"><X size={15} /></button>
       </div>
@@ -526,7 +531,12 @@ function StoryGuideCard({ item, n, total, st, guide, left = null, inline = false
         <>
           <p className="mt-1 text-sm text-amber-100">아직 남은 목표가 있어요. 미션 탭의 목표와 상태 칸을 확인해 보세요.</p>
           <ul className="mt-1 space-y-0.5 text-[12px] text-slate-200">{left.map((o, k) => <li key={k} className="flex gap-1.5"><Circle size={12} className="mt-0.5 shrink-0 text-slate-500" />{o.label}</li>)}</ul>
-          {onAuto && <button type="button" onClick={onAuto} className="mt-1.5 rounded-md bg-violet-600/80 px-2 py-1 text-[12px] font-bold text-white hover:bg-violet-500">정답 보기로 처음부터 보기</button>}
+          {/* 방송 중에 PTZ를 움직인 기록처럼 되돌릴 수 없는 실수는 다시 하기로 */}
+          {left.some((o) => o.check?.type === 'noOnAirMove') && <p className="mt-1 text-[12px] font-bold text-red-200">방송 중에 카메라를 움직인 기록은 지울 수 없어요. 다시 하기로 처음부터 해 보세요. 움직이기 전에 그 카메라를 PGM에서 먼저 빼는 게 핵심이에요.</p>}
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {onRestart && <button type="button" onClick={onRestart} className="rounded-md bg-sky-600 px-2 py-1 text-[12px] font-bold text-white hover:bg-sky-500">다시 하기</button>}
+            {onAuto && <button type="button" onClick={onAuto} className="rounded-md bg-violet-600/80 px-2 py-1 text-[12px] font-bold text-white hover:bg-violet-500">정답 보기로 처음부터 보기</button>}
+          </div>
         </>
       ) : guide ? (
         <ol className="mt-1.5 grid gap-1 sm:grid-cols-3" aria-label="연결 순서">

@@ -39,6 +39,26 @@ const ptzCam = (st, joy) => {
   return id ? st.dev[id] : null;
 };
 
+// PTZ 방향 맞추기: 멀면 조이스틱 판 · 가까우면 그쪽 화살표(한 칸 2°) · 방향이 맞으면 ZOOM
+function aimKeys(step, st, d) {
+  const cam = ptzCam(st, d);
+  if (!cam || step.pan == null || step.tilt == null) return [];
+  const dp = step.pan - cam.pan, dt = step.tilt - cam.tilt;
+  if (Math.abs(dp) > 12 || Math.abs(dt) > 8) return [`${d}-ptz-aim`];
+  if (Math.abs(dp) > 3) return [`${d}-ptz-nudge-${dp > 0 ? 'right' : 'left'}`];
+  if (Math.abs(dt) > 3) return [`${d}-ptz-nudge-${dt > 0 ? 'up' : 'down'}`];
+  if (step.zoom != null && Math.abs(step.zoom - cam.zoom) > 0.1) return [`${d}-ptz-zoom`];
+  return [];
+}
+// 프리셋 저장 단계: 지금 카메라가 저장할 구도(단계의 pan·tilt·zoom)에서 벗어났는지
+export function ptzStoreMiss(step, st) {
+  if (step?.op !== 'ptz' || step.act !== 'store' || step.pan == null) return false;
+  const cam = ptzCam(st, step.device);
+  return !!cam && (Math.abs(cam.pan - step.pan) > 5 || Math.abs(cam.tilt - step.tilt) > 4 || (step.zoom != null && Math.abs(cam.zoom - step.zoom) > 0.15));
+}
+// 연습 단계를 하기 전에 앞에서 만든 것이 풀렸는지 (조명 프로그래머 장면 · PTZ 구도) → 다시 만들라는 말을 띄운다
+export const practiceMiss = (step, st) => !!programmerMiss(step, st) || ptzStoreMiss(step, st);
+
 // 송출 PC: 놓인 PC가 먼저, 없으면 아무 PC
 export function pcIdOf(st) {
   const devs = Object.values(st?.devices ?? {});
@@ -131,20 +151,9 @@ export function ctlKeysOf(step, st) {
     case 'ptz':
       switch (step.act) {
         case 'select': return [`${d}-ptz-select-${step.value}`];
-        case 'aim': {
-          // 멀면 조이스틱 판 · 가까우면 그쪽 화살표(한 칸 2°) · 방향이 맞으면 ZOOM
-          const cam = ptzCam(st, d);
-          const keys = [];
-          if (cam && step.pan != null && step.tilt != null) {
-            const dp = step.pan - cam.pan, dt = step.tilt - cam.tilt;
-            if (Math.abs(dp) > 12 || Math.abs(dt) > 8) keys.push(`${d}-ptz-aim`);
-            else if (Math.abs(dp) > 3) keys.push(`${d}-ptz-nudge-${dp > 0 ? 'right' : 'left'}`);
-            else if (Math.abs(dt) > 3) keys.push(`${d}-ptz-nudge-${dt > 0 ? 'up' : 'down'}`);
-            else if (step.zoom != null && Math.abs(step.zoom - cam.zoom) > 0.1) keys.push(`${d}-ptz-zoom`);
-          }
-          return [...keys, `${d}-ptz-aim`, `${d}-ptz-zoom`];
-        }
-        case 'store': return [`${d}-ptz-store`, `${d}-ptz-preset-${step.value}`];
+        case 'aim': return [...aimKeys(step, st, d), `${d}-ptz-aim`, `${d}-ptz-zoom`];
+        // 저장할 구도에서 벗어났으면 구도부터 다시 맞추고 STORE
+        case 'store': return [...(ptzStoreMiss(step, st) ? aimKeys(step, st, d) : []), `${d}-ptz-store`, `${d}-ptz-preset-${step.value}`];
         case 'recall': return [`${d}-ptz-preset-${step.value}`];
         default: return [];
       }

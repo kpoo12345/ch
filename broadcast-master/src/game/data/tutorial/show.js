@@ -89,7 +89,7 @@ export default {
     { who: 'junior', say: '카메라맨이 없는데 저걸 누가 돌려요?' },
     { say: '방송실 조이스틱이요. 카메라랑 조이스틱이 같은 공유기에 랜선으로 물려 있어서 말이 통해요. 1번 카메라를 골라 보죠.', focus: 'joy', show: { concept: 'ipnet' }, op: 'ptz', device: 'joy', act: 'select', value: 0, practice: 'PTZ 조이스틱을 클릭하고 CAM 1을 골라 보세요.' },
     { say: '방향을 돌리고 줌을 당겨서 설교자를 크게 잡아요. 화면에 구도가 설교자 클로즈업으로 바뀌죠.', op: 'ptz', device: 'joy', act: 'aim', pan: 32, tilt: -8, zoom: 0.7, framing: 'pastor', practice: '조이스틱으로 방향을 맞추고 ZOOM을 올려서, 구도가 \'설교자 클로즈업\'이 되게 해 보세요. 가까이 오면 화살표로 조금씩 맞춰요.' },
-    { say: '이 구도를 STORE 누르고 1번에 저장해요. 이게 프리셋이에요.', op: 'ptz', device: 'joy', act: 'store', value: 1, framing: 'pastor', practice: 'STORE를 누르고 1번 버튼을 눌러 보세요.' },
+    { say: '이 구도를 STORE 누르고 1번에 저장해요. 이게 프리셋이에요.', op: 'ptz', device: 'joy', act: 'store', value: 1, framing: 'pastor', pan: 32, tilt: -8, zoom: 0.7, redo: '구도가 설교자 클로즈업에서 벗어났어요. 조이스틱·화살표·ZOOM으로 다시 맞춘 다음 STORE를 눌러요.', practice: 'STORE를 누르고 1번 버튼을 눌러 보세요.' },
     { who: 'junior', say: '저장하면 뭐가 좋아요? 그때그때 돌리면 되잖아요.' },
     { say: '보여 줄게요. 일부러 강단 전체로 넓게 빼 볼게요.', op: 'ptz', device: 'joy', act: 'aim', pan: 30, tilt: -6, zoom: 0.1 },
     { say: '이제 1번 버튼만 눌러 봐요. 설교자 클로즈업으로 바로 돌아오죠. 그래서 혼자서도 여러 대를 돌려요.', op: 'ptz', device: 'joy', act: 'recall', value: 1, practice: '1번 프리셋 버튼을 눌러 보세요.' },

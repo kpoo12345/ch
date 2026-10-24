@@ -243,8 +243,9 @@ export function VFader({ label, value, onChange, onCommit, display, cap = '#e5e7
   const CAP_H = 22;
   const setFrom = (clientY) => {
     const r = ref.current.getBoundingClientRect();
-    const v = Math.round((1 - (clientY - r.top - CAP_H / 2) / (r.height - CAP_H)) * 100);
-    onChange(clamp(v, 0, 100));
+    const v = clamp(Math.round((1 - (clientY - r.top - CAP_H / 2) / (r.height - CAP_H)) * 100), 0, 100);
+    // 값이 실제로 바뀔 때만 알린다 (끌 때마다 게임 전체를 다시 계산하면 휴대폰에서 버벅인다)
+    if (v !== value) onChange(v);
   };
   return (
     <div className="flex flex-col items-center gap-1 select-none rounded-md" data-ctl={ctl}>
