@@ -144,3 +144,32 @@ test('story guide text names the target value and reads naturally', () => {
   // 정답 계획의 모든 단계가 빈 말 없이 설명된다
   for (const spec of stages) for (const x of planOf(spec)) assert.ok(!/undefined|null/.test(guideText(x.op, buildRuntime(spec))), `${spec.id} ${x.i}`);
 });
+
+// 플레이어는 정답 값을 정확히 맞추지 않는다: 길잡이가 넘어가는 범위(손잡이 ±2, 페이더 ±3) 안에서
+// 값들이 한꺼번에 조금씩 어긋나도 미션이 끝나야 한다 (정답 값이 목표의 경계에 붙어 있으면 여기서 걸린다)
+test('story solutions survive every numeric value being off by the guide tolerance at once', () => {
+  const TOL = { fader: 3, mainFader: 3, lowCutFreq: 10 };
+  const RANGE = { gain: [0, 60], pan: [-100, 100], eqHigh: [-15, 15], eqMid: [-15, 15], eqLow: [-15, 15], lowCutFreq: [20, 400] };
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const bad = [];
+  for (const spec of stages) {
+    const sol = spec.solution.filter((s) => s.op);
+    const num = sol.map((s, i) => [s, i]).filter(([s]) => ['ch', 'master', 'dev'].includes(s.op) && typeof s.value === 'number' && !/address|channel|preset|ip|index/i.test(s.key));
+    if (!num.length) continue;
+    const combos = [num.map(() => -1), num.map(() => 1), num.map((_, k) => (k % 2 ? 1 : -1)), num.map((_, k) => (k % 2 ? -1 : 1))];
+    for (let r = 0; r < 12; r += 1) combos.push(num.map(() => Math.round(rnd() * 2) - 1));
+    for (const c of combos) {
+      const p = player(spec);
+      sol.forEach((s, j) => {
+        const k = num.findIndex(([, i]) => i === j);
+        if (k < 0) { if (s.op !== 'wait' && s.op !== 'say' && s.op !== 'perform') p.act(s); return; }
+        const [lo, hi] = RANGE[s.key] ?? [0, 100];
+        p.act({ ...s, value: Math.max(lo, Math.min(hi, s.value + c[k] * (TOL[s.key] ?? 2))) });
+      });
+      const left = p.cleared();
+      if (left.length) { bad.push(`${spec.id}: ${left.join(', ')}`); break; }
+    }
+  }
+  assert.deepEqual(bad, []);
+});
