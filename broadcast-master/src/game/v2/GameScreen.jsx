@@ -151,6 +151,8 @@ export default function GameScreen({
   // 자동 진행 중에는 대본이 끝난 뒤에 결과 창을 띄운다
   const scriptRunning = !!player.script && !player.script.done;
   const dialogBelow = narrow && ((!!player.script && !!(player.narration || player.waiting)) || !!storyAsk || !!guideLeft?.length);
+  // 좁은 화면에서 카드(대화·길잡이)와 콘솔이 함께 열림: 3D는 낮게, 남는 자리는 콘솔에
+  const squeeze = dialogBelow && consoleOpen;
   useEffect(() => { if (cleared && mode === 'story' && !scriptRunning) { const t = setTimeout(() => setResultOpen(true), 900); return () => clearTimeout(t); } return undefined; }, [cleared, mode, scriptRunning]);
 
   /* ----- 오디오 ----- */
@@ -419,11 +421,12 @@ export default function GameScreen({
         <button type="button" onClick={openFeedback} className="flex items-center gap-1 rounded bg-amber-400 px-1.5 py-1 text-[11px] font-black text-slate-900 hover:bg-amber-300" title="불편한 점이나 아이디어를 개발자에게 보내요" aria-label="베타 의견 보내기"><MessageSquarePlus size={15} /><span className="hidden sm:inline">의견</span></button>
       </header>
 
-      {/* 가운데: 넘치면 아래 막대(케이블·말하기) 위로 덮이지 않게 안에서 자른다 */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+      {/* 가운데: 넘치면 아래 막대(케이블·말하기) 위로 덮이지 않게 안에서 자른다
+          좁은 화면에서 길잡이·대화 카드와 콘솔을 함께 열면 남는 자리는 콘솔이 쓴다 (가운데는 3D + 카드 높이만) */}
+      <div className={`${squeeze ? 'flex-none' : 'flex-1'} min-h-0 flex flex-col lg:flex-row overflow-hidden lg:flex-1`}>
         {/* 3D — 좁은 화면에서 대화 중이면 3D는 위쪽 일부, 대화 상자는 그 아래 (3D를 가리지 않게) */}
         {/* 좁은 화면: 3D는 정해진 높이, 옆 패널이 남은 자리를 채운다 (콘솔을 열면 3D가 남은 자리) */}
-        <div className={`relative ${dialogBelow ? `flex-none ${consoleOpen ? 'h-[13vh]' : 'h-[30vh]'}` : consoleOpen ? 'flex-1 min-h-[18vh]' : 'flex-none h-[32vh]'} lg:min-h-0 lg:h-auto lg:flex-1`}>
+        <div className={`relative overflow-hidden lg:overflow-visible ${dialogBelow ? `flex-none ${consoleOpen ? 'h-[13vh]' : 'h-[30vh]'}` : consoleOpen ? 'flex-1 min-h-[18vh]' : 'flex-none h-[32vh]'} lg:min-h-0 lg:h-auto lg:flex-1`}>
           {gl ? (
             <Venue3D st={st} sim={actual} venueId={st.venue} talking={talking} performing={game.performing} selectedChannel={game.selCh}
               pending={game.pending} selectedCable={game.cable} selectedDevice={game.selected} labels={labels} resetKey={resetKey}
@@ -432,8 +435,8 @@ export default function GameScreen({
               onPortClick={game.clickPort} onSelectDevice={game.setSelected} onDisconnect={game.disconnect}
               onPlace={(id) => game.apply({ op: 'place', device: id })} onCancelPending={() => game.setPending(null)} />
           ) : <NoWebGL hint="'연결표' 탭에서 게임을 계속할 수 있어요." />}
-          {/* 3D 보기 도구 */}
-          <div className="absolute top-2 right-2 flex flex-col gap-1">
+          {/* 3D 보기 도구 — 3D가 낮게 줄어든 때(카드 + 콘솔)는 가로로 늘어놓는다 (아래 카드의 ✕를 덮지 않게) */}
+          <div className={`absolute top-2 right-2 z-10 flex ${squeeze ? 'flex-row' : 'flex-col'} gap-1`}>
             <ViewBtn on={labels} onClick={() => setLabels(!labels)} icon={Tag} label="단자 이름" />
             <ViewBtn on={lockView} onClick={() => setLockView(!lockView)} icon={lockView ? Lock : Unlock} label="시점 고정" />
             <ViewBtn on={follow} onClick={() => setFollow(!follow)} icon={Video} label="조작 따라가기" />
@@ -490,7 +493,7 @@ export default function GameScreen({
       </div>
 
       {/* 아래: 케이블 가방 · 말하기 · 듣는 위치 · 콘솔 */}
-      <div className="relative z-20 shrink-0 border-t border-slate-800 bg-slate-950">
+      <div className={`relative z-20 border-t border-slate-800 bg-slate-950 ${squeeze ? 'flex-1 min-h-0 flex flex-col lg:flex-none lg:block' : 'shrink-0'}`}>
         <div className="flex flex-wrap items-center gap-2 px-2 sm:px-3 py-1.5">
           {/* 케이블이 많으면(스튜디오) 좁은 화면에선 한 줄로 옆으로 밀어 보게 (막대가 높아지지 않게) */}
           <div className="flex max-w-full items-center gap-1 overflow-x-auto flex-nowrap sm:flex-wrap" role="radiogroup" aria-label="케이블 선택">
@@ -528,7 +531,7 @@ export default function GameScreen({
           </div>
         </div>
         {consoleOpen && st.mixerId && (
-          <div className={`px-2 pb-2 ${dialogBelow ? 'max-h-[32vh]' : 'max-h-[46vh]'} overflow-y-auto`}><Console game={game} /></div>
+          <div className={`px-2 pb-2 ${squeeze ? 'flex-1 min-h-0' : dialogBelow ? 'max-h-[32vh]' : 'max-h-[46vh]'} overflow-y-auto`}><Console game={game} /></div>
         )}
       </div>
 

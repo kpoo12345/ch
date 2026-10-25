@@ -81,9 +81,10 @@ export default function Console({ game, compact }) {
             {digital ? (
               <>
                 <select value={ch.patch ?? `local${c}`} onChange={(e) => apply({ op: 'ch', ch: c, key: 'patch', value: e.target.value, ...mx })} data-ctl={`ch${c}-patch`}
-                  className="w-full text-[9px] bg-slate-950 border border-slate-600 rounded text-slate-200" aria-label={`CH${c} 입력 패치`}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={`local${k}`}>IN: LOCAL {k}</option>)}
-                  <option value="off">IN: OFF</option>
+                  className="w-full min-h-[24px] text-[10px] font-bold bg-slate-950 border border-slate-600 rounded text-slate-200" aria-label={`CH${c} 입력 패치`} title="이 채널로 들어올 입력 (LOCAL = 믹서 뒷면 입력 번호)">
+                  {/* 좁은 칸에서도 번호가 보이게 "IN:" 없이 */}
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={`local${k}`}>LOCAL {k}</option>)}
+                  <option value="off">OFF</option>
                 </select>
                 <Toggle small ctl={`ch${c}-phantom`} on={ch.phantom} color="amber" onClick={() => tog(c, 'phantom')} title="+48V 팬텀 전원 (콘덴서 마이크용) — 디지털 믹서는 입력마다 켭니다">+48V</Toggle>
               </>
