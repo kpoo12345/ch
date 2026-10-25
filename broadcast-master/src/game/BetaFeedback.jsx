@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MessageSquarePlus, X, Send, CheckCircle2, Copy } from 'lucide-react';
-import { getBetaContext, BETA_VERSION, subscribeBeta, setFeedbackOpen, getLastError } from './betaContext.js';
+import { getBetaContext, BETA_VERSION, subscribeBeta, setFeedbackOpen, getLastError, openFeedback, enterGameScreen } from './betaContext.js';
 import { audioPath } from './speech.js';
 import { loadProgress, saveProgress } from './ui.jsx';
 
@@ -44,6 +44,17 @@ const where = (c) => {
 // 베타 테스트 코스의 "의견 한 번 보내기" 체크용
 const noteSent = () => saveProgress('bm2-beta-sent', loadProgress('bm2-beta-sent', 0) + 1);
 
+// 화면 머리말에 두는 의견 단추 — 이 단추가 떠 있는 동안은 왼쪽 가장자리 탭을 숨긴다 (내용을 가리지 않게)
+export function FeedbackButton({ className = '', wide = false }) {
+  useEffect(enterGameScreen, []);
+  return (
+    <button type="button" onClick={openFeedback} title="불편한 점이나 아이디어를 개발자에게 보내요" aria-label="베타 의견 보내기"
+      className={`flex shrink-0 items-center gap-1 rounded-md bg-amber-400 px-2 py-1 text-xs font-black text-slate-900 hover:bg-amber-300 ${className}`}>
+      <MessageSquarePlus size={15} /><span className={wide ? '' : 'hidden sm:inline'}>의견</span>
+    </button>
+  );
+}
+
 async function capability(name) {
   try { return (await window.claude?.use?.(name)) ?? null; } catch { return null; }
 }
@@ -63,6 +74,13 @@ export default function BetaFeedback() {
     if (u.request !== lastReq.current) { lastReq.current = u.request; if (u.request > 0) { setOpen(true); setState('idle'); } }
   }), []);
   useEffect(() => { setFeedbackOpen(open); }, [open]);
+  // Esc로 닫기
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open]);
   const [ctx, setCtx] = useState(getBetaContext());
   const rootRef = useRef(null);
   const taRef = useRef(null);
@@ -108,10 +126,11 @@ export default function BetaFeedback() {
   const openComments = async () => {
     const c = await capability('comments');
     if (!c) { setCanComment(false); return; }
-    try { await c.openComposer({ element: rootRef.current ?? document.body }); } catch { setCanComment(false); }
+    try { await c.openComposer({ element: rootRef.current ?? document.body }); noteSent(); } catch { setCanComment(false); }
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(`[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION})\n${text}`); setCopied('ok'); noteSent(); } catch { taRef.current?.focus(); taRef.current?.select(); setCopied('fail'); }
+    // 복사만으로는 '보냈다'로 치지 않는다 (코스 체크는 실제로 보낸 경로만)
+    try { await navigator.clipboard.writeText(`[${kindLabel(kind)}] ${where(ctx)} (${BETA_VERSION})\n${text}`); setCopied('ok'); } catch { taRef.current?.focus(); taRef.current?.select(); setCopied('fail'); }
   };
 
   return (

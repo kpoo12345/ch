@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Move, RotateCw, Trash2, Trophy, CheckCircle2, Circle, Save } from 'lucide-react';
 import { DEVICE_TYPES } from '../engine.js';
+import { STARTS_OFF } from '../ops.js';
 import { VENUES } from '../venues.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
 import GameScreen from './GameScreen.jsx';
+import { FeedbackButton } from '../BetaFeedback.jsx';
 
 /* =====================================================================
  * 스튜디오 모드 (자유 모드)
@@ -64,34 +66,43 @@ function makeSpec(venue, tpl) {
     id: 'sandbox', venue, title: `${VENUES[venue].name} — 자유 설치`, tag: '스튜디오 모드', unlimited: true,
     mission: '원하는 장비를 꺼내 원하는 곳에 놓고 연결해 보세요. 제한은 없습니다.',
     devices: t.devices.map((d) => ({ ...d, name: `${DEVICE_TYPES[d.type].name} ${d.id.replace(/\D/g, '')}`, placed: true })),
-    connections: t.connections, inventory: {}, state: {}, objectives: [], talk: 'ptt', performing: true,
+    // 스피커·앰프는 꺼진 채로 시작 (다 연결한 뒤 맨 마지막에 켠다)
+    connections: t.connections, inventory: {}, objectives: [], talk: 'ptt', performing: true,
+    state: { devices: Object.fromEntries(t.devices.filter((d) => STARTS_OFF.has(d.type)).map((d) => [d.id, { power: false }])) },
   };
 }
 
 export default function Sandbox({ onExit }) {
   const [setup, setSetup] = useState(null); // { spec, key }
   const [venue, setVenue] = useState('sandbox');
+  const [askNew, setAskNew] = useState(null); // 저장본을 지우고 새로 시작할지 묻는 중인 세트 이름
   // 메뉴로 돌아오면 한 번 더 그려 게임 화면이 나가며 남긴 저장본까지 읽는다
   const [, setSeen] = useState(0);
   useEffect(() => { if (!setup) setSeen((n) => n + 1); }, [setup]);
   if (setup) {
     return (
       <GameScreen key={setup.key} spec={setup.spec} mode="sandbox" heading="스튜디오 모드 · 자유 설치" onExit={() => setSetup(null)}
-        sandbox={{ Panel: SandboxPanel, useWatch: useSandboxWatch }} restore={setup.restore} />
+        sandbox={{ Panel: SandboxPanel, Tools: DeviceTools, useWatch: useSandboxWatch }} restore={setup.restore} />
     );
   }
   // 저장본은 메뉴를 그릴 때마다 새로 읽는다 (게임 중 자동 저장된 최신 상태)
   const saved = loadProgress('bm2-sandbox', null);
+  const savedCount = Object.keys(saved?.devices ?? {}).length;
+  const startNew = (k) => setSetup({ spec: makeSpec(venue, k), key: Date.now() });
+  // 장비가 있는 저장본은 새 세트로 덮어쓰기 전에 한 번 묻는다
+  const pick = (k) => (savedCount ? setAskNew(k) : startNew(k));
+  const sets = venue === 'sandbox' ? Object.entries(TEMPLATES) : [['empty', TEMPLATES.empty]];
   return (
     <div className="min-h-[100dvh] bg-[#0b1220] text-slate-100">
       <header className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-950/90">
         <button type="button" onClick={onExit} className="px-2 py-1 rounded hover:bg-slate-800 text-sm">← 메인 메뉴</button>
         <div className="font-black">스튜디오 모드</div>
+        <FeedbackButton className="ml-auto" />
       </header>
       <main className="max-w-3xl mx-auto p-4 space-y-5">
         <p className="text-sm text-slate-300 leading-relaxed">정답이 없는 자유 모드입니다. 장비 개수 제한 없이 마이크·카메라·조명을 원하는 만큼 꺼내 <b>바닥·책상·무대 어디든</b> 클릭해 놓고, 케이블도 무제한으로 연결하세요. 도전 과제는 원할 때만 참고하면 됩니다.</p>
         {saved && (
-          <button type="button" onClick={() => setSetup({ spec: { ...makeSpec(saved.venue, 'empty') }, restore: saved, key: Date.now() })}
+          <button type="button" onClick={() => { setAskNew(null); setSetup({ spec: { ...makeSpec(saved.venue, 'empty') }, restore: saved, key: Date.now() }); }}
             className="w-full rounded-xl border border-sky-500/60 bg-sky-950/40 p-3 text-left hover:bg-sky-900/40 flex items-center gap-2">
             <Save size={18} className="text-sky-300" /> <span className="font-bold">이어서 하기</span> <span className="text-xs text-slate-400">— 저장된 {VENUES[saved.venue]?.name} · 장비 {Object.keys(saved.devices ?? {}).length}개</span>
           </button>
@@ -100,7 +111,7 @@ export default function Sandbox({ onExit }) {
           <div className="text-xs font-bold text-slate-400 mb-2">1. 장소 고르기</div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {['sandbox', 'seminar', 'youtube_room', 'church', 'live_stage', 'lecture_hall'].map((v) => (
-              <button key={v} type="button" onClick={() => setVenue(v)} aria-pressed={venue === v}
+              <button key={v} type="button" onClick={() => { setVenue(v); setAskNew(null); }} aria-pressed={venue === v}
                 className={`rounded-lg border p-3 text-left ${venue === v ? 'border-amber-400 bg-amber-950/40' : 'border-slate-700 bg-slate-900 hover:bg-slate-800'}`}>
                 <div className="font-bold text-sm">{VENUES[v].name}</div>
                 <div className="text-[11px] text-slate-400">{v === 'sandbox' ? '넓은 무대 + 방송 책상' : '스토리 모드 장소에서 자유 설치'}</div>
@@ -111,12 +122,21 @@ export default function Sandbox({ onExit }) {
         <div>
           <div className="text-xs font-bold text-slate-400 mb-2">2. 시작 세트</div>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(TEMPLATES).map(([k, t]) => (
-              <button key={k} type="button" onClick={() => setSetup({ spec: makeSpec(venue, venue === 'sandbox' ? k : 'empty'), key: Date.now() })}
+            {sets.map(([k, t]) => (
+              <button key={k} type="button" onClick={() => pick(k)} aria-pressed={askNew === k}
                 className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-sm">{t.name}로 시작</button>
             ))}
           </div>
-          {venue !== 'sandbox' && <p className="text-[11px] text-slate-500 mt-1">스토리 장소에서는 빈 무대로 시작합니다 (세트는 자유 스튜디오 전용).</p>}
+          {venue !== 'sandbox' && <p className="text-[11px] text-slate-500 mt-1">스토리 장소에서는 빈 무대로 시작합니다 (PA·방송 세트는 자유 스튜디오 전용).</p>}
+          {askNew && (
+            <div role="alertdialog" aria-label="새로 시작 확인" className="mt-3 rounded-xl border border-red-400/60 bg-red-950/40 p-3 space-y-2">
+              <p className="text-sm text-red-100">저장된 스튜디오(장비 {savedCount}개)가 지워지고 <b>{TEMPLATES[askNew].name}</b>로 새로 시작합니다. 계속할까요?</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => { setAskNew(null); startNew(askNew); }} className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-bold">지우고 새로 시작</button>
+                <button type="button" onClick={() => setAskNew(null)} className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-sm">취소</button>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -138,14 +158,36 @@ export function useSandboxWatch(game) {
   useEffect(() => () => saveProgress('bm2-sandbox', snapshotOf(latest.current)), []);
   useEffect(() => {
     const now = CHALLENGES.filter((c) => c.test(st, nominal)).map((c) => c.id).filter((id) => !done.has(id));
-    if (now.length) { const n = new Set([...done, ...now]); setDone(n); saveProgress('bm2-sandbox-ach', [...n]); game.notify('ok', `도전 과제 달성: ${CHALLENGES.find((c) => c.id === now[0]).label}`); }
+    if (now.length) { const n = new Set([...done, ...now]); setDone(n); saveProgress('bm2-sandbox-ach', [...n]); game.notify('ok', `도전 과제 달성: ${CHALLENGES.find((c) => c.id === now[0]).label}`, { soft: true }); }
   }, [nominal]); // eslint-disable-line react-hooks/exhaustive-deps
   return done;
 }
 
+// 고른 장비 옮기기·돌리기·지우기 — "장비 추가" 탭 맨 위와 "장비" 탭의 장비 화면에 같이 보인다
+export function DeviceTools({ game, id, setPlacing, placing = null }) {
+  const { st, apply, setSelected } = game;
+  const sel = st.devices[id];
+  if (!sel) return null;
+  return (
+    <div className="rounded-lg border border-sky-500/50 bg-slate-900 p-2 space-y-1.5">
+      <div className="text-sm font-bold">{sel.name}</div>
+      <div className="flex flex-wrap gap-1.5">
+        <button type="button" onClick={() => setPlacing({ type: sel.type, moveId: sel.id })} aria-pressed={placing?.moveId === sel.id} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-xs"><Move size={13} /> 이동</button>
+        <button type="button" onClick={() => apply({ op: 'moveDevice', device: sel.id, rot: ((sel.rot ?? 0) + Math.PI / 4) % (Math.PI * 2) })} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-xs"><RotateCw size={13} /> 45° 회전</button>
+        <button type="button" onClick={() => { apply({ op: 'removeDevice', device: sel.id }); setSelected(null); }} className="flex items-center gap-1 px-2 py-1 rounded bg-red-800 text-xs"><Trash2 size={13} /> 삭제</button>
+      </div>
+      {placing?.moveId === sel.id && (
+        <div className="flex items-center gap-2 text-xs text-amber-100">옮길 곳을 3D 화면에서 클릭하세요.
+          <button type="button" onClick={() => setPlacing(null)} className="ml-auto px-2 py-0.5 rounded bg-slate-700">취소</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 게임 화면의 "장비 추가" 탭
 export function SandboxPanel({ game, placing, setPlacing }) {
-  const { st, apply, selected, setSelected } = game;
+  const { st, selected } = game;
   const done = new Set(loadProgress('bm2-sandbox-ach', []));
   const sel = selected ? st.devices[selected] : null;
   return (
@@ -156,16 +198,7 @@ export function SandboxPanel({ game, placing, setPlacing }) {
           <button type="button" onClick={() => setPlacing(null)} className="ml-auto px-2 py-0.5 rounded bg-slate-700 text-xs">취소</button>
         </div>
       )}
-      {sel && (
-        <div className="rounded-lg border border-sky-500/50 bg-slate-900 p-2 space-y-1.5">
-          <div className="text-sm font-bold">{sel.name}</div>
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => setPlacing({ type: sel.type, moveId: sel.id })} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-xs"><Move size={13} /> 이동</button>
-            <button type="button" onClick={() => apply({ op: 'moveDevice', device: sel.id, rot: ((sel.rot ?? 0) + Math.PI / 4) % (Math.PI * 2) })} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-xs"><RotateCw size={13} /> 45° 회전</button>
-            <button type="button" onClick={() => { apply({ op: 'removeDevice', device: sel.id }); setSelected(null); }} className="flex items-center gap-1 px-2 py-1 rounded bg-red-800 text-xs"><Trash2 size={13} /> 삭제</button>
-          </div>
-        </div>
-      )}
+      {sel && <DeviceTools game={game} id={sel.id} setPlacing={setPlacing} />}
       <div className="text-[11px] text-slate-400">장비를 고른 뒤 3D 화면에서 놓을 곳을 클릭하세요. 개수 제한이 없습니다.</div>
       {CATALOG.map(([group, types]) => (
         <div key={group}>

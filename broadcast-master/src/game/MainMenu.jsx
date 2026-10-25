@@ -12,6 +12,7 @@ import { SOLUTIONS } from './data/solutions.js';
 import { TUTORIAL } from './data/tutorial.js';
 import { BetaWelcome, BetaCourseCard, shouldShowWelcome } from './BetaGuide.jsx';
 import FeedbackInbox, { canReadFeedback } from './FeedbackInbox.jsx';
+import { FeedbackButton } from './BetaFeedback.jsx';
 
 /* =====================================================================
  * 메인 메뉴 — 공연장 3D가 천천히 도는 배경 위에서 고른다
@@ -64,10 +65,14 @@ export default function MainMenu({ onSelect }) {
     <div className="relative min-h-[100dvh] bg-[#0b1018] text-white overflow-hidden font-sans" onPointerDown={startMusic}>
       <div className="absolute inset-0 opacity-75" aria-hidden="true"><MenuBackdrop /></div>
       <div className="absolute inset-0 bg-gradient-to-b from-[#0b1018]/50 via-[#0b1018]/20 to-[#0b1018]/95 pointer-events-none" />
-      <button type="button" onClick={(e) => { e.stopPropagation(); toggleBgm(); }} className="absolute top-3 right-3 z-20 flex items-center gap-1 rounded-full bg-black/50 border border-white/20 px-3 py-1.5 text-xs font-bold backdrop-blur" aria-pressed={bgm}>
-        {bgm ? <Music size={14} /> : <VolumeX size={14} />} 배경음악 {bgm ? 'ON' : 'OFF'}
-      </button>
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col min-h-[100dvh] pointer-events-none">
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+        <FeedbackButton wide className="rounded-full px-3 py-1.5" />
+        <button type="button" onClick={(e) => { e.stopPropagation(); toggleBgm(); }} className="flex items-center gap-1 rounded-full bg-black/50 border border-white/20 px-3 py-1.5 text-xs font-bold backdrop-blur" aria-pressed={bgm}>
+          {bgm ? <Music size={14} /> : <VolumeX size={14} />} 배경음악 {bgm ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      {/* 휴대폰: 위 단추들 아래에서 시작 (ON AIR 배지와 겹치지 않게) */}
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-8 sm:py-12 flex flex-col min-h-[100dvh] pointer-events-none">
         <div className="text-center sm:text-left">
           <div className="inline-flex items-center gap-2 text-[10px] sm:text-xs font-bold tracking-[0.2em] sm:tracking-[0.25em] text-red-300 bg-red-950/70 border border-red-700 rounded-full px-3 py-1">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> ON AIR · BROADCAST EQUIPMENT MASTER

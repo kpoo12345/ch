@@ -10,6 +10,10 @@ import { drawSource, drawComposition, sourceOf, CLIPS, drawMeterBar } from '../s
 
 // 단자 이름은 장비에 쓰인 그대로 (in1 → CH1 MIC (XLR))
 const portName = (st, d, p) => { const def = DEVICE_TYPES[st.devices[d]?.type]; return [...(def?.ins ?? []), ...(def?.outs ?? [])].find((x) => x.id === p)?.label ?? p; };
+// 꺼진 스피커·앰프까지 신호가 와 있으면 이제 켤 차례 (켜는 건 맨 마지막)
+const PowerLast = ({ on, level }) => (!on && level != null
+  ? <div className="rounded px-2 py-1 text-xs bg-amber-950 text-amber-200">신호가 들어와 있어요. 케이블 연결을 다 마쳤다면 이제 전원을 켜세요 — 스피커·앰프 전원은 맨 마지막에 켭니다.</div>
+  : null);
 
 /* =====================================================================
  * 장비별 조작 패널 — 선택한 장비의 실제 버튼·노브를 2D로
@@ -58,6 +62,7 @@ export function DevicePanel({ game, id }) {
       const lv = actual.inLevel(id, 'in');
       body = (
         <Card title="액티브 스피커" icon={Power}>
+          <PowerLast on={s.power} level={nominal.inLevel(id, 'in')} />
           <Row label="전원" hint="케이블을 다 꽂은 뒤 마지막에 켜고, 끌 때는 가장 먼저 끕니다."><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           <Row label="스피커로 들어오는 신호"><div className="w-36"><Meter level={s.power ? lv : null} /></div></Row>
           <Row label="위치" hint={d.slot === 'pa_alt' ? '⚠ 마이크 정면 — 하울링 위험' : '마이크보다 청중 쪽에서 청중을 향함'}>
@@ -98,6 +103,7 @@ export function DevicePanel({ game, id }) {
       const nameOf = (x) => st.devices[x]?.name ?? DEVICE_TYPES[st.devices[x]?.type]?.name ?? x;
       body = (
         <Card title="파워 앰프 (2채널)" icon={Zap}>
+          <PowerLast on={s.power} level={nominal.inLevel(id, 'inA') ?? nominal.inLevel(id, 'inB')} />
           <Row label="전원" hint="케이블을 다 꽂은 뒤 맨 마지막에 켜고, 끌 때는 맨 먼저 끕니다."><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           {outs.map(({ ch, src, dst, lv }) => {
             const key = `level${ch}`;
@@ -142,7 +148,8 @@ export function DevicePanel({ game, id }) {
     case 'monitor':
       body = (
         <Card title="모니터 스피커 (웨지)" icon={Power}>
-          <Row label="전원"><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
+          <PowerLast on={s.power} level={nominal.inLevel(id, 'in')} />
+          <Row label="전원" hint="케이블을 다 꽂은 뒤 마지막에 켜고, 끌 때는 가장 먼저 끕니다."><Toggle ctl={`${id}-power`} on={s.power} color="green" onClick={() => set('power', !s.power)}>{s.power ? 'ON' : 'OFF'}</Toggle></Row>
           <Row label="웨지로 들어오는 신호 (AUX)"><div className="w-36"><Meter level={s.power ? actual.inLevel(id, 'in') : null} /></div></Row>
           <p className="text-[11px] text-slate-400">무대 위 연주자·설교자가 자기 소리를 듣는 스피커입니다. 믹서의 각 채널 AUX 노브로 무엇을 얼마나 보낼지 정합니다.</p>
         </Card>

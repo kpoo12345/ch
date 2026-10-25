@@ -339,7 +339,7 @@ export default function GameScreen({
     gBefore.current = st;
     setGPhase(r.phase); setGList(r.phase === 'plan' ? plan : r.list); setGCur(r.cur);
     const msg = { 'back-air': '이 PTZ 카메라가 지금 방송 중이에요. 먼저 다른 카메라로 넘겨요.', 'back-aim': '구도가 풀렸어요. 다시 맞춘 다음 저장해요.', next: '좋아요! 다음 할 일을 짚어 줄게요.', finish: '거의 다 됐어요! 남은 곳을 짚어 줄게요.' }[r.note];
-    if (msg) game.notify(r.note === 'back-air' ? 'err' : r.note.startsWith('back') ? 'info' : 'ok', msg);
+    if (msg) game.notify(r.note === 'back-air' ? 'err' : r.note.startsWith('back') ? 'info' : 'ok', msg, { soft: true });
   }, [st, game.talking, game.latched, storyAsk?.at, guiding, gPhase]); // eslint-disable-line react-hooks/exhaustive-deps
   // 대사가 장비를 가리키면 카메라가 그쪽으로 (시점 고정 중에는 그대로)
   useEffect(() => {
@@ -451,6 +451,7 @@ export default function GameScreen({
               <MissionPanel spec={spec} game={game} tutorial={mode === 'tutorial'} placeAsk={player.waiting?.op === 'place' ? player.waiting.device : null} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))}
                 guideReady={plan.length > 0 && !player.script && !cleared} guideOn={guideOn} onGuide={() => (guideOn ? setGuideOn(false) : startGuide())} />
             )}
+            {tab === 'device' && sandbox && game.selected && <sandbox.Tools game={game} id={game.selected} setPlacing={setPlacing} placing={placing} />}
             {tab === 'device' && (game.selected && st.devices[game.selected]
               ? <DevicePanel key={game.selected} game={game} id={game.selected} />
               : <DeviceList game={game} onFocus={(id) => setFocusRequest({ id, key: Date.now() })} />)}

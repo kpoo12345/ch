@@ -65,9 +65,13 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
     if (allDone && !clearedRef.current) { clearedRef.current = true; getAudio().clear(); onClear?.(); }
   }, [allDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const notify = useCallback((kind, text) => {
-    setToast({ kind, text, key: Date.now() });
-    setLog((l) => [...l.slice(-60), { kind, text, t: Date.now() }]);
+  // soft: 방금 띄운 경고(err)는 덮지 않고 기록에만 남긴다 (같은 동작의 '연결됨'·'도전 과제' 알림이 경고를 가리지 않게)
+  const toastRef = useRef(null);
+  const notify = useCallback((kind, text, { soft = false } = {}) => {
+    const t = Date.now();
+    const cur = toastRef.current;
+    if (!(soft && kind !== 'err' && cur?.kind === 'err' && t - cur.key < 600)) { toastRef.current = { kind, text, key: t }; setToast(toastRef.current); }
+    setLog((l) => [...l.slice(-60), { kind, text, t }]);
   }, []);
 
   /* ----- 조작 적용 ----- */
@@ -167,9 +171,9 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
       }
     }
     const au = getAudio();
-    if (op.op === 'connect') { au.plug(); if (!quiet) notify('ok', `${CABLES[op.cable]?.name ?? op.cable} 연결: ${label(cur, op.from)} → ${label(cur, op.to)}`); }
-    else if (op.op === 'disconnect') { au.click(); if (!quiet) notify('info', `케이블 분리: ${label(cur, op.from)} ↔ ${label(cur, op.to)}`); }
-    else if (op.op === 'place') { au.click(); if (!quiet) notify('ok', `${cur.devices[op.device]?.name ?? DEVICE_TYPES[cur.devices[op.device]?.type]?.name} 배치`); }
+    if (op.op === 'connect') { au.plug(); if (!quiet) notify('ok', `${CABLES[op.cable]?.name ?? op.cable} 연결: ${label(cur, op.from)} → ${label(cur, op.to)}`, { soft: true }); }
+    else if (op.op === 'disconnect') { au.click(); if (!quiet) notify('info', `케이블 분리: ${label(cur, op.from)} ↔ ${label(cur, op.to)}`, { soft: true }); }
+    else if (op.op === 'place') { au.click(); if (!quiet) notify('ok', `${cur.devices[op.device]?.name ?? DEVICE_TYPES[cur.devices[op.device]?.type]?.name} 배치`, { soft: true }); }
     else if (visual || !quiet) {
       // 페이드처럼 화면 없이 이어지는 단계는 조용히, 노브·페이더 드래그는 딸깍을 띄엄띄엄
       const now = Date.now();
@@ -178,6 +182,9 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
     return true;
   }, [notify]);
   applyRef.current = apply;
+
+  // 고른 단자의 장비를 치우면(스튜디오 삭제) 고른 단자도 지운다
+  useEffect(() => { if (pending && !st.devices[pending.d]) setPending(null); }, [st, pending]);
 
   /* ----- 단자 클릭 (케이블 연결) ----- */
   const clickPort = useCallback((d, p) => {

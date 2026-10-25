@@ -5,6 +5,7 @@ import { SOLUTIONS } from '../data/solutions.js';
 import { loadProgress } from '../ui.jsx';
 import { getAudio } from '../audio.js';
 import GameScreen from './GameScreen.jsx';
+import { FeedbackButton } from '../BetaFeedback.jsx';
 
 /* =====================================================================
  * 스토리 모드 — 장(챕터) 선택 → 스테이지 → 게임 화면
@@ -40,6 +41,7 @@ export default function StoryMode({ onExit, startStage, autoStart }) {
         <button type="button" onClick={onExit} className="p-1.5 rounded hover:bg-slate-800" aria-label="메인 메뉴"><ArrowLeft size={18} /></button>
         <div className="font-black">스토리 모드</div>
         <div className="ml-auto flex items-center gap-1 text-sm text-yellow-300"><Star size={16} className="fill-yellow-300" /> {starsTotal} / {total * 3}</div>
+        <FeedbackButton />
       </header>
       <main className="max-w-5xl mx-auto p-3 sm:p-5 space-y-5">
         <p className="text-sm text-slate-300">첫 출근부터 대형 공연까지 — 현장의 문제를 직접 해결하며 방송·음향·조명·영상 장비를 깊게 익힙니다. 막히면 <b>힌트</b>, 그래도 어려우면 <b>정답 보기</b>로 유령 손이 직접 해 보이는 과정을 볼 수 있어요.</p>

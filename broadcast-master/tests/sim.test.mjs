@@ -552,6 +552,8 @@ test('studio: a second mixer has its own channels and master; ops can target it'
   st = applyOp(st, { op: 'connect', from: 'dynamic_mic_1.out', to: `${m1}.in1`, cable: 'xlr' });
   st = applyOp(st, { op: 'connect', from: 'dynamic_mic_2.out', to: `${m2}.in1`, cable: 'xlr' });
   st = applyOp(st, { op: 'connect', from: `${m2}.main`, to: 'speaker_1.in', cable: 'xlr' });
+  assert.equal(st.dev.speaker_1.power, false, 'studio speakers come out switched off');
+  st = applyOp(st, { op: 'dev', device: 'speaker_1', key: 'power', value: true });
   let sim = computeSim(st);
   assert.ok(sim.reaches('dynamic_mic_2', 'main'));
   assert.equal(sim.reaches('dynamic_mic_1', 'main'), false, 'mixer 2 outputs its own mix');

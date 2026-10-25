@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, CheckCircle2, Circle, MessageSquarePlus, Sparkles, Smartphone, Volume2, ChevronRight } from 'lucide-react';
 import { loadProgress, saveProgress } from './ui.jsx';
-import { BETA_VERSION, openFeedback } from './betaContext.js';
+import { BETA_VERSION, openFeedback, subscribeBeta } from './betaContext.js';
 
 /* =====================================================================
  * 베타 테스터 안내 — 처음 들어온 테스터에게 한 번 보여 주고, 메뉴의 카드로 다시 연다
@@ -25,6 +25,9 @@ export function betaCourse() {
 }
 
 export function BetaCourseCard({ onOpen }) {
+  // 의견 창이 닫히면(보냈을 수 있으니) 다시 읽는다
+  const [, setTick] = useState(0);
+  useEffect(() => subscribeBeta((u) => { if (!u.open) setTick((n) => n + 1); }), []);
   const course = betaCourse();
   const n = course.filter((c) => c.done).length;
   return (
@@ -87,13 +90,13 @@ export function BetaWelcome({ onClose, onGo }) {
 
         <div className="mt-4 rounded-xl border border-amber-300/40 bg-amber-950/30 p-3 text-[13px] leading-relaxed">
           <div className="flex items-center gap-1.5 font-black text-amber-200"><MessageSquarePlus size={16} /> 의견 보내는 법</div>
-          <p className="mt-1 text-slate-200">메뉴에선 왼쪽 노란 <b>의견 보내기</b> 탭, 게임 중엔 맨 위의 노란 <b>의견</b> 단추를 눌러요. 어느 화면·장면이었는지는 저절로 함께 가요.</p>
+          <p className="mt-1 text-slate-200">어느 화면에서든 맨 위의 노란 <b>의견</b> 단추를 눌러요. 어느 화면·장면이었는지는 저절로 함께 가요.</p>
           <p className="mt-1 text-slate-400">이런 게 특히 도움이 돼요: 어디서 막혔는지 · 이해 안 된 말 · 소리·화면이 이상했던 곳 · 너무 쉽거나 어려웠던 곳</p>
         </div>
 
         <ul className="mt-3 space-y-1 text-[12px] text-slate-400">
-          <li className="flex gap-1.5"><Volume2 size={14} className="mt-0.5 shrink-0" /> 소리가 안 나면 화면을 한 번 눌러 주세요. 아이폰은 볼륨도 확인해 주세요.</li>
-          <li className="flex gap-1.5"><Smartphone size={14} className="mt-0.5 shrink-0" /> 휴대폰도 돼요. 처음 열 때 10초쯤 걸리고, 3D가 느리면 아래 <b>연결표</b> 탭으로도 할 수 있어요.</li>
+          <li className="flex gap-1.5"><Volume2 size={14} className="mt-0.5 shrink-0" /><span>소리가 안 나면 화면을 한 번 눌러 주세요. 아이폰은 볼륨도 확인해 주세요.</span></li>
+          <li className="flex gap-1.5"><Smartphone size={14} className="mt-0.5 shrink-0" /><span>휴대폰도 돼요. 처음 열 때 10초쯤 걸리고, 3D가 느리면 아래 <b>연결표</b> 탭으로도 할 수 있어요.</span></li>
         </ul>
 
         {/* 휴대폰에서도 시작 단추가 늘 보이게 아래에 붙여 둔다 */}

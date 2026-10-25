@@ -123,6 +123,8 @@ test('sandbox ops: add, move, remove devices keep state consistent', async () =>
   assert.equal(st.mixerId, b.device.id);
   st = applyOp(st, { op: 'connect', from: `${a.device.id}.out`, to: `${b.device.id}.in1`, cable: 'xlr' });
   st = applyOp(st, { op: 'connect', from: `${b.device.id}.main`, to: `${c.device.id}.in`, cable: 'xlr' });
+  assert.equal(computeSim(st).reaches(a.device.id, 'main'), false, 'the new speaker is still switched off');
+  st = applyOp(st, { op: 'dev', device: c.device.id, key: 'power', value: true });
   assert.ok(computeSim(st).reaches(a.device.id, 'main'));
   st = applyOp(st, { op: 'moveDevice', device: c.device.id, pos: [-3, 0, -0.5] });
   assert.deepEqual(st.devices[c.device.id].pos, [-3, 0, -0.5]);

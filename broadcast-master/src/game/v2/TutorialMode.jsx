@@ -4,6 +4,7 @@ import { TUTORIAL } from '../data/tutorial.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
 import { getAudio } from '../audio.js';
 import GameScreen from './GameScreen.jsx';
+import { FeedbackButton } from '../BetaFeedback.jsx';
 
 /* =====================================================================
  * 튜토리얼 — 파트 선택 → 대화 장면(한 줄 설명 → 직접 해 보기/보여 주세요 → 다음)
@@ -50,6 +51,7 @@ export default function TutorialMode({ onExit, onStory, startPart = null }) {
       <header className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
         <button type="button" onClick={onExit} className="p-1.5 rounded hover:bg-slate-800" aria-label="메인 메뉴"><ArrowLeft size={18} /></button>
         <div className="font-black">튜토리얼</div>
+        <FeedbackButton className="ml-auto" />
       </header>
       <main className="max-w-4xl mx-auto p-3 sm:p-6 space-y-4">
         <p className="text-sm text-slate-300 leading-relaxed">선배 엔지니어가 한 장면씩 설명해 줍니다. 한 줄을 듣고 <b>다음</b>을 누르면(또는 Enter) 다음 장면으로 넘어가요. 조작이 나오는 장면에서는 <b>직접 해 보세요</b> 안내와 함께 해야 할 곳이 반짝입니다. 막히면 <b>보여 주세요</b>를 누르면 유령 손이 대신 보여 줍니다.</p>

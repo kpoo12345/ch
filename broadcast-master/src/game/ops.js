@@ -312,16 +312,22 @@ export function latchTalk(st, talking, latched, performing) {
 
 // 자유 모드: 새 장비 추가 op 만들기 (무대 쪽을 봐야 하는 장비는 뒤로 돌려 놓는다)
 const FACE_STAGE = new Set(['camera', 'mirrorless', 'ptz', 'par_led', 'moving_head', 'projector']);
+// 스피커·앰프는 꺼진 채로 꺼낸다 — 케이블을 다 꽂은 뒤 맨 마지막에 켜는 순서 (켜진 채 꽂으면 퍽)
+export const STARTS_OFF = new Set(['speaker', 'monitor', 'power_amp', 'iem']);
 export function addDeviceOp(st, type, pos, surface) {
+  // 번호: id도 이름도 비어 있는 가장 작은 번호 (세트 장비는 id가 달라도 이름 번호를 쓰고 있다)
+  const label = DEVICE_TYPES[type].name;
+  const taken = (k) => st.devices[`${type}_${k}`] || Object.values(st.devices).some((d) => d.type === type && d.name === `${label} ${k}`);
   let n = 1;
-  while (st.devices[`${type}_${n}`]) n += 1;
+  while (taken(n)) n += 1;
   const id = `${type}_${n}`;
-  const same = Object.values(st.devices).filter((d) => d.type === type).length + 1;
   const state = DEV_DEFAULTS[type]?.() ?? {};
   if (type === 'ptz') state.ip = nextPtzIp(st);
+  if (STARTS_OFF.has(type)) state.power = false;
   return {
     op: 'addDevice',
-    device: { id, type, name: `${DEVICE_TYPES[type].name} ${same}`, pos, rot: FACE_STAGE.has(type) ? Math.PI : 0, surface, placed: true },
+    // 1번을 지우고 새로 꺼내면 다시 1번 — 같은 이름이 둘 생기지 않게
+    device: { id, type, name: `${label} ${n}`, pos, rot: FACE_STAGE.has(type) ? Math.PI : 0, surface, placed: true },
     state,
   };
 }

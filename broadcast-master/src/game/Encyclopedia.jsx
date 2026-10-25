@@ -17,6 +17,7 @@ import { patchBetaContext } from './betaContext.js';
 import { TUTORIAL } from './data/tutorial.js';
 import STORY from './data/story.json';
 import { buildIndex, searchItems } from './dictSearch.js';
+import { FeedbackButton } from './BetaFeedback.jsx';
 
 /* =====================================================================
  * 장비 백과사전 — 빨리 찾아보는 참고서
@@ -735,11 +736,13 @@ function Home({ onOpen, onCat, onNavigate }) {
  * Encyclopedia
  *  onNavigate(mode, arg, fromId): 'tutorial'(파트 번호) · 'story'(스테이지 id) — fromId는 돌아올 항목
  * ===================================================================== */
-export default function Encyclopedia({ onExit, onNavigate, initialId = null }) {
+// entry·onEntry: 열린 항목은 바깥(주소·history)이 정한다 — 휴대폰 '뒤로'가 이전 항목·목록으로 가게
+export default function Encyclopedia({ onExit, onNavigate, entry = null, onEntry }) {
   const index = useMemo(() => buildIndex(EDU_ITEMS), []);
   const [query, setQuery] = useState('');
   const [cat, setCat] = useState('all');
-  const [openId, setOpenId] = useState(() => (initialId && EDU_BY_ID[initialId] ? initialId : null));
+  const openId = entry && EDU_BY_ID[entry] ? entry : null;
+  const setOpenId = (id) => onEntry?.(id);
   const searchRef = useRef(null);
 
   const all = useMemo(() => searchItems(index, query), [index, query]);
@@ -797,6 +800,7 @@ export default function Encyclopedia({ onExit, onNavigate, initialId = null }) {
           <button type="button" onClick={() => onNavigate('tutorial')} className="ml-auto hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-bold text-violet-200 border border-violet-500/50 bg-violet-950/40 hover:bg-violet-900/60 shrink-0">
             <GraduationCap size={15} /> 처음부터 배우기
           </button>
+          <FeedbackButton className="ml-auto sm:ml-0 py-1.5" />
         </div>
       </header>
 
@@ -804,11 +808,11 @@ export default function Encyclopedia({ onExit, onNavigate, initialId = null }) {
         {/* 검색 · 분류 · 목록 */}
         <aside className={`${item ? 'hidden lg:flex' : 'flex'} flex-col gap-3 min-w-0 lg:sticky lg:top-[4.5rem] lg:self-start lg:max-h-[calc(100dvh-5.5rem)]`}>
           {!query && (
-            <button type="button" onClick={() => onNavigate('tutorial')} className="lg:hidden text-left rounded-xl border border-violet-500/40 bg-violet-950/30 px-3 py-2 text-xs text-slate-300 flex items-center gap-2">
+            <button type="button" onClick={() => onNavigate('tutorial')} className="lg:hidden shrink-0 text-left rounded-xl border border-violet-500/40 bg-violet-950/30 px-3 py-2 text-xs text-slate-300 flex items-center gap-2">
               <GraduationCap size={16} className="text-violet-300 shrink-0" /><span>찾아보기용 사전이에요. 처음이라면 <b className="text-violet-200">튜토리얼</b>부터 배워 보세요.</span><ChevronRight size={14} className="ml-auto shrink-0 text-violet-300" />
             </button>
           )}
-          <div className="relative">
+          <div className="relative shrink-0">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input ref={searchRef} type="search" value={query} onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); open(list[0].id); } if (e.key === 'Escape') setQuery(''); }}
@@ -818,7 +822,8 @@ export default function Encyclopedia({ onExit, onNavigate, initialId = null }) {
               <button type="button" aria-label="검색어 지우기" onClick={() => { setQuery(''); searchRef.current?.focus(); }} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded hover:bg-slate-700 text-slate-400"><X size={16} /></button>
             )}
           </div>
-          <div role="group" aria-label="분류" className="flex gap-1.5 overflow-x-auto lg:flex-wrap -mx-3 px-3 lg:mx-0 lg:px-0 bm-noscroll">
+          {/* shrink-0: 큰 화면 사이드바(높이 제한)에서 목록에 눌려 칩이 잘리지 않게 */}
+          <div role="group" aria-label="분류" className="shrink-0 flex gap-1.5 overflow-x-auto lg:flex-wrap -mx-3 px-3 lg:mx-0 lg:px-0 bm-noscroll">
             {['all', ...EDU_CATEGORIES].map((c) => {
               const on = cat === c;
               return (

@@ -56,27 +56,78 @@ class CrashGuard extends React.Component {
   }
 }
 
+// 화면 ↔ 주소: 화면을 history에 쌓아 휴대폰 '뒤로' 버튼이 게임 안에서 이전 화면으로 가게 한다
+// (메뉴는 쿼리 없는 주소라 새로 고침하면 메뉴가 열린다)
+const urlOf = (s) => {
+  const q = s.mode === 'dict' ? `?dict${s.entry ? `=${s.entry}` : ''}`
+    : s.mode === 'tutorial' ? `?tutorial${s.part != null ? `=${s.part + 1}` : ''}`
+      : s.mode === 'story' ? (s.stage ? `?stage=${s.stage}` : '?story')
+        : s.mode === 'studio' ? '?studio' : '';
+  return `${window.location.pathname}${q}`;
+};
+function writeHistory(s, replace) {
+  const state = { bm: 1, mode: s.mode, part: s.part ?? null, stage: s.stage ?? null, entry: s.entry ?? null, back: s.back ?? null, depth: s.depth ?? 0 };
+  const fn = replace ? 'replaceState' : 'pushState';
+  // 주소를 바꿀 수 없는 환경(샌드박스 iframe 등)이면 상태만 쌓는다
+  try { window.history[fn](state, '', urlOf(s)); } catch { try { window.history[fn](state, ''); } catch { /* history 없음 */ } }
+}
+const sameScreen = (a, b) => !!a && !!b && a.mode === b.mode && (a.entry ?? null) === (b.entry ?? null) && (a.part ?? null) === (b.part ?? null) && (a.stage ?? null) === (b.stage ?? null);
+
 function Screens() {
-  // 주소로 바로 가기: ?stage=light-2 (?auto=1 이면 정답 자동 진행) · ?tutorial=1 튜토리얼 파트 1 · ?dict=dynamic_mic 백과사전 항목
+  // 주소로 바로 가기: ?stage=light-2 (?auto=1 이면 정답 자동 진행) · ?tutorial=1 튜토리얼 파트 1 · ?dict=dynamic_mic 백과사전 항목 · ?story · ?studio
   const [screen, setScreen] = useState(() => {
     const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const stage = q?.get('stage');
-    if (q?.get('tutorial')) return { mode: 'tutorial', part: Number(q.get('tutorial')) - 1, key: 0 };
-    if (q?.has('dict')) return { mode: 'dict', entry: q.get('dict') || null, key: 0 };
-    return stage ? { mode: 'story', stage, auto: q.get('auto') === '1', key: 0 } : { mode: 'menu', key: 0 };
+    if (q?.has('tutorial')) { const n = Number(q.get('tutorial')); return { mode: 'tutorial', part: n >= 1 ? n - 1 : undefined, key: 0, depth: 0 }; }
+    if (q?.has('dict')) return { mode: 'dict', entry: q.get('dict') || null, key: 0, depth: 0 };
+    if (q?.has('studio')) return { mode: 'studio', key: 0, depth: 0 };
+    if (stage || q?.has('story')) return { mode: 'story', stage: stage || null, auto: q.get('auto') === '1', key: 0, depth: 0 };
+    return { mode: 'menu', key: 0, depth: 0 };
   });
+  const screenRef = React.useRef(screen);
+  screenRef.current = screen;
+  // 이 탭에서 쌓은 화면들 (depth 번째) — 바로 앞 화면으로 돌아갈 때는 새로 쌓지 않고 history.back()
+  const stack = React.useRef([]);
+  const show = (s, cur) => {
+    getAudio().setSong(s.mode === 'menu' || s.mode === 'dict' ? 'menu' : 'game');
+    const sameDict = cur.mode === 'dict' && s.mode === 'dict'; // 백과사전 안에서 항목만 바뀌면 다시 그리지 않는다
+    window.scrollTo(0, 0);
+    setScreen({ ...s, key: sameDict ? cur.key : cur.key + 1 });
+  };
+  React.useEffect(() => {
+    stack.current[0] = screenRef.current;
+    writeHistory(screenRef.current, true);
+    const onPop = (e) => {
+      const s = e.state?.bm ? e.state : { mode: 'menu', depth: 0 };
+      const cur = screenRef.current;
+      if (sameScreen(cur, s)) { if ((cur.depth ?? 0) !== (s.depth ?? 0)) setScreen({ ...cur, depth: s.depth ?? 0 }); return; }
+      show(s, cur);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const go = (s) => {
+    const cur = screenRef.current;
+    if (sameScreen(cur, s)) return;
+    const depth = cur.depth ?? 0;
+    const prev = stack.current[depth - 1];
+    if (depth > 0 && sameScreen(prev, s)) {
+      show(prev, cur);
+      try { window.history.back(); } catch { /* history 없음 */ }
+      return;
+    }
+    const next = { ...s, depth: depth + 1 };
+    stack.current = [...stack.current.slice(0, depth + 1), next];
+    writeHistory(next, false);
+    show(next, cur);
+  };
   // open(화면, 인자, 돌아갈 곳) — 인자: 튜토리얼은 파트 번호, 스토리는 스테이지 id, 백과사전은 항목 id
   // back이 있으면(백과사전에서 들어온 경우) 나갈 때 그 항목으로 돌아간다
   const open = (mode, arg, back = null) => {
     const m = mode === 'edu' ? 'dict' : mode;
-    window.scrollTo(0, 0);
-    getAudio().setSong(m === 'menu' || m === 'dict' ? 'menu' : 'game');
-    setScreen((s) => ({
-      mode: m, key: s.key + 1, back,
-      part: m === 'tutorial' ? arg : undefined, stage: m === 'story' ? arg : undefined, entry: m === 'dict' ? arg : undefined,
-    }));
+    go({ mode: m, back, part: m === 'tutorial' ? arg : undefined, stage: m === 'story' ? arg : undefined, entry: m === 'dict' ? arg : undefined });
   };
-  const toMenu = () => open('menu');
+  const toMenu = () => go({ mode: 'menu' });
   // 베타 의견에 붙일 현재 화면 — 화면이 바뀌는 그 렌더에서 적어 둔다 (세부 위치는 각 화면의 effect가 덧붙인다)
   const ctxKey = React.useRef(null);
   if (ctxKey.current !== screen.key) {
@@ -86,7 +137,7 @@ function Screens() {
   const exit = () => (screen.back ? open('dict', screen.back.entry) : toMenu());
 
   if (screen.mode === 'dict') {
-    return <Encyclopedia key={screen.key} initialId={screen.entry} onExit={toMenu} onNavigate={(m, arg, fromId = null) => open(m, arg, { entry: fromId })} />;
+    return <Encyclopedia key={screen.key} entry={screen.entry ?? null} onEntry={(id) => go({ mode: 'dict', entry: id })} onExit={toMenu} onNavigate={(m, arg, fromId = null) => open(m, arg, { entry: fromId })} />;
   }
   if (screen.mode === 'tutorial') return <TutorialMode key={screen.key} startPart={screen.part} onExit={exit} onStory={() => open('story')} />;
   // 예전 스테이지 번호(1~4)로 들어오면 스토리 스테이지 id로 바꾼다

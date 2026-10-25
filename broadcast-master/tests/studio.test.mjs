@@ -127,3 +127,22 @@ test('studio: PTZs placed before the joystick still get distinct IPs', () => {
   assert.deepEqual(ids.slice(0, 2).map((c) => st.dev[c].ip), ['192.168.1.21', '192.168.1.22']);
   assert.equal(st.dev[ids[2]].cams.length, 4);
 });
+
+test('studio: speakers, wedges, amps and IEM come out switched off; other gear keeps its default', () => {
+  const { st, ids } = addAll(studio(), ['speaker', 'monitor', 'power_amp', 'iem', 'projector', 'par_led']);
+  assert.deepEqual(ids.map((id) => st.dev[id].power), [false, false, false, false, true, true]);
+});
+
+test('studio: a new device takes the lowest free number, so names never repeat', () => {
+  let { st, ids: [m1, m2] } = addAll(studio(), ['dynamic_mic', 'dynamic_mic']);
+  st = applyOp(st, { op: 'removeDevice', device: m1 });
+  const r = add(st, 'dynamic_mic');
+  const names = Object.values(r.st.devices).filter((d) => d.type === 'dynamic_mic').map((d) => d.name).sort();
+  assert.deepEqual(names, ['다이나믹 마이크 1', '다이나믹 마이크 2']);
+  assert.equal(r.id, m1);
+  assert.ok(r.st.devices[m2]);
+  // 세트 장비(id mic1, 이름 "다이나믹 마이크 1")가 있으면 다음 번호를 쓴다
+  const set = buildRuntime({ venue: 'sandbox', unlimited: true, devices: [{ id: 'mic1', type: 'dynamic_mic', name: '다이나믹 마이크 1', pos: [0, 0, 0] }], connections: [] });
+  const r2 = add(set, 'dynamic_mic');
+  assert.equal(r2.st.devices[r2.id].name, '다이나믹 마이크 2');
+});

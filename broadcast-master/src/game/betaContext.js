@@ -15,7 +15,7 @@ export function subscribeBeta(fn) { listeners.add(fn); fn({ ...ui }); return () 
 export function openFeedback() { ui.request += 1; emit(); }
 export function setFeedbackOpen(open) { if (ui.open !== open) { ui.open = open; emit(); } }
 export function isFeedbackOpen() { return ui.open; }
-// 게임 화면이 떠 있는 동안은 왼쪽 가장자리 탭을 숨긴다 (휴대폰에서 조작 단추를 가리지 않게)
+// 머리말에 의견 단추가 있는 화면(게임 화면·메뉴·백과사전 등)이 떠 있는 동안은 왼쪽 가장자리 탭을 숨긴다 (내용을 가리지 않게)
 export function enterGameScreen() { ui.inGame += 1; emit(); return () => { ui.inGame = Math.max(0, ui.inGame - 1); emit(); }; }
 
 // 마지막 오류 — 의견에 함께 실어 보낸다
