@@ -58,12 +58,17 @@ class CrashGuard extends React.Component {
 
 // 화면 ↔ 주소: 화면을 history에 쌓아 휴대폰 '뒤로' 버튼이 게임 안에서 이전 화면으로 가게 한다
 // (메뉴는 쿼리 없는 주소라 새로 고침하면 메뉴가 열린다)
+// 게임이 쓰는 주소 키만 바꾸고, 다른 쿼리·해시(호스팅 쪽에서 붙인 것)는 그대로 둔다
+const OUR_KEYS = ['dict', 'tutorial', 'stage', 'story', 'studio', 'auto'];
 const urlOf = (s) => {
-  const q = s.mode === 'dict' ? `?dict${s.entry ? `=${s.entry}` : ''}`
-    : s.mode === 'tutorial' ? `?tutorial${s.part != null ? `=${s.part + 1}` : ''}`
-      : s.mode === 'story' ? (s.stage ? `?stage=${s.stage}` : '?story')
-        : s.mode === 'studio' ? '?studio' : '';
-  return `${window.location.pathname}${q}`;
+  const q = new URLSearchParams(window.location.search);
+  OUR_KEYS.forEach((k) => q.delete(k));
+  if (s.mode === 'dict') q.set('dict', s.entry ?? '');
+  else if (s.mode === 'tutorial') q.set('tutorial', s.part != null ? String(s.part + 1) : '');
+  else if (s.mode === 'story') { if (s.stage) q.set('stage', s.stage); else q.set('story', ''); }
+  else if (s.mode === 'studio') q.set('studio', '');
+  const str = q.toString().replace(/=(?=&|$)/g, ''); // ?dict= → ?dict
+  return `${window.location.pathname}${str ? `?${str}` : ''}${window.location.hash}`;
 };
 function writeHistory(s, replace) {
   const state = { bm: 1, mode: s.mode, part: s.part ?? null, stage: s.stage ?? null, entry: s.entry ?? null, back: s.back ?? null, depth: s.depth ?? 0 };
