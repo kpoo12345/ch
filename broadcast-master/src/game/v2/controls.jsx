@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { clamp } from '../engine.js';
 
 /* =====================================================================
@@ -82,12 +82,34 @@ export function Seg({ value, options, onChange, small, ctl }) {
   );
 }
 
+// 단계 버튼: 한 번 누르면 1씩, 길게 누르고 있으면 계속 (DMX 주소 1 → 9처럼 여러 칸을 갈 때)
 export function Stepper({ value, min, max, onChange, width = 'w-14', fmt = (v) => v, label, ctl }) {
+  const latest = useRef(value);
+  latest.current = value;
+  const hold = useRef({ timer: null, repeated: false });
+  const stop = () => { clearTimeout(hold.current.timer); hold.current.timer = null; };
+  const step = (d) => { const n = clamp(latest.current + d, min, max); if (n !== latest.current) { latest.current = n; onChange(n); } };
+  const press = (d) => (e) => {
+    if (e.button != null && e.button !== 0) return;
+    stop();
+    hold.current.repeated = false;
+    let wait = 420;
+    const tick = () => { hold.current.repeated = true; step(d); wait = Math.max(60, wait * 0.8); hold.current.timer = setTimeout(tick, wait); };
+    hold.current.timer = setTimeout(tick, wait);
+  };
+  // 길게 눌러 이미 움직였으면 손을 뗄 때 오는 click은 건너뛴다
+  const click = (d) => () => { if (hold.current.repeated) { hold.current.repeated = false; return; } step(d); };
+  useEffect(() => stop, []);
+  const btn = (d, sym, name) => (
+    <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold touch-none select-none"
+      onPointerDown={press(d)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={(e) => e.preventDefault()}
+      onClick={click(d)} aria-label={`${label ?? ''} ${name}`} data-ctl={ctl ? `${ctl}-${d < 0 ? 'dec' : 'inc'}` : undefined}>{sym}</button>
+  );
   return (
     <div className="inline-flex items-center gap-1 rounded" aria-label={label} data-ctl={ctl}>
-      <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value - 1, min, max))} aria-label={`${label ?? ''} 감소`} data-ctl={ctl ? `${ctl}-dec` : undefined}>−</button>
+      {btn(-1, '−', '감소')}
       <span className={`${width} text-center font-mono text-sm bg-slate-950 border border-slate-700 rounded py-1 text-slate-100 tabular-nums`}>{fmt(value)}</span>
-      <button type="button" className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold" onClick={() => onChange(clamp(value + 1, min, max))} aria-label={`${label ?? ''} 증가`} data-ctl={ctl ? `${ctl}-inc` : undefined}>+</button>
+      {btn(1, '+', '증가')}
     </div>
   );
 }
