@@ -6,6 +6,7 @@ import {
 import Venue3D from '../Venue3D.jsx';
 import { hasWebGL, NoWebGL } from '../kit3d.jsx';
 import { CABLES, DEVICE_TYPES } from '../engine.js';
+import { stuckAtMixer } from '../sim.js';
 import { getAudio } from '../audio.js';
 import { setTalk, stopAllSpeech, loadVoice, loadVoiceWithin } from '../speech.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
@@ -670,6 +671,8 @@ function Unplaced({ game, only }) {
 function Status({ game }) {
   const { actual, nominal, talking } = game;
   const items = [];
+  const stuck = stuckAtMixer(game.st, nominal);
+  if (stuck) items.push(['warn', stuck]);
   if (nominal.feedback) items.push(['err', '하울링 위험! (말하면 "삐—")']);
   else if (nominal.ringing) items.push(['warn', '하울링 직전 (울림이 큼)']);
   if (nominal.clips.length) items.push(['err', `클리핑(찢어짐): ${nominal.clips.map((s) => game.st.devices[s]?.name ?? s).join(', ')}`]);

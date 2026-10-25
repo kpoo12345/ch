@@ -604,6 +604,31 @@ export function computeSim(st, { talking = true, performing = true } = {}) {
 
 /* ---------------------------- 소스 목록 ---------------------------- */
 export const voiceSources = (st) => Object.values(st.devices).filter((d) => d.placed && VOICE_TYPES.has(d.type)).map((d) => d.id);
+
+// 목소리가 믹서 채널까지는 왔는데 메인(스피커)으로 안 나갈 때: 어디서 막혔는지 한 줄로 (없으면 null)
+//  (첫 미션처럼 STEREO 페이더가 맨 아래에서 시작하면 소리가 안 나는 까닭이 화면 어디에도 없었다)
+export function stuckAtMixer(st, sim) {
+  const mid = st.mixerId;
+  if (!mid || !st.devices[mid]?.placed) return null;
+  const mains = st.connections.filter((c) => c.from.d === mid && (c.from.p === 'main' || c.from.p === 'mainR'));
+  if (!mains.length) return null;
+  const digital = st.devices[mid].type === 'digital_mixer';
+  const MAIN = digital ? 'MAIN' : 'STEREO(메인)';
+  for (const src of voiceSources(st)) {
+    if (sim.reaches(src, 'main')) continue;
+    const c = sim.channelOf(src);
+    if (!c || c.inLevel == null) continue;
+    const ch = st.channels[c.index - 1] ?? {};
+    const who = `${st.devices[src]?.name ?? src} 소리가 CH${c.index}까지 왔는데`;
+    if (ch.mute) return `${who} 채널이 꺼져 있어요 (${digital ? 'MUTE' : 'ON 단추'})`;
+    if ((ch.fader ?? 0) <= 0) return `${who} CH${c.index} 페이더가 맨 아래(-∞)예요`;
+    if (st.master.mainMute) return `${who} ${MAIN}가 꺼져 있어요`;
+    if ((st.master.mainFader ?? 0) <= 0) return `${who} ${MAIN} 페이더가 맨 아래(-∞)예요`;
+    const off = mains.map((x) => x.to.d).find((d) => st.devices[d]?.type === 'speaker' && !st.dev[d]?.power);
+    if (off) return `${who} ${st.devices[off]?.name ?? off} 전원이 꺼져 있어요 (연결을 다 했다면 이제 켜요)`;
+  }
+  return null;
+}
 export const sourceKind = (type) => (VOICE_TYPES.has(type) ? 'voice' : (type === 'e_guitar' || type === 'bass_guitar') ? 'inst' : (type === 'keyboard' || type === 'laptop' || type === 'digital_piano') ? 'line' : DRUM_MICS.has(type) ? 'drum' : null);
 export const DRUM_MICS = new Set(['kick_mic', 'snare_mic', 'overhead_mic']);
 
@@ -673,8 +698,9 @@ export function checkObjective(check, st, sim, ctx = {}) {
     case 'talkTest': return !!ctx.latched?.includes(`talk:${check.at}`);
     // 채널 설정 값 범위 (예: PAN)
     case 'chValue': { const v = st.channels[check.ch - 1]?.[check.key]; return v != null && v >= (check.min ?? -Infinity) && v <= (check.max ?? Infinity); }
-    // 디지털 믹서 입력 패치: 소스가 정해진 채널로 들어오는지
-    case 'onChannel': return channelIndexOf(st, check.source) === check.ch && sim.reaches(check.source, 'mixer');
+    // 디지털 믹서 입력 패치: 소스가 정해진 채널로 들어오는지 (패치만 본다 — 소리가 나는지는 레벨 목표가 따로 본다.
+    //  +48V를 켜기 전이라 소리가 없어도 패치를 맞게 했으면 바로 체크돼야 다른 번호를 헤매지 않는다)
+    case 'onChannel': return channelIndexOf(st, check.source) === check.ch;
     // 스피커가 켜진 채로 케이블을 꽂거나 +48V를 바꿔 "퍽" 소리가 났는지
     case 'noPop': return (!check.power || !!st.dev[check.device]?.power) && !ctx.latched?.includes(`pop:${check.device}`);
     // 페이드: 그 채널(또는 메인) 페이더를 1.5초 이상에 걸쳐 끝까지 내렸는지/올렸는지

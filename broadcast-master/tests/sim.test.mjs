@@ -1045,3 +1045,27 @@ test('engine tables: every port kind has a label, colour and mismatch tip; every
   }
   for (const c of Object.keys(CABLES)) assert.ok(Object.values(PORT_ACCEPTS).some((a) => a.includes(c)), `cable ${c} fits somewhere`);
 });
+
+test('status: a voice that reaches the mixer but not the speakers says where it stopped', async () => {
+  const { stuckAtMixer } = await import('../src/game/sim.js');
+  const { readFileSync } = await import('node:fs');
+  const STORY = JSON.parse(readFileSync(new URL('../src/game/data/story.json', import.meta.url)));
+  const spec = STORY.chapters[0].stages.find((s) => s.id === 'seminar-1');
+  const { applyOp } = await import('../src/game/ops.js');
+  let st = buildRuntime(spec);
+  for (const d of ['mic', 'mixer', 'pa']) st = applyOp(st, { op: 'place', device: d });
+  const sim = () => computeSim(st, { talking: true, performing: true });
+  assert.equal(stuckAtMixer(st, sim()), null, 'nothing wired yet: no hint');
+  st = applyOp(st, { op: 'connect', from: 'mic.out', to: 'mixer.in1', cable: 'xlr' });
+  assert.equal(stuckAtMixer(st, sim()), null, 'mixer main not wired: no hint yet');
+  st = applyOp(st, { op: 'connect', from: 'mixer.main', to: 'pa.in', cable: 'xlr' });
+  // 첫 미션은 STEREO 페이더가 맨 아래에서 시작한다
+  if (st.master.mainFader > 0) st = applyOp(st, { op: 'master', key: 'mainFader', value: 0 });
+  assert.match(stuckAtMixer(st, sim()), /CH1까지 왔는데 STEREO\(메인\) 페이더가 맨 아래/);
+  st = applyOp(st, { op: 'master', key: 'mainFader', value: 75 });
+  assert.match(stuckAtMixer(st, sim()) ?? '', /전원이 꺼져 있어요|^$/);
+  st = applyOp(st, { op: 'dev', device: 'pa', key: 'power', value: true });
+  assert.equal(stuckAtMixer(st, sim()), null, 'heard in the room: no hint');
+  st = applyOp(st, { op: 'ch', ch: 1, key: 'mute', value: true });
+  assert.match(stuckAtMixer(st, sim()), /채널이 꺼져 있어요/);
+});
