@@ -62,7 +62,7 @@ export function Toggle({ on, onClick, children, color = 'red', title, small, dis
   }[color];
   return (
     <button type="button" title={title} onClick={onClick} disabled={disabled} aria-pressed={!!on} data-ctl={ctl}
-      className={`${small ? 'px-1.5 py-0.5 text-[9px]' : 'px-2.5 py-1 text-xs'} rounded border font-bold tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-40 ${on ? onCls : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}>
+      className={`${small ? 'px-1.5 py-0.5 text-[9px] pointer-coarse:min-h-8 pointer-coarse:px-2 pointer-coarse:text-[10px]' : 'px-2.5 py-1 text-xs pointer-coarse:min-h-9'} rounded border font-bold tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-40 ${on ? onCls : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}>
       {children}
     </button>
   );
@@ -74,7 +74,7 @@ export function Seg({ value, options, onChange, small, ctl }) {
     <div className="inline-flex flex-wrap rounded-md border border-slate-600 overflow-hidden" data-ctl={ctl}>
       {options.map(([v, label]) => (
         <button key={String(v)} type="button" onClick={() => onChange(v)} aria-pressed={value === v} data-ctl={ctl ? `${ctl}-${v}` : undefined}
-          className={`${small ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs'} font-semibold border-r border-slate-700 last:border-r-0 ${value === v ? 'bg-sky-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+          className={`${small ? 'px-1.5 py-0.5 text-[10px] pointer-coarse:min-h-8 pointer-coarse:px-2' : 'px-2 py-1 text-xs pointer-coarse:min-h-9'} font-semibold border-r border-slate-700 last:border-r-0 ${value === v ? 'bg-sky-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
           {label}
         </button>
       ))}

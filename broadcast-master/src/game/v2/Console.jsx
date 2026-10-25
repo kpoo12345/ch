@@ -80,12 +80,15 @@ export default function Console({ game, compact }) {
             </div>
             {digital ? (
               <>
-                <select value={ch.patch ?? `local${c}`} onChange={(e) => apply({ op: 'ch', ch: c, key: 'patch', value: e.target.value, ...mx })} data-ctl={`ch${c}-patch`}
-                  className="w-full min-h-[24px] text-[10px] font-bold bg-slate-950 border border-slate-600 rounded text-slate-200" aria-label={`CH${c} 입력 패치`} title="이 채널로 들어올 입력 (LOCAL = 믹서 뒷면 입력 번호)">
-                  {/* 좁은 칸에서도 번호가 보이게 "IN:" 없이 */}
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={`local${k}`}>LOCAL {k}</option>)}
-                  <option value="off">OFF</option>
-                </select>
+                {/* 좁은 칸에서도 "LOCAL 3"이 다 보이게: 기본 화살표를 빼고 작은 ▾만 */}
+                <div className="relative w-full">
+                  <select value={ch.patch ?? `local${c}`} onChange={(e) => apply({ op: 'ch', ch: c, key: 'patch', value: e.target.value, ...mx })} data-ctl={`ch${c}-patch`}
+                    className="w-full min-h-[24px] pointer-coarse:min-h-8 appearance-none pl-0.5 pr-2.5 text-center text-[10px] font-bold bg-slate-950 border border-slate-600 rounded text-slate-200" aria-label={`CH${c} 입력 패치`} title="이 채널로 들어올 입력 (LOCAL = 믹서 뒷면 입력 번호)">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={`local${k}`}>LOCAL {k}</option>)}
+                    <option value="off">OFF</option>
+                  </select>
+                  <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-slate-400" aria-hidden="true">▾</span>
+                </div>
                 <Toggle small ctl={`ch${c}-phantom`} on={ch.phantom} color="amber" onClick={() => tog(c, 'phantom')} title="+48V 팬텀 전원 (콘덴서 마이크용) — 디지털 믹서는 입력마다 켭니다">+48V</Toggle>
               </>
             ) : (
@@ -164,7 +167,7 @@ export default function Console({ game, compact }) {
         {digital && (
           <label className="w-full text-[9px] text-slate-400">USB 출력
             <select value={M.usbOut} onChange={(e) => mapply('usbOut', e.target.value)} data-ctl="master-usbOut"
-              className="w-full text-[10px] bg-slate-950 border border-slate-600 rounded text-slate-200">
+              className="w-full min-h-[24px] pointer-coarse:min-h-8 text-[10px] bg-slate-950 border border-slate-600 rounded text-slate-200">
               <option value="main">Main L/R</option><option value="aux1">AUX 1</option><option value="off">OFF</option>
             </select>
           </label>

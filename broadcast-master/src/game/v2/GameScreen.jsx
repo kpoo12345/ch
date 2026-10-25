@@ -561,7 +561,7 @@ const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2,
 function ViewBtn({ on, onClick, icon: Icon, label }) {
   return (
     <button type="button" onClick={onClick} title={label} aria-label={label} aria-pressed={on}
-      className={`p-1.5 rounded-md border backdrop-blur ${on ? 'bg-sky-500/80 border-sky-300 text-white' : 'bg-slate-900/70 border-slate-700 text-slate-300 hover:bg-slate-800'}`}>
+      className={`p-1.5 pointer-coarse:p-2 rounded-md border backdrop-blur ${on ? 'bg-sky-500/80 border-sky-300 text-white' : 'bg-slate-900/70 border-slate-700 text-slate-300 hover:bg-slate-800'}`}>
       <Icon size={15} />
     </button>
   );
