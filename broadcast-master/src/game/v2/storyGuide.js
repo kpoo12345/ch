@@ -15,7 +15,8 @@
  * 끝없이 되풀이된다). 대신 각 조작의 마지막 값만 보고 어긋난 곳(driftStep)을 짚고, 그다음 남은 목표에
  * 맞춘 할 일(finishSteps), 그래도 없으면 남은 목표를 보여 준다.
  * ===================================================================== */
-import { buildRuntime, framingOf } from '../sim.js';
+import { buildRuntime, framingOf, COLOR_NAMES, colorFamily } from '../sim.js';
+import { faderDb, fmtDb, CABLES, DEVICE_TYPES } from '../engine.js';
 import { applyOp } from '../ops.js';
 import { opSatisfied, ptzCamOf } from './useGame.js';
 
@@ -130,52 +131,128 @@ export function finishSteps(unmet = [], plan = []) {
 
 // 카드에 보여 줄 "지금 할 일" 한 줄 (손잡이·버튼은 목표 값까지)
 const CH_KEY = { gain: 'GAIN', fader: '페이더', aux: 'AUX1', aux2: 'AUX2', fx: 'EFFECT', pan: 'PAN', eqHigh: 'EQ HIGH', eqMid: 'EQ MID', eqLow: 'EQ LOW', eqFreq: 'EQ FREQ', lowCutFreq: 'LOW CUT 주파수', comp: 'COMP' };
-const MASTER_KEY = { mainFader: 'STEREO(메인) 페이더', auxMaster: 'AUX 마스터', aux2Master: 'AUX2 마스터', fxReturn: 'FX RETURN', phonesLevel: '헤드폰 볼륨' };
+const MASTER_KEY = { auxMaster: 'AUX 마스터', aux2Master: 'AUX2 마스터', fxReturn: 'FX RETURN', phonesLevel: '헤드폰 볼륨' };
 const onOff = (v) => (v ? '켜세요' : '끄세요');
-// 숫자 뒤 "(으)로": 끝자리를 읽었을 때 받침이 ㅇ·ㅁ·ㄱ이면 "으로" (영·삼·육), 나머지는 "로"
-const ro = (n) => (/[036]$/.test(String(n)) ? '으로' : '로');
+// 조사: 끝소리에 받침이 있는지 — 한글은 종성, 숫자는 읽는 소리(영·일·삼·육·칠·팔), 영문은 L·M·N·R(엘·엠·엔·알)
+// 끝의 괄호 설명은 빼고 읽는다: "액티브 스피커 (강연자 바로 앞)" → 스피커
+const lastOf = (w) => String(w ?? '').trim().replace(/\s*\([^()]*\)$/, '').replace(/[)\]'"°%]+$/, '').slice(-1);
+const batchim = (w) => {
+  const c = lastOf(w);
+  const n = c.charCodeAt(0) - 0xac00;
+  if (n >= 0 && n < 11172) return n % 28 === 0 ? null : n % 28 === 8 ? 'ㄹ' : 'x';
+  if (/[0-9]/.test(c)) return '178'.includes(c) ? 'ㄹ' : '036'.includes(c) ? 'x' : null;
+  return /[lr]/i.test(c) ? 'ㄹ' : /[mn]/i.test(c) ? 'x' : null;
+};
+export const eul = (w) => `${w}${batchim(w) ? '을' : '를'}`;
+// "(으)로": 받침이 없거나 ㄹ이면 "로", 다른 받침이면 "으로"
+const ro = (w) => (batchim(w) === 'x' ? '으로' : '로');
+// 페이더는 눈금(dB)으로 읽는다: 75 = 0 dB, 0 = 맨 아래(-∞) — 페이더 옆 숫자도 dB로 보인다
+const faderMark = (v) => (v <= 0 ? '맨 아래(-∞)' : v === 75 ? '0 눈금(0 dB)' : fmtDb(faderDb(v)).replace('.0 dB', ' dB'));
+const mainLabel = (st) => (st?.devices?.[st?.mixerId]?.type === 'digital_mixer' ? 'MAIN 페이더' : 'STEREO(메인) 페이더');
+const portName = (st, d, p) => { const def = DEVICE_TYPES[st?.devices?.[d]?.type]; return [...(def?.ins ?? []), ...(def?.outs ?? [])].find((x) => x.id === p)?.label ?? p; };
+const OBS_VIDEO = { none: '없음', atem: 'ATEM (USB 웹캠)' };
+const OBS_AUDIO = { none: '없음', builtin: 'PC 내장 마이크', mixer: '믹서 USB', interface: '오디오 인터페이스', atem: 'ATEM (USB)' };
+const MEDIA_OUT = { comp: '컴포지션', layer1: 'L1', layer2: 'L2', layer3: 'L3', off: 'OFF' };
+
+// 장비 패널 조작(dev)을 패널에 적힌 이름으로
+function devText(op, name) {
+  const k = op.key, v = op.value, d = name(op.device);
+  let m;
+  if (k === 'power') return `${d} 전원을 ${onOff(v)}.`;
+  if (k === 'address') { const a = String(v).padStart(3, '0'); return `${d}의 DMX 주소를 ${a}${ro(a)} 맞추세요.`; }
+  if (k === 'ip') return `${d} IP를 ${v}${ro(v)} 바꾸세요.`;
+  if (k === 'programmer') return '조명 콘솔의 CLEAR를 눌러 프로그래머를 비우세요.';
+  if (k === 'programmer.sel') return `조명 콘솔 프로그래머에서 ${[].concat(v).join('·')}번 조명을 고르세요.`;
+  if (k === 'programmer.intensity') return `프로그래머 밝기(Intensity)를 ${v}%로 맞추세요.`;
+  if (k === 'programmer.color') { const c = COLOR_NAMES[colorFamily(v)] ?? '반짝이는 색'; return `프로그래머 색을 ${c}${ro(c)} 고르세요.`; }
+  if (k === 'programmer.pan' || k === 'programmer.tilt') return `프로그래머 ${k.endsWith('pan') ? 'PAN을' : 'TILT를'} ${v}°로 맞추세요.`;
+  if ((m = /^playbacks\.(\d+)\.level$/.exec(k))) return `조명 콘솔 플레이백 ${Number(m[1]) + 1}번 페이더를 ${v >= 100 ? '끝까지 올리세요' : v <= 0 ? '맨 아래로 내리세요' : `${v}%로 맞추세요`}.`;
+  if (k === 'blackout') return `조명 콘솔 BLACKOUT을 ${v ? '켜세요' : '푸세요'}.`;
+  if (k === 'gm') return `조명 콘솔 GM(그랜드 마스터)을 ${v}%로 맞추세요.`;
+  if (k === 'terminated') return `${d}의 DMX 출력에 터미네이터를 ${v ? '꽂으세요' : '빼세요'}.`;
+  if ((m = /^layers\.(\d+)\.opacity$/.exec(k))) return `${d} ${Number(m[1]) + 1}번 레이어의 불투명도(Opacity)를 ${v}${ro(v)} 맞추세요.`;
+  if (k === 'out1' || k === 'out2') { const o = MEDIA_OUT[v] ?? v; return `${d} ${eul(`출력 ${k === 'out1' ? 1 : 2}`)} ${o}${ro(o)} 바꾸세요.`; }
+  if (k === 'compRes') { const r = String(v).replace('x', '×'); return `${d} 컴포지션 해상도를 ${r}${ro(r)} 바꾸세요.`; }
+  if ((m = /^in\.(\d+)\.(gain|phantom|inst)$/.exec(k))) {
+    const inp = `INPUT ${Number(m[1]) + 1}`;
+    if (m[2] === 'gain') return `${d} ${inp} GAIN을 ${v}에 맞추세요.`;
+    return `${d} ${inp}의 ${m[2] === 'phantom' ? '+48V' : 'INST'}를 ${onOff(v)}.`;
+  }
+  if (k === 'direct') return `${d}의 DIRECT MONITOR를 ${onOff(v)}.`;
+  if (k === 'rxChannel' || k === 'txChannel') return `${d} ${k === 'rxChannel' ? '수신기' : '송신기'} 채널을 ${v}번으로 맞추세요.`;
+  if (k === 'txPower') return `${d} 송신기 전원을 ${onOff(v)}.`;
+  if (k === 'battery') return `${d} 배터리를 새것으로 갈아 끼우세요.`;
+  if (k === 'groundLift') return `${d}의 GROUND LIFT를 ${onOff(v)}.`;
+  if (k === 'clean') return `${d}의 클린 HDMI를 ${onOff(v)}.`;
+  if (typeof v === 'number') return `${d} 패널에서 반짝이는 값을 ${v}에 맞추세요.`;
+  if (typeof v === 'boolean') return `${d} 패널에서 반짝이는 단추를 ${onOff(v)}.`;
+  return null;
+}
+
 export function guideText(op, st) {
   const name = (d) => st?.devices?.[d]?.name ?? d;
   switch (op?.op) {
     case 'place': return `미션 탭에서 반짝이는 "+ ${name(op.device)} 배치"를 누르세요.`;
-    case 'disconnect': return '반짝이는 케이블의 "분리"를 누르세요.';
-    case 'move': return `${name(op.device)}를 반짝이는 자리로 옮기세요.`;
+    case 'disconnect':
+      if (op.blocker) { const [fd, fp] = op.from.split('.'), [td, tp] = op.to.split('.'); return `꽂을 자리에 다른 케이블(${name(fd)} ${portName(st, fd, fp)} → ${name(td)} ${portName(st, td, tp)})이 있어요. 반짝이는 "분리"를 눌러 먼저 빼세요.`; }
+      return '반짝이는 케이블의 "분리"를 누르세요.';
+    case 'connect': { const c = CABLES[op.cable]?.name ?? `${op.cable} 케이블`; return `반짝이는 단자 두 곳을 ${c}${ro(c)} 이으세요.`; }
+    case 'move': return `${eul(name(op.device))} 반짝이는 자리로 옮기세요.`;
     case 'talk': return '아래 "자동 말하기"를 켜거나 "말하기"를 누르고 있어 보세요.';
     case 'fade': {
-      const who = op.ch ? `CH${op.ch}` : 'STEREO';
+      const who = op.ch ? `CH${op.ch} 페이더` : mainLabel(st);
       const now = op.ch ? st?.channels?.[op.ch - 1]?.fader : st?.master?.mainFader;
       // 이미 목표 자리에 있으면 페이드를 할 수 없다 → 반대쪽 끝으로 먼저
-      if (now != null && Math.abs(now - op.to) <= 3) return `${who} 페이더를 먼저 ${op.to <= 3 ? '75까지 올린' : '맨 아래로 내린'} 다음, 2~3초에 걸쳐 천천히 ${op.to}까지 움직이세요.`;
-      return `믹서 콘솔에서 ${who} 페이더를 2~3초에 걸쳐 천천히 ${op.to}까지 움직이세요.`;
+      if (now != null && Math.abs(now - op.to) <= 3) return `${eul(who)} 먼저 ${op.to <= 3 ? '0 눈금(0 dB)까지 올린' : '맨 아래(-∞)로 내린'} 다음, 2~3초에 걸쳐 천천히 ${faderMark(op.to)}까지 움직이세요.`;
+      return `믹서 콘솔에서 ${eul(who)} 2~3초에 걸쳐 천천히 ${faderMark(op.to)}까지 움직이세요.`;
     }
     case 'ch': {
-      const k = op.key;
-      if (k === 'mute') return `믹서 콘솔 CH${op.ch}를 ${op.value ? '끄세요 (MUTE)' : '켜세요 (ON)'}.`;
-      if (k === 'phantom') return `믹서 콘솔 CH${op.ch} +48V를 ${onOff(op.value)}.`;
-      if (k === 'lowCut') return `믹서 콘솔 CH${op.ch} LOW CUT을 ${onOff(op.value)}.`;
-      if (k === 'pfl') return `믹서 콘솔 CH${op.ch} PFL을 ${onOff(op.value)}.`;
-      if (k === 'pad') return `믹서 콘솔 CH${op.ch} PAD를 ${onOff(op.value)}.`;
-      if (k === 'patch') return `믹서 콘솔 CH${op.ch} 입력 패치를 ${String(op.value).replace('local', 'LOCAL ')}로 바꾸세요.`;
-      if (typeof op.value === 'number') return `믹서 콘솔 CH${op.ch} ${CH_KEY[k] ?? k} 값을 ${op.value}에 맞추세요.`;
+      const k = op.key, c = `CH${op.ch}`;
+      if (k === 'mute') return `믹서 콘솔 ${eul(c)} ${op.value ? '끄세요 (MUTE)' : '켜세요 (ON)'}.`;
+      if (k === 'phantom') return `믹서 콘솔 ${c} +48V를 ${onOff(op.value)}.`;
+      if (k === 'lowCut') return `믹서 콘솔 ${c} LOW CUT을 ${onOff(op.value)}.`;
+      if (k === 'pfl') return `믹서 콘솔 ${c} PFL을 ${onOff(op.value)}.`;
+      if (k === 'pad') return `믹서 콘솔 ${c} PAD를 ${onOff(op.value)}.`;
+      if (k === 'patch') { const l = String(op.value).replace('local', 'LOCAL '); return `믹서 콘솔 ${c} 입력 패치를 ${l}${ro(l)} 바꾸세요.`; }
+      if (k === 'fader') return `믹서 콘솔 ${c} 페이더를 ${faderMark(op.value)}에 맞추세요.`;
+      if (k === 'gain') return `믹서 콘솔 ${c} GAIN을 +${op.value} dB에 맞추세요.`;
+      if (k === 'pan') { const v = op.value === 0 ? '가운데(C)' : op.value < 0 ? `L${-op.value}` : `R${op.value}`; return `믹서 콘솔 ${c} PAN을 ${v}에 맞추세요.`; }
+      if (/^eq(High|Mid|Low)$/.test(k)) return `믹서 콘솔 ${c} ${CH_KEY[k]}를 ${op.value > 0 ? '+' : ''}${op.value}에 맞추세요.`;
+      if (k === 'eqFreq') return `믹서 콘솔 ${c} EQ FREQ를 ${op.value >= 1000 ? `${op.value / 1000}k` : op.value}에 맞추세요.`;
+      if (typeof op.value === 'number') return `믹서 콘솔 ${c} ${CH_KEY[k] ?? k} 값을 ${op.value}에 맞추세요.`;
       break;
     }
     case 'master': {
       if (op.key === 'phantom') return `믹서 콘솔 MASTER의 +48V를 ${onOff(op.value)}.`;
       if (op.key === 'mainMute') return `믹서 콘솔 STEREO(메인)를 ${op.value ? '끄세요' : '켜세요 (ST ON)'}.`;
-      if (op.key === 'usbOut') return `믹서 콘솔 MASTER에서 USB 출력을 ${op.value === 'main' ? 'Main L/R' : op.value}로 바꾸세요.`;
+      if (op.key === 'usbOut') { const o = op.value === 'main' ? 'Main L/R' : op.value; return `믹서 콘솔 MASTER에서 USB 출력을 ${o}${ro(o)} 바꾸세요.`; }
+      if (op.key === 'mainFader') return `믹서 콘솔 ${eul(mainLabel(st))} ${faderMark(op.value)}에 맞추세요.`;
       if (typeof op.value === 'number') return `믹서 콘솔 ${MASTER_KEY[op.key] ?? op.key} 값을 ${op.value}에 맞추세요.`;
       break;
     }
-    case 'dev': {
-      if (op.key === 'power') return `${name(op.device)} 전원을 ${onOff(op.value)}.`;
-      if (op.key === 'address') return `${name(op.device)}의 DMX 주소를 ${String(op.value).padStart(3, '0')}${ro(op.value)} 맞추세요.`;
-      if (typeof op.value === 'number') return `${name(op.device)} 패널에서 반짝이는 값을 ${op.value}에 맞추세요.`;
-      if (typeof op.value === 'boolean') return `${name(op.device)} 패널에서 반짝이는 단추를 ${onOff(op.value)}.`;
+    case 'dev': { const t = devText(op, name); if (t) return t; break; }
+    case 'atem': {
+      const k = op.key;
+      if (k === 'program') return `스위처 PROGRAM 줄에서 ${op.value}번을 누르세요.`;
+      if (k === 'preview') return `스위처 PREVIEW 줄에서 ${op.value}번을 누르세요.`;
+      if (k === 'cut') return '스위처의 CUT을 누르세요.';
+      if (k === 'auto') return '스위처의 AUTO를 누르세요.';
+      if (k === 'streaming') return `스위처의 ON AIR를 ${onOff(op.value)}.`;
+      if (k === 'recording') return `스위처의 REC를 ${onOff(op.value)}.`;
+      if (k === 'pip') return `스위처의 PIP를 ${onOff(op.value)}.`;
+      break;
+    }
+    case 'obs': {
+      const k = op.key;
+      if (k === 'video') { const o = OBS_VIDEO[op.value] ?? op.value; return `PC(OBS)에서 영상 소스를 ${o}${ro(o)} 고르세요.`; }
+      if (k === 'audio') { const o = OBS_AUDIO[op.value] ?? op.value; return `PC(OBS)에서 오디오 소스를 ${o}${ro(o)} 고르세요.`; }
+      if (k === 'streaming') return `PC(OBS)에서 ${op.value ? '방송 시작' : '방송 중지'}을 누르세요.`;
+      if (k === 'muted') return `PC(OBS) 오디오 MUTE를 ${op.value ? '켜세요' : '푸세요'}.`;
       break;
     }
     case 'lightRecord': return `프로그래머에서 장면을 만든 다음 RECORD → ${op.index}번 플레이백의 파란 버튼을 누르세요.`;
     case 'ptz':
-      if (op.act === 'select') return `${name(op.device)}에서 CAM ${op.value + 1}을 고르세요.`;
+      if (op.act === 'select') return `${name(op.device)}에서 ${eul(`CAM ${op.value + 1}`)} 고르세요.`;
       if (op.act === 'store') return `STORE를 누르고 ${op.value}번 버튼을 누르세요.`;
       if (op.act === 'recall') return `${op.value}번 프리셋 버튼을 누르세요.`;
       if (op.act === 'aim') return '조이스틱(판·화살표)과 ZOOM으로 구도를 맞추세요. 패널의 "구도" 이름을 보세요.';
@@ -183,6 +260,17 @@ export function guideText(op, st) {
     default:
   }
   return op?.op === 'ch' || op?.op === 'master' ? '믹서 콘솔에서 반짝이는 곳을 맞추세요.' : '장비 패널에서 반짝이는 곳을 맞추세요.';
+}
+
+// 꽂아야 할 단자를 다른 케이블이 차지하고 있으면(잘못 꽂은 케이블, DMX 자리의 마이크 선) 그 케이블부터 빼는 단계 (없으면 null)
+//  — 그대로 두면 단자를 눌러도 "이미 케이블이 꽂힌 단자"라 길잡이가 막힌다
+export function unblockStep(op, st) {
+  if (op?.op !== 'connect' || !st?.connections || opSatisfied(st, op)) return null;
+  const end = (x) => { const [d, p] = String(x).split('.'); return { d, p }; };
+  const a = end(op.from), b = end(op.to);
+  const at = (e, x) => e.d === x.d && e.p === x.p;
+  const c = st.connections.find((x) => [a, b].some((e) => at(x.from, e) || at(x.to, e)));
+  return c ? { op: 'disconnect', from: `${c.from.d}.${c.from.p}`, to: `${c.to.d}.${c.to.p}`, id: c.id, blocker: true } : null;
 }
 
 // 안전 · 되돌리기: 지금 단계를 하기 전에 앞 단계가 풀렸으면 그 단계로 돌아간다 (돌아갈 곳의 번호, 없으면 null)

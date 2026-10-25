@@ -13,7 +13,7 @@ const server = await createServer({
   server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] },
 });
 after(() => server.close());
-const { planOf, skipDone, doneLive, doneNow, finishSteps, guideText, advanceGuide } = await server.ssrLoadModule('/src/game/v2/storyGuide.js');
+const { planOf, skipDone, doneLive, doneNow, finishSteps, guideText, advanceGuide, unblockStep } = await server.ssrLoadModule('/src/game/v2/storyGuide.js');
 const { ctlKeysOf } = await server.ssrLoadModule('/src/game/v2/practiceTarget.js');
 const { buildRuntime, computeSim, checkObjective } = await server.ssrLoadModule('/src/game/sim.js');
 const { applyOp, noteOnAirMove, notePop, latchTalk } = await server.ssrLoadModule('/src/game/ops.js');
@@ -138,11 +138,28 @@ test('story guide finish steps: a pop from powering the speaker too early is fix
 
 test('story guide text names the target value and reads naturally', () => {
   const st = { devices: { p2: { name: '앞 조명 R' } } };
-  assert.equal(guideText({ op: 'ch', ch: 2, key: 'gain', value: 0 }, st), '믹서 콘솔 CH2 GAIN 값을 0에 맞추세요.');
+  assert.equal(guideText({ op: 'ch', ch: 2, key: 'gain', value: 0 }, st), '믹서 콘솔 CH2 GAIN을 +0 dB에 맞추세요.');
+  // 페이더는 화면에 보이는 눈금(dB)으로 말한다: 75 = 0 dB, 0 = 맨 아래
+  assert.equal(guideText({ op: 'master', key: 'mainFader', value: 75 }, st), '믹서 콘솔 STEREO(메인) 페이더를 0 눈금(0 dB)에 맞추세요.');
+  assert.equal(guideText({ op: 'ch', ch: 3, key: 'fader', value: 60 }, st), '믹서 콘솔 CH3 페이더를 -12 dB에 맞추세요.');
+  assert.match(guideText({ op: 'fade', ch: 9, to: 0 }, st), /CH9 페이더를 2~3초에 걸쳐 천천히 맨 아래\(-∞\)까지/);
+  // 을/를은 끝소리로: CH1을 · CH2를 · CAM 4를 · CAM 3을
+  assert.equal(guideText({ op: 'ch', ch: 1, key: 'mute', value: false }, st), '믹서 콘솔 CH1을 켜세요 (ON).');
+  assert.equal(guideText({ op: 'ch', ch: 2, key: 'mute', value: true }, st), '믹서 콘솔 CH2를 끄세요 (MUTE).');
+  assert.match(guideText({ op: 'ptz', device: 'joy', act: 'select', value: 3 }, st), /CAM 4를 고르세요/);
+  assert.match(guideText({ op: 'ptz', device: 'joy', act: 'select', value: 2 }, st), /CAM 3을 고르세요/);
+  assert.equal(guideText({ op: 'move', device: 'pa' }, { devices: { pa: { name: '액티브 스피커 (강연자 바로 앞)' } } }), '액티브 스피커 (강연자 바로 앞)를 반짝이는 자리로 옮기세요.');
   assert.equal(guideText({ op: 'dev', device: 'p2', key: 'address', value: 9 }, st), '앞 조명 R의 DMX 주소를 009로 맞추세요.');
   assert.equal(guideText({ op: 'dev', device: 'p2', key: 'address', value: 30 }, st), '앞 조명 R의 DMX 주소를 030으로 맞추세요.');
   // 정답 계획의 모든 단계가 빈 말 없이 설명된다
-  for (const spec of stages) for (const x of planOf(spec)) assert.ok(!/undefined|null/.test(guideText(x.op, buildRuntime(spec))), `${spec.id} ${x.i}`);
+  // 그리고 "반짝이는 곳을 맞추세요" 같은 막연한 말 없이 무엇을 어떻게 할지 이름으로 말한다
+  for (const spec of stages) {
+    for (const x of planOf(spec)) {
+      const t = guideText(x.op, buildRuntime(spec));
+      assert.ok(!/undefined|null|NaN/.test(t), `${spec.id} ${x.i}: ${t}`);
+      assert.ok(!/반짝이는 (곳을|값을|단추를) 맞추세요|반짝이는 단추를 (켜|끄)세요/.test(t), `${spec.id} ${x.i} is vague: ${t}`);
+    }
+  }
 });
 
 // 플레이어는 정답 값을 정확히 맞추지 않는다: 길잡이가 넘어가는 범위(손잡이 ±2, 페이더 ±3) 안에서
@@ -267,7 +284,44 @@ test('seminar-4: a fader yanked to 0 first is rescued by raising it and fading s
   assert.ok(fade, 'seminar-4 has a fade-out');
   const p = player(spec);
   p.act({ op: 'ch', ch: fade.op.ch, key: 'fader', value: 0 }); // 뚝 내려 버렸다
-  assert.match(guideText(fade.op, p.st), /먼저 75까지 올린 다음/);
+  assert.match(guideText(fade.op, p.st), /먼저 0 눈금\(0 dB\)까지 올린 다음/);
   const r = runGuide(spec, p);
   assert.equal(r.cleared, true, `left ${r.left}`);
+});
+
+// 초보자가 엉뚱한 케이블을 먼저 꽂아 둔 자리: 길잡이는 그 케이블 빼기부터 짚고, 빼고 나면 원래 연결로 돌아온다
+test('story guide unplugs a wrong cable that blocks the port it wants, then connects', () => {
+  const spec = stages.find((s) => s.id === 'seminar-1');
+  const plan = planOf(spec);
+  const p = player(spec);
+  // 놓기·마이크 연결까지 길잡이대로
+  let k = skipDone(plan, 0, p.st, p.ctx());
+  while (plan[k].op.op !== 'connect' || !/\.in$/.test(plan[k].op.to)) { p.act(plan[k].op); k = skipDone(plan, k + 1, p.st, p.ctx()); }
+  const want = plan[k].op;
+  assert.equal(unblockStep(want, p.st), null, 'nothing blocks yet');
+  // 실수: AUX SEND 1을 스피커 INPUT에 (6.3mm)
+  const mixer = want.from.split('.')[0];
+  p.act({ op: 'connect', from: `${mixer}.aux1`, to: want.to, cable: 'trs' });
+  const un = unblockStep(want, p.st);
+  assert.ok(un && un.op === 'disconnect' && un.blocker, 'the wrong cable is pointed at');
+  assert.match(guideText(un, p.st), /다른 케이블\(.*AUX SEND 1.*→.*INPUT\)이 있어요/);
+  assert.ok(ctlKeysOf(un, p.st).length > 0, 'its unplug button can be flashed');
+  p.act(un);
+  assert.equal(unblockStep(want, p.st), null, 'unblocked');
+  // 그다음은 원래 단계 그대로 따라가서 끝난다
+  followGuide(spec, plan, p);
+  assert.deepEqual(p.cleared(), [], 'objectives left');
+});
+
+test('story guide treats a mic cable in a DMX step as blocking until it is swapped', () => {
+  const spec = stages.find((s) => s.id === 'light-1');
+  const plan = planOf(spec);
+  const want = plan.find((x) => x.op.op === 'connect' && x.op.cable === 'dmx').op;
+  const p = player(spec);
+  p.act({ ...want, cable: 'xlr' });
+  const un = unblockStep(want, p.st);
+  assert.ok(un?.blocker, 'the XLR cable in the DMX port has to come out first');
+  p.act(un);
+  p.act(want);
+  assert.equal(unblockStep(want, p.st), null);
 });

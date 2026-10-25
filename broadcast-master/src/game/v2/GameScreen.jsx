@@ -10,7 +10,7 @@ import { getAudio } from '../audio.js';
 import { setTalk, stopAllSpeech, loadVoice, loadVoiceWithin } from '../speech.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
 import { useGame, useScriptPlayer, faultText, waitingFor } from './useGame.js';
-import { planOf, skipDone, guideText, advanceGuide } from './storyGuide.js';
+import { planOf, skipDone, guideText, advanceGuide, unblockStep } from './storyGuide.js';
 import Console from './Console.jsx';
 import { DevicePanel } from './DevicePanels.jsx';
 import PortBoard from './PortBoard.jsx';
@@ -94,7 +94,11 @@ export default function GameScreen({
   };
   const gSteps = gList ?? plan;
   const guiding = guideOn && !player.script && !cleared;
-  const storyAsk = guiding && gCur < gSteps.length ? waitingFor(gSteps[gCur].op, `g${gPhase}${gCur}:${gSteps[gCur].i}`) : null;
+  // 꽂을 자리를 다른 케이블이 막고 있으면 그 케이블 빼기부터 짚는다
+  const gItem = guiding && gCur < gSteps.length ? gSteps[gCur] : null;
+  const gBlock = gItem ? unblockStep(gItem.op, st) : null;
+  const gShown = gBlock ? { ...gItem, op: gBlock, step: { ...gItem.step, say: '새 케이블을 꽂을 자리를 다른 케이블이 차지하고 있어요. 한 단자에는 케이블 하나만 꽂히니까 먼저 빼고 다시 꽂아요.' } } : gItem;
+  const storyAsk = gItem ? waitingFor(gShown.op, `g${gPhase}${gCur}:${gItem.i}${gBlock ? `:unplug:${gBlock.id}` : ''}`) : null;
   // 짚을 할 일을 다 했는데도 안 끝났을 때 보여 줄 남은 목표
   const guideLeft = guiding && gCur >= gSteps.length ? game.objectives.filter((o) => !o.ok) : null;
   // 지금 짚을 단계: 튜토리얼 "직접 해 보기" 또는 스토리 길잡이
@@ -439,11 +443,11 @@ export default function GameScreen({
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={chooseListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
           {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} />}
-          {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
+          {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gShown} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gShown.op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
           {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
         {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} inline />}
-        {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
+        {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gShown} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gShown.op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
 
         {/* 사이드 패널 */}
         <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'flex-1'} lg:h-auto lg:flex-none`}>

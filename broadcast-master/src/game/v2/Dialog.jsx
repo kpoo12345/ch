@@ -15,7 +15,7 @@ const SPEEDS = [1, 1.5, 2];
 
 const LAB_NAME = { fade: '페이드 실습실', eq: 'EQ 실습실', fx: '울림(리버브) 실습실' };
 
-export default function Dialog({ player, tutorial, speaker = '선배 엔지니어', onLab, inline = false, guide = null, redo = null }) {
+export default function Dialog({ player, tutorial, speaker = null, onLab, inline = false, guide = null, redo = null }) {
   const { script, narration, waiting, speaking, praised, quiz } = player;
   const [shown, setShown] = useState(0);
   // 설명 카드 접기: 직접 해 보는 동안은 저절로 접어 대상이 가려지지 않게, X로 접은 카드는 그 장면 동안 접힌 채로
@@ -83,7 +83,8 @@ export default function Dialog({ player, tutorial, speaker = '선배 엔지니�
   const n = narration?.n ?? script.steps.length;
   const i = narration?.i ?? script.i;
   const who = narration?.who === 'junior' ? 'junior' : 'senior';
-  const sp = tutorial ? SPEAKERS[who] : { name: speaker };
+  // 스토리 정답 보기도 튜토리얼과 같은 선배(서진)가 설명한다 — 길잡이 카드와 이름을 맞춘다
+  const sp = speaker ? { name: speaker } : SPEAKERS[who];
   const junior = who === 'junior';
   return (
     // 3D 화면 안에서만 (카드가 커도 위쪽 머리말 단추를 덮지 않는다). 좁은 화면에선 3D 아래 줄에 (inline)
