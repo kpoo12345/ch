@@ -127,7 +127,7 @@ export const EDU_ITEMS = [
   {
     id: 'condenser_mic', cat: '마이크', kind: 'device', type: 'condenser_mic', part: 1, stage: ['youtube-1', 'crisis-2'], photo: 'mic_condenser',
     title: '콘덴서 마이크', subtitle: 'Condenser Microphone · 스튜디오용',
-    aka: ['콘덴서', '스튜디오 마이크', '대형 진동판', 'condenser', '+48V'],
+    aka: ['콘덴서', '스튜디오 마이크', '대형 진동판', 'condenser', '+48V', '팬텀', '팬텀 전원', '팬텀 파워', 'phantom', 'phantom power'],
     def: '+48V 팬텀 전원으로 동작하는 섬세한 고감도 마이크.',
     use: ['녹음·내레이션·팟캐스트', '조용한 강대상, 방송 진행', '합창·어쿠스틱 악기'],
     connect: ['XLR 케이블 → 믹서·인터페이스 MIC 입력', '그 채널(또는 믹서 전체)의 +48V를 켜야 소리가 난다'],
@@ -269,7 +269,7 @@ export const EDU_ITEMS = [
   {
     id: 'balanced', cat: '케이블·스네이크', kind: 'concept', concept: 'balanced', part: 2, stage: 'church-3',
     title: '밸런스드 vs 언밸런스드', subtitle: '왜 마이크 케이블은 길어도 조용할까?',
-    aka: ['밸런스드', '언밸런스드', '평형', '불평형', '험', '험 잡음', 'balanced', 'unbalanced'],
+    aka: ['밸런스드', '언밸런스드', '평형', '불평형', '험', '험 잡음', 'hum', '잡음', '노이즈', 'noise', 'balanced', 'unbalanced'],
     def: '같은 신호를 반대 위상으로 두 가닥에 실어 오는 길에 묻은 잡음을 지우는 방식.',
     use: ['선을 길게 끌어야 할 때 (10m 이상)', '"웅—" 험 잡음을 없앨 때'],
     key: ['밸런스드: XLR, TRS(라인) — 100m 가까이도 조용하다', '언밸런스드: TS, RCA, 3.5mm — 몇 m 안에서만', '언밸런스드 악기를 멀리 보낼 땐 DI 박스로 바꾼다'],
@@ -597,7 +597,7 @@ export const EDU_ITEMS = [
   {
     id: 'snake_fanout', cat: '케이블·스네이크', kind: 'device', type: 'snake_fanout', part: 2, photo: 'snake_fanout',
     title: '스네이크 팬아웃', subtitle: 'Fan-out · Breakout · 스네이크의 믹서 쪽 끝',
-    aka: ['팬아웃', '브레이크아웃', '꼬리', '테일', 'fanout', 'breakout', '스네이크'],
+    aka: ['팬아웃', '브레이크아웃', '꼬리', '테일', 'fanout', 'breakout', '스네이크', 'snake'],
     def: '멀티 케이블의 믹서 쪽 끝. 번호 붙은 XLR 꼬리로 갈라져 믹서 채널에 꽂힌다.',
     use: ['FOH 믹서 바로 옆', '아날로그 믹서와 스네이크를 이을 때'],
     connect: ['MULTI: 스테이지 박스에서 온 멀티 케이블', 'OUT 1~8 (XLR) → 믹서 MIC 입력 CH1~8', 'RETURN IN 1·2 ← 믹서 AUX SEND (모니터 믹스를 무대로)'],
@@ -729,7 +729,7 @@ export const EDU_ITEMS = [
   {
     id: 'channelstrip', cat: '믹서', kind: 'audiolab', lab: 'eq', part: 3, stage: 'live-3',
     title: '채널 스트립: GAIN · 로우컷 · EQ', subtitle: '믹서 한 줄(채널)의 노브들',
-    aka: ['채널 스트립', 'EQ', '이퀄라이저', '로우컷', 'LOW CUT', 'HPF', '하이패스', 'AUX', 'PAN', '팬', '페이더', 'MUTE', 'PFL'],
+    aka: ['채널 스트립', 'EQ', '이퀄라이저', '로우컷', 'LOW CUT', 'HPF', '하이패스', 'AUX', 'PAN', '팬', '페이더', 'fader', 'MUTE', 'PFL', '노브', 'knob'],
     def: '믹서 세로 한 줄. 위에서 아래로 GAIN → LOW CUT → EQ → AUX·FX → PAN → 페이더.',
     use: ['채널마다 소리를 다듬을 때', '목소리가 웅웅거리거나 날카로울 때'],
     key: ['LOW CUT은 보컬·말소리에 기본으로 켠다 (킥·베이스는 끔)', 'EQ는 올리기보다 깎기 먼저', 'AUX는 모니터 믹스, FX는 리버브 보내기'],
@@ -1085,7 +1085,7 @@ export const EDU_ITEMS = [
   {
     id: 'di_box', cat: '악기', kind: 'device', type: 'di_box', part: 5, stage: 'church-3', photo: 'di_box',
     title: 'DI 박스', subtitle: 'Direct Injection Box',
-    aka: ['DI', '다이렉트 박스', 'DI박스', 'direct box', '그라운드 리프트', 'GROUND LIFT'],
+    aka: ['DI', '디아이', '디아이 박스', '다이렉트 박스', 'DI박스', 'direct box', '그라운드 리프트', 'GROUND LIFT', '그라운드 루프', 'ground loop', 'hum', '험'],
     def: '기타·건반의 언밸런스드 신호를 밸런스드 마이크 레벨(XLR)로 바꿔 주는 상자.',
     use: ['무대의 기타·베이스·건반', '노트북 음원을 멀리 보낼 때'],
     connect: ['악기 → INPUT (TS)', 'OUTPUT (XLR) → 믹서 MIC 입력 또는 스테이지 박스', 'THRU (TS) → 악기 앰프'],
@@ -1110,7 +1110,7 @@ export const EDU_ITEMS = [
   {
     id: 'camera', cat: '카메라', kind: 'device', type: 'camera', part: 6, stage: 'lecture-1', photo: 'camcorder',
     title: '방송용 카메라', subtitle: 'Camcorder · 탈리 램프',
-    aka: ['캠코더', '방송 카메라', '탈리', 'tally', 'camcorder'],
+    aka: ['캠코더', '방송 카메라', '카메라', '비디오 카메라', 'camera', 'video camera', '탈리', 'tally', 'camcorder'],
     def: '촬영한 영상을 HDMI·SDI로 내보내는 방송 카메라. 탈리 램프로 송출 상태를 알린다.',
     use: ['강의·예배·행사 중계', '라이브 방송의 고정 카메라'],
     connect: ['HDMI OUT → 스위처(ATEM) HDMI IN', '멀면 SDI OUT → SDI 스위처·변환기'],
@@ -1153,7 +1153,7 @@ export const EDU_ITEMS = [
   {
     id: 'ptz', cat: '카메라', kind: 'device', type: 'ptz', part: 7, stage: 'ptz-1', photo: 'ptz_camera',
     title: 'PTZ 카메라', subtitle: 'Pan · Tilt · Zoom Remote Camera',
-    aka: ['PTZ', '피티지', '리모트 카메라', '팬 틸트 줌', 'pan tilt zoom'],
+    aka: ['PTZ', '피티지', '리모트 카메라', '팬 틸트 줌', 'pan tilt zoom', 'PTZ camera', '프리셋', 'preset'],
     def: '리모컨·조이스틱으로 방향(Pan·Tilt)과 확대(Zoom)를 조종하는 카메라.',
     use: ['교회·강당 중계 (한 사람이 여러 대)', '강의실·회의실'],
     connect: ['영상: HDMI·SDI OUT → 스위처 (또는 NDI 랜선)', '제어: LAN → 공유기 ← 조이스틱 (같은 IP 대역)'],
@@ -1177,7 +1177,7 @@ export const EDU_ITEMS = [
   {
     id: 'ptz_controller', cat: '카메라', kind: 'device', type: 'ptz_controller', part: 7, stage: ['ptz-1', 'ptz-2'],
     title: 'PTZ 조이스틱 컨트롤러', subtitle: 'IP Joystick Controller · VISCA over IP',
-    aka: ['조이스틱', 'PTZ 컨트롤러', '카메라 컨트롤러', 'VISCA', '프리셋'],
+    aka: ['조이스틱', 'PTZ 컨트롤러', '카메라 컨트롤러', 'VISCA', '프리셋', 'preset', 'joystick', 'STORE', 'RECALL'],
     def: '조이스틱 하나로 여러 PTZ 카메라를 고르고 움직이며 프리셋을 저장·호출하는 장비.',
     use: ['1인 운영 멀티캠 중계', '교회·강당·회의실'],
     connect: ['LAN → 공유기 → 각 PTZ 카메라 (VISCA over IP)', '카메라마다 IP 주소 등록'],
@@ -1367,7 +1367,7 @@ export const EDU_ITEMS = [
   {
     id: 'lighting_console', cat: '조명', kind: 'device', type: 'lighting_console', part: 7, stage: ['light-1', 'light-2'], photo: 'lighting_console',
     title: '조명 콘솔 (Tiger Touch)', subtitle: 'Avolites Tiger Touch II · Titan',
-    aka: ['조명 콘솔', '타이거 터치', 'Tiger Touch', 'Avolites', '아볼라이트', '콘솔', '큐', '플레이백'],
+    aka: ['조명 콘솔', '타이거 터치', 'Tiger Touch', 'Avolites', '아볼라이트', '콘솔', '큐', 'cue', '플레이백', 'playback', '프로그래머', 'programmer', '블랙아웃', 'BLACKOUT', '그랜드 마스터', 'GM', 'RECORD', '레코드', 'CLEAR', '클리어', 'lighting console'],
     def: '모든 조명을 DMX로 제어하는 콘솔. 패치 → 큐 만들기 → 플레이백 재생.',
     use: ['공연장·교회·방송 스튜디오', '행사 무대 조명'],
     connect: ['DMX OUT → 첫 조명 DMX IN → 다음 조명으로 줄줄이', '조명마다 DMX 주소를 패치'],

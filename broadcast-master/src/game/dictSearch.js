@@ -8,7 +8,10 @@ const syl = (c) => { const n = c.charCodeAt(0) - 0xac00; return n >= 0 && n < 11
 const choOf = (c) => { const n = syl(c); return n < 0 ? c : CHO[Math.floor(n / 588)]; };
 
 // 띄어쓰기·기호를 지우고 소문자로
-export const norm = (s) => String(s ?? '').toLowerCase().replace(/[\s·\-_/().,'"!?~:+→←↔=]+/g, '');
+const SEP = /[\s·\-_/().,'"!?~:+→←↔=]+/g;
+export const norm = (s) => String(s ?? '').toLowerCase().replace(SEP, '');
+// 낱말 단위 (짧은 영문 검색어는 낱말 첫머리에서만 찾는다: "GM"이 PGM에 걸리지 않게)
+const wordsOf = (s) => String(s ?? '').toLowerCase().split(SEP).filter(Boolean);
 
 // 초성이 섞인 검색어도 찾는다 ("ㄷ이나믹", "ㄷㅇㄴㅁ")
 function findIn(hay, needle) {
@@ -46,6 +49,8 @@ export function buildIndex(items) {
   return items.map((x, order) => ({
     x, order,
     names: [norm(x.title), ...(x.aka ?? []).map(norm)],
+    titleWords: wordsOf(x.title),
+    akaWords: (x.aka ?? []).flatMap(wordsOf),
     sub: norm(x.subtitle),
     def: norm(x.def),
     body: bodyOf(x).map((raw) => ({ raw, n: norm(raw) })),
@@ -54,6 +59,11 @@ export function buildIndex(items) {
 
 // 낮을수록 잘 맞음: 0 제목 앞부분 · 1 제목 · 2 다른 이름 · 3 부제 · 4 정의 · 6 본문
 function termRank(e, term) {
+  if (/^[a-z0-9]{1,2}$/.test(term)) {
+    const at = e.titleWords.findIndex((w) => w.startsWith(term));
+    if (at >= 0) return { r: at === 0 ? 0 : 1 };
+    return e.akaWords.some((w) => w.startsWith(term)) ? { r: 2 } : null;
+  }
   const vs = variants(term);
   const hit = (s) => vs.some((v) => findIn(s, v) >= 0);
   if (vs.some((v) => findIn(e.names[0], v) === 0)) return { r: 0 };

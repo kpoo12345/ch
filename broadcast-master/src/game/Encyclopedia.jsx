@@ -12,7 +12,8 @@ import FadeLab from './FadeLab.jsx';
 import { Slider, ToggleBtn, saveProgress } from './ui.jsx';
 import { EDU_CATEGORIES, EDU_ITEMS, EDU_BY_ID, partTitle } from './eduContent.js';
 import { CONCEPT, MixerSizes } from './eduVisuals.jsx';
-import { PHOTOS, photoSrc, photoCredit, photoPage } from './data/photos.js';
+import { PHOTOS, photoSrc, photoCredit } from './data/photos.js';
+import PhotoCredit from './PhotoCredit.jsx';
 import { patchBetaContext } from './betaContext.js';
 import { TUTORIAL } from './data/tutorial.js';
 import STORY from './data/story.json';
@@ -415,7 +416,7 @@ function DeviceView({ type }) {
 
 /* ---------------------------- 그림: 사진 → 3D → 개념 그림 ---------------------------- */
 function Figure({ item, onOpen }) {
-  const photos = asList(item.photo).map((id) => ({ id, src: photoSrc(id), alt: PHOTOS[id]?.alt ?? item.title, credit: photoCredit(id), page: photoPage(id) })).filter((p) => p.src);
+  const photos = asList(item.photo).map((id) => ({ id, src: photoSrc(id), alt: PHOTOS[id]?.alt ?? item.title, credit: photoCredit(id) })).filter((p) => p.src);
   const has3d = (item.kind === 'device' && VIEWER_TYPES.has(item.type) && !!DEVICE_TYPES[item.type]) || item.kind === 'cable';
   const [view, setView] = useState(photos.length ? 'photo' : '3d');
   const [pi, setPi] = useState(0);
@@ -437,7 +438,7 @@ function Figure({ item, onOpen }) {
         <figure className="bg-[#131a27]">
           <img src={photo.src} alt={photo.alt} loading="lazy" decoding="async" className="w-full h-[260px] sm:h-[360px] object-contain" />
           <figcaption className="px-3 py-1.5 text-[11px] text-slate-400 flex flex-wrap gap-x-2 border-t border-slate-700/60">
-            <span>{photo.alt}</span>{photo.credit && <span className="text-slate-500">· {photo.page ? <a href={photo.page} target="_blank" rel="noreferrer" className="underline hover:text-slate-300">{photo.credit}</a> : photo.credit}</span>}
+            <span>{photo.alt}</span>{photo.credit && <PhotoCredit id={photo.id} prefix="· " className="text-slate-500" />}
           </figcaption>
           {photos.length > 1 && (
             <div className="flex gap-1.5 p-2 border-t border-slate-700/60">

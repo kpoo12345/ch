@@ -65,3 +65,8 @@ export const PHOTOS = {
 export const photoSrc = (id) => PHOTO_FILES[id]?.src ?? null;
 export const photoCredit = (id) => PHOTO_FILES[id]?.credit ?? null;
 export const photoPage = (id) => PHOTO_FILES[id]?.url ?? null;
+// 출처 표기 조각: 작가 · 라이선스(원문 링크) · 위키미디어 공용(파일 페이지 링크) · 고친 내용
+export const photoInfo = (id) => {
+  const f = PHOTO_FILES[id];
+  return f ? { credit: f.credit, author: f.author ?? null, license: f.license ?? null, licenseUrl: f.licenseUrl ?? null, url: f.url ?? null, edited: f.edited ?? null } : null;
+};

@@ -139,7 +139,7 @@
  "mixer_digital": {
   "file": "mixer_digital.jpg",
   "title": "File:Behringer X32 Digital Mixer in operation - angled (2017-07-21 17.23.52 @pxhere 174508).jpg",
-  "author": "Unknown author Unknown author",
+  "author": "",
   "license": "CC0",
   "url": "https://commons.wikimedia.org/wiki/File%3ABehringer_X32_Digital_Mixer_in_operation_-_angled_(2017-07-21_17.23.52_%40pxhere_174508).jpg"
  },
@@ -216,9 +216,10 @@
  "speaker_passive": {
   "file": "speaker_passive.jpg",
   "title": "File:Large loudspeaker box (h=1.8 m) with bass reflex system and a mid-high horn loudspeaker, photographed in Tokyo 2005.jpg",
-  "author": "File:Sound Park Dyna (DVD soft shop) with large loudspeakers indicating open the shop, Kanda-myōjin Street, Sotokanda 1,",
+  "author": "Colin McMillen from Pittsburgh, U.S.A.",
   "license": "CC BY 2.0",
-  "url": "https://commons.wikimedia.org/wiki/File%3ALarge_loudspeaker_box_(h%3D1.8_m)_with_bass_reflex_system_and_a_mid-high_horn_loudspeaker%2C_photographed_in_Tokyo_2005.jpg"
+  "url": "https://commons.wikimedia.org/wiki/File%3ALarge_loudspeaker_box_(h%3D1.8_m)_with_bass_reflex_system_and_a_mid-high_horn_loudspeaker%2C_photographed_in_Tokyo_2005.jpg",
+  "derived": true
  },
  "monitor_wedge": {
   "file": "monitor_wedge.jpg",
