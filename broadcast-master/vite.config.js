@@ -6,7 +6,9 @@ import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 // 웹사이트판(BM_VOICE_SPLIT=1): 목소리 묶음을 HTML에 넣지 않고 파트별 파일로 따로 받는다 (첫 화면이 훨씬 빨리 뜬다)
+//  사진·3D 스틸도 media/ 파일로 뺀다 (scripts/make-media-split.mjs가 먼저 .split/을 만든다)
 const voiceSplit = process.env.BM_VOICE_SPLIT === '1';
+const split = (p) => fileURLToPath(new URL(p, import.meta.url));
 
 // 빌드 표시: 날짜(UTC) + 커밋 — 베타 의견이 어느 판에서 왔는지 알 수 있게
 const commit = (() => { try { return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'dev'; } })();
@@ -17,6 +19,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
   define: { __BUILD__: JSON.stringify(BUILD) },
   resolve: {
-    alias: voiceSplit ? [{ find: /^\.\/voice\/pack\.js$/, replacement: fileURLToPath(new URL('./src/game/voice/pack-split.js', import.meta.url)) }] : [],
+    alias: voiceSplit ? [
+      { find: /^\.\/voice\/pack\.js$/, replacement: split('./src/game/voice/pack-split.js') },
+      { find: /^\.\.\/photos\/index\.js$/, replacement: split('./.split/photos.js') },
+      { find: /^\.\.\/thumbs\/index\.js$/, replacement: split('./.split/thumbs.js') },
+    ] : [],
   },
 });

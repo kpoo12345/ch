@@ -26,4 +26,7 @@ writeFileSync(new URL('.nojekyll', out), '');
 // 목소리 묶음 (BM_VOICE_SPLIT=1로 만든 경우): dist/voice → docs/voice
 rmSync(new URL('voice/', out), { recursive: true, force: true });
 if (existsSync('dist/voice')) cpSync('dist/voice', new URL('voice/', out), { recursive: true });
+// 사진·3D 스틸 (make-media-split.mjs): .split/media → docs/media
+rmSync(new URL('media/', out), { recursive: true, force: true });
+if (existsSync('.split/media')) cpSync('.split/media', new URL('media/', out), { recursive: true });
 console.log(`docs/index.html (${(html.length / 1024).toFixed(0)} KB)`);

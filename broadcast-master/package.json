@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "build:artifact": "vite build && node scripts/make-artifact.mjs",
     "test": "node --test tests/*.test.mjs",
-    "build:pages": "BM_VOICE_SPLIT=1 vite build && node scripts/make-voice-split.mjs && node scripts/make-pages.mjs"
+    "build:pages": "node scripts/make-media-split.mjs && BM_VOICE_SPLIT=1 vite build && node scripts/make-voice-split.mjs && node scripts/make-pages.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
