@@ -53,7 +53,9 @@ export default function GameScreen({
   const [cleared, setCleared] = useState(false);
   const game = useGame(spec, { onClear: () => setCleared(true), popMode: mode === 'tutorial' ? 'optIn' : 'all' });
   const { st, nominal, actual, talking } = game;
-  const [voiceOn, setVoiceOn] = useState(true);
+  // 내레이션·현장 소리 켜고 끈 것은 배경음악처럼 기억한다
+  const [voiceOn, setVoiceOn] = useState(() => loadProgress('bm2-voice', true));
+  useEffect(() => { saveProgress('bm2-voice', voiceOn); }, [voiceOn]);
   const player = useScriptPlayer(game, { voiceOn });
   const [tab, setTab] = useState(mode === 'sandbox' ? 'add' : 'mission');
   const defaultListen = useMemo(() => {
@@ -62,6 +64,9 @@ export default function GameScreen({
     return at[0] ?? (Object.values(st.devices).some((d) => d.type === 'speaker' || d.type === 'passive_speaker') ? 'main' : 'stream');
   }, [spec]); // eslint-disable-line react-hooks/exhaustive-deps
   const [listen, setListen] = useState(defaultListen);
+  // 플레이어가 직접 고른 뒤에는 듣는 곳을 저절로 바꾸지 않는다
+  const listenPicked = useRef(false);
+  const chooseListen = (v) => { listenPicked.current = true; setListen(v); };
   const [compareOpen, setCompareOpen] = useState(false);
   const [lab, setLab] = useState(null); // 튜토리얼에서 연 실습실 { lab, goal }
   const narrow = useNarrow();
@@ -99,7 +104,8 @@ export default function GameScreen({
   const [follow, setFollow] = useState(true);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [bgmOn, setBgmOn] = useState(() => loadProgress('bm2-bgm', true));
-  const [sfxOn, setSfxOn] = useState(true);
+  const [sfxOn, setSfxOn] = useState(() => loadProgress('bm2-sfx', true));
+  useEffect(() => { saveProgress('bm2-sfx', sfxOn); }, [sfxOn]);
   const [focusRequest, setFocusRequest] = useState(null);
   const [resetKey, setResetKey] = useState(0);
   const [resultOpen, setResultOpen] = useState(false);
@@ -143,6 +149,14 @@ export default function GameScreen({
   /* ----- 오디오 ----- */
   useEffect(() => { const a = getAudio(); a.setSong('game'); a.setBgm({ on: bgmOn }); saveProgress('bm2-bgm', bgmOn); }, [bgmOn]);
   useEffect(() => { getAudio().setSfx(sfxOn); }, [sfxOn]);
+  // 자유 스튜디오: 장비를 놓기 전에 정해진 듣는 곳(방송)에 머물면 제대로 이은 PA도 조용하다
+  //  → 스피커가 놓여 있고 방송이 안 나가면 객석, 스피커 없이 방송만 나가면 방송 (직접 고르면 그대로)
+  useEffect(() => {
+    if (mode !== 'sandbox' || listenPicked.current) return;
+    const speaker = Object.values(st.devices).some((d) => d.placed && (d.type === 'speaker' || d.type === 'passive_speaker'));
+    const want = speaker && !actual.stream.live ? 'main' : !speaker && actual.stream.live ? 'stream' : null;
+    if (want && want !== listen) setListen(want);
+  }, [st, actual.stream.live, mode]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { getAudio().setStage({}); stopAllSpeech(); }, []);
   // 무대 소리: 듣는 위치에 도착한 소스별 크기
   useEffect(() => {
@@ -378,9 +392,11 @@ export default function GameScreen({
         <button type="button" onClick={openFeedback} className="flex items-center gap-1 rounded bg-amber-400 px-1.5 py-1 text-[11px] font-black text-slate-900 hover:bg-amber-300" title="불편한 점이나 아이디어를 개발자에게 보내요" aria-label="베타 의견 보내기"><MessageSquarePlus size={15} /><span className="hidden sm:inline">의견</span></button>
       </header>
 
-      <div className={`flex-1 min-h-0 flex flex-col lg:flex-row ${dialogBelow ? 'overflow-hidden' : ''}`}>
+      {/* 가운데: 넘치면 아래 막대(케이블·말하기) 위로 덮이지 않게 안에서 자른다 */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
         {/* 3D — 좁은 화면에서 대화 중이면 3D는 위쪽 일부, 대화 상자는 그 아래 (3D를 가리지 않게) */}
-        <div className={`relative ${dialogBelow ? `flex-none ${consoleOpen ? 'h-[13vh]' : 'h-[30vh]'}` : `flex-1 ${consoleOpen ? 'min-h-[26vh]' : 'min-h-[40vh]'}`} lg:min-h-0 lg:h-auto lg:flex-1`}>
+        {/* 좁은 화면: 3D는 정해진 높이, 옆 패널이 남은 자리를 채운다 (콘솔을 열면 3D가 남은 자리) */}
+        <div className={`relative ${dialogBelow ? `flex-none ${consoleOpen ? 'h-[13vh]' : 'h-[30vh]'}` : consoleOpen ? 'flex-1 min-h-[18vh]' : 'flex-none h-[32vh]'} lg:min-h-0 lg:h-auto lg:flex-1`}>
           {gl ? (
             <Venue3D st={st} sim={actual} venueId={st.venue} talking={talking} performing={game.performing} selectedChannel={game.selCh}
               pending={game.pending} selectedCable={game.cable} selectedDevice={game.selected} labels={labels} resetKey={resetKey}
@@ -407,7 +423,7 @@ export default function GameScreen({
           {voiceLoading && (
             <div className="absolute left-1/2 top-12 z-20 -translate-x-1/2 rounded-full bg-slate-900/90 px-3 py-1 text-[12px] font-bold text-slate-200 shadow-lg pointer-events-none">선배 목소리 불러오는 중…</div>
           )}
-          {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={setListen} onClose={() => setCompareOpen(false)} />}
+          {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={chooseListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
           {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} />}
           {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
@@ -417,7 +433,7 @@ export default function GameScreen({
         {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gSteps[gCur]} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gSteps[gCur].op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
 
         {/* 사이드 패널 */}
-        <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'h-[38vh]'} lg:h-auto lg:flex-none`}>
+        <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'flex-1'} lg:h-auto lg:flex-none`}>
           <nav className="flex border-b border-slate-800 shrink-0" role="tablist">
             {[
               ...(mode === 'sandbox' ? [['add', '장비 추가', Cpu]] : [['mission', '미션', ListChecks]]),
@@ -446,17 +462,18 @@ export default function GameScreen({
       </div>
 
       {/* 아래: 케이블 가방 · 말하기 · 듣는 위치 · 콘솔 */}
-      <div className="shrink-0 border-t border-slate-800 bg-slate-950/90">
+      <div className="relative z-20 shrink-0 border-t border-slate-800 bg-slate-950">
         <div className="flex flex-wrap items-center gap-2 px-2 sm:px-3 py-1.5">
-          <div className="flex items-center gap-1 flex-wrap" role="radiogroup" aria-label="케이블 선택">
-            <Cable size={15} className="text-slate-400" />
+          {/* 케이블이 많으면(스튜디오) 좁은 화면에선 한 줄로 옆으로 밀어 보게 (막대가 높아지지 않게) */}
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto flex-nowrap sm:flex-wrap" role="radiogroup" aria-label="케이블 선택">
+            <Cable size={15} className="shrink-0 text-slate-400" />
             {cableChoices.length === 0 && <span className="text-[11px] text-slate-500">가방에 케이블 없음</span>}
             {cableChoices.map((k) => {
               const n = st.unlimited ? '∞' : st.cables[k];
               const on = game.cable === k;
               return (
                 <button key={k} type="button" role="radio" aria-checked={on} disabled={!st.unlimited && !n} onClick={() => game.setCable(on ? null : k)} title={`${CABLES[k].name} — ${CABLES[k].desc}`}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold border disabled:opacity-35 ${on ? 'bg-white text-slate-900 border-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'} ${guide?.stage === 'cable' && guide.cable === k ? 'bm-target' : ''}`}>
+                  className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold border disabled:opacity-35 ${on ? 'bg-white text-slate-900 border-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'} ${guide?.stage === 'cable' && guide.cable === k ? 'bm-target' : ''}`}>
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: CABLES[k].stroke }} />{CABLES[k].short} <span className="font-mono opacity-70">×{n}</span>
                 </button>
               );
@@ -472,7 +489,7 @@ export default function GameScreen({
               <Toggle small on={game.performing} color="green" onClick={() => game.setPerforming(!game.performing)} title="밴드 연주"><Guitar size={12} className="inline" /> 연주</Toggle>
             )}
             <span className="flex items-center gap-0.5 text-[11px] font-bold text-slate-300" title="어디서 들리는 소리를 들을지 고릅니다"><Ear size={14} /> 듣는 곳</span>
-            <Seg small value={listen} options={LISTEN.filter(([k]) => k !== 'headphones' || Object.values(st.devices).some((d) => d.type === 'headphones'))} onChange={setListen} />
+            <Seg small value={listen} options={LISTEN.filter(([k]) => k !== 'headphones' || Object.values(st.devices).some((d) => d.type === 'headphones'))} onChange={chooseListen} />
             <Toggle small on={compareOpen} color="sky" onClick={() => setCompareOpen(!compareOpen)} title="현장(객석)에서 들리는 소리와 방송으로 나가는 소리를 나란히 비교합니다">A/B 비교</Toggle>
             {st.mixerId && st.devices[st.mixerId]?.placed && (
               <button type="button" onClick={() => { if (!consoleOpen && !lockView) setFocusRequest({ id: st.mixerId, key: Date.now() }); setConsoleOpen(!consoleOpen); }} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-black ${consoleOpen ? 'bg-sky-500 text-white' : mixerAsk ? 'bg-amber-400 text-slate-900 animate-pulse ring-2 ring-amber-200' : 'bg-sky-700 text-white ring-1 ring-sky-300/60'}`}

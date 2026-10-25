@@ -445,6 +445,10 @@ function Cable3D({ A, B, venue, lane, cable, live, fresh, onDisconnect, interact
   useEffect(() => () => geo.dispose(), [geo]);
   useEffect(() => () => hitGeo?.dispose(), [hitGeo]);
   const [hover, setHover] = useState(false);
+  // 한 번 누르면 '분리 준비'(빛나고 안내), 4초 안에 한 번 더 누르면 분리 — 시점을 돌리다 실수로 뽑지 않게
+  const [armed, setArmed] = useState(false);
+  const armTimer = useRef(null);
+  useEffect(() => () => clearTimeout(armTimer.current), []);
   const pulses = useRef([]);
   const grow = useRef(fresh ? -0.5 : 1); // 새 케이블: 손이 첫 단자에 닿은 뒤 자라기 시작
   const plugB = useRef();
@@ -472,13 +476,20 @@ function Cable3D({ A, B, venue, lane, cable, live, fresh, onDisconnect, interact
   return (
     <group>
       <mesh geometry={geo} castShadow raycast={noRaycast}>
-        <meshStandardMaterial color={hover ? color : jacket} roughness={0.55} emissive={color} emissiveIntensity={hover ? 0.7 : live ? (cable === 'multi' ? 0.05 : 0.18) : 0} />
+        <meshStandardMaterial color={hover || armed ? color : jacket} roughness={0.55} emissive={color} emissiveIntensity={armed ? 1.1 : hover ? 0.7 : live ? (cable === 'multi' ? 0.05 : 0.18) : 0} />
       </mesh>
       {hitGeo && (
         <mesh
           geometry={hitGeo}
           onPointerDown={(e) => { e.stopPropagation(); hold(); }}
-          onClick={(e) => { e.stopPropagation(); if (e.delta < 10) onDisconnect?.(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.delta >= 10) return;
+            clearTimeout(armTimer.current);
+            if (armed) { setArmed(false); onDisconnect?.(); return; }
+            setArmed(true);
+            armTimer.current = setTimeout(() => setArmed(false), 4000);
+          }}
           onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
           onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
         >
@@ -492,9 +503,9 @@ function Cable3D({ A, B, venue, lane, cable, live, fresh, onDisconnect, interact
       ))}
       <Plug p={A.p} n={A.n} color={color} cable={cable} />
       <group ref={plugB}><Plug p={B.p} n={B.n} color={color} cable={cable} /></group>
-      {hover && (
+      {(hover || armed) && (
         <Label position={curve.getPointAt(0.5)} center wrapperClass="bm-noevents">
-          <div className="whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[11px] text-white">{CABLES[cable]?.name} · 클릭하면 분리</div>
+          <div className={`whitespace-nowrap rounded px-2 py-0.5 text-[11px] ${armed ? 'bg-red-600 font-bold text-white' : 'bg-black/80 text-white'}`}>{CABLES[cable]?.name} · {armed ? '한 번 더 누르면 분리' : '누르면 분리 준비'}</div>
         </Label>
       )}
     </group>
@@ -1237,7 +1248,7 @@ export default function Venue3D({
             if (!A || !B || !devices[c.from.d]?.placed || !devices[c.to.d]?.placed) return null;
             return (
               <Cable3D key={c.id} A={A} B={B} venue={venue} lane={lanes[c.id]} cable={c.cable} live={connLive(c)} fresh={fresh.has(c.id)}
-                interactive={interactive} tipRef={tipRef} onDisconnect={() => onDisconnect?.(c)} />
+                interactive={interactive && !sandboxApi?.placing} tipRef={tipRef} onDisconnect={() => onDisconnect?.(c)} />
             );
           })}
 
