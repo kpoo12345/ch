@@ -158,6 +158,19 @@ export default function GameScreen({
     if (want && want !== listen) setListen(want);
   }, [st, actual.stream.live, mode]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { getAudio().setStage({}); stopAllSpeech(); }, []);
+  // 스튜디오: Ctrl+Z(⌘Z)로 되돌리기 (글을 쓰는 중에는 그대로)
+  useEffect(() => {
+    if (mode !== 'sandbox') return undefined;
+    const onKey = (e) => {
+      if (e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      game.undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode, game.undo]); // eslint-disable-line react-hooks/exhaustive-deps
   // 무대 소리: 듣는 위치에 도착한 소스별 크기
   useEffect(() => {
     const heard = actual.heard[listen] ?? {};

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Move, RotateCw, Trash2, Trophy, CheckCircle2, Circle, Save } from 'lucide-react';
+import { Plus, Move, RotateCw, Trash2, Trophy, CheckCircle2, Circle, Save, Undo2 } from 'lucide-react';
 import { DEVICE_TYPES } from '../engine.js';
 import { STARTS_OFF } from '../ops.js';
 import { VENUES } from '../venues.js';
@@ -25,15 +25,24 @@ const CATALOG = [
   ['화면', ['media_server', 'projector', 'led_wall']],
 ];
 
+// how: 막힌 초보자를 위한 한 줄 방법 (도전 과제를 누르면 펼쳐진다)
 export const CHALLENGES = [
-  { id: 'pa', label: '첫 소리: 마이크 목소리를 객석 스피커로', test: (st, sim) => voices(st).some((v) => sim.reaches(v, 'main')) },
-  { id: 'monitor', label: '모니터 믹스: 무대 웨지로 목소리 보내기', test: (st, sim) => voices(st).some((v) => sim.reaches(v, 'monitor')) },
-  { id: 'wireless2', label: '무선 마이크 2대를 하울링 없이 스피커로', test: (st, sim) => voices(st).filter((v) => st.devices[v].type === 'wireless_mic' && sim.reaches(v, 'main')).length >= 2 && !sim.feedback },
-  { id: 'band', label: '밴드 라인업: 악기 2개 이상을 험 없이 스피커로', test: (st, sim) => Object.values(st.devices).filter((d) => ['e_guitar', 'bass_guitar', 'keyboard', 'digital_piano', 'kick_mic', 'snare_mic', 'overhead_mic'].includes(d.type) && sim.reaches(d.id, 'main')).length >= 2 && !sim.hum },
-  { id: 'multicam', label: '멀티캠 생중계: 카메라 2대 이상 + 송출', test: (st, sim) => Object.keys(sim.video.camAt).length >= 2 && sim.stream.live },
-  { id: 'light', label: '조명 쇼: 조명 3대 이상을 DMX로 정상 점등', test: (st, sim) => Object.values(sim.light.fixtures).filter((r) => r.intensity > 0.3 && !r.flicker && !r.wrong).length >= 3 },
-  { id: 'screen', label: '미디어 서버 화면을 LED·프로젝터에 출력', test: (st, sim) => Object.values(sim.displays).some((r) => r.ok && r.layers.length) },
-  { id: 'ptz', label: 'PTZ 카메라를 조이스틱으로 원격 제어', test: (st, sim) => Object.values(sim.ptz).some((r) => r.reachable) },
+  { id: 'pa', label: '첫 소리: 마이크 목소리를 객석 스피커로', test: (st, sim) => voices(st).some((v) => sim.reaches(v, 'main')),
+    how: '마이크 XLR OUT → 믹서 CH1 MIC (XLR) · 믹서 STEREO OUT L → 액티브 스피커 INPUT (XLR) · 다 꽂은 뒤 스피커 전원 ON → 아래 말하기' },
+  { id: 'monitor', label: '모니터 믹스: 무대 웨지로 목소리 보내기', test: (st, sim) => voices(st).some((v) => sim.reaches(v, 'monitor')),
+    how: '믹서 AUX SEND 1 → 모니터 웨지 INPUT · 마이크 채널의 AUX 1 노브 올리기 · 웨지 전원 ON' },
+  { id: 'wireless2', label: '무선 마이크 2대를 하울링 없이 스피커로', test: (st, sim) => voices(st).filter((v) => st.devices[v].type === 'wireless_mic' && sim.reaches(v, 'main')).length >= 2 && !sim.feedback,
+    how: '무선 마이크 AF OUT → 믹서 CH1·CH2 MIC (XLR) · 마이크마다 송신기와 수신기 채널을 같게 · 스피커가 마이크를 향하지 않게 (하울링 나면 게인을 내리거나 스피커를 돌리기)' },
+  { id: 'band', label: '밴드 라인업: 악기 2개 이상을 험 없이 스피커로', test: (st, sim) => Object.values(st.devices).filter((d) => ['e_guitar', 'bass_guitar', 'keyboard', 'digital_piano', 'kick_mic', 'snare_mic', 'overhead_mic'].includes(d.type) && sim.reaches(d.id, 'main')).length >= 2 && !sim.hum,
+    how: '악기 OUT → DI 박스 INPUT (TS 케이블) · DI OUTPUT → 믹서 CH MIC (XLR) — 먼 거리를 TS 케이블로 끌면 험이 생겨요 (믹서 옆이면 LINE 입력에 바로 꽂아도 돼요)' },
+  { id: 'multicam', label: '멀티캠 생중계: 카메라 2대 이상 + 송출', test: (st, sim) => Object.keys(sim.video.camAt).length >= 2 && sim.stream.live,
+    how: '카메라 HDMI OUT → 스위처 HDMI IN 1·2 · 스위처 USB WEBCAM → PC USB · 디지털 믹서 USB AUDIO → PC USB (소리) · PC에서 영상 ATEM, 소리 믹서를 고르고 방송 시작' },
+  { id: 'light', label: '조명 쇼: 조명 3대 이상을 DMX로 정상 점등', test: (st, sim) => Object.values(sim.light.fixtures).filter((r) => r.intensity > 0.3 && !r.flicker && !r.wrong).length >= 3,
+    how: '콘솔 DMX A → 조명 1 DMX IN → 조명 1 DMX OUT → 조명 2 DMX IN… (DMX 케이블로 줄줄이) · 마지막 조명에 터미네이터 · 콘솔에서 조명을 골라 밝기 올리기' },
+  { id: 'screen', label: '미디어 서버 화면을 LED·프로젝터에 출력', test: (st, sim) => Object.values(sim.displays).some((r) => r.ok && r.layers.length),
+    how: '미디어 서버 HDMI OUT 1 → LED 전광판(또는 프로젝터) HDMI IN · 미디어 서버에서 레이어에 클립 올리기' },
+  { id: 'ptz', label: 'PTZ 카메라를 조이스틱으로 원격 제어', test: (st, sim) => Object.values(sim.ptz).some((r) => r.reachable),
+    how: 'PTZ 카메라 LAN과 조이스틱 LAN → 공유기 LAN 단자 (랜선) · 조이스틱에서 카메라 번호를 고르고 움직여 보기' },
 ];
 const voices = (st) => Object.values(st.devices).filter((d) => d.placed && ['dynamic_mic', 'condenser_mic', 'wireless_mic'].includes(d.type)).map((d) => d.id);
 
@@ -192,6 +201,8 @@ export function SandboxPanel({ game, placing, setPlacing }) {
   const sel = selected ? st.devices[selected] : null;
   return (
     <div className="space-y-3">
+      <button type="button" onClick={game.undo} disabled={!game.undoCount} title="장비 놓기·옮기기·지우기, 케이블 꽂기·뽑기를 하나씩 되돌립니다 (Ctrl+Z)"
+        className="flex items-center gap-1 rounded-md bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-200 hover:bg-slate-700 disabled:opacity-40"><Undo2 size={13} /> 되돌리기{game.undoCount ? ` (${game.undoCount})` : ''}</button>
       {placing && (
         <div className="rounded-lg border border-amber-400/60 bg-amber-950/40 p-2 text-sm text-amber-100 flex items-center gap-2">
           {placing.moveId ? '옮길 곳' : `${DEVICE_TYPES[placing.type].name} 놓을 곳`}을 3D 화면에서 클릭하세요 (바닥·책상·무대).
@@ -224,9 +235,14 @@ export function SandboxPanel({ game, placing, setPlacing }) {
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-2 space-y-1">
         <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1"><Trophy size={13} /> 도전 과제 (선택) {done.size}/{CHALLENGES.length}</div>
         {CHALLENGES.map((c) => (
-          <div key={c.id} className={`text-xs flex items-start gap-1.5 ${done.has(c.id) ? 'text-green-300' : 'text-slate-300'}`}>
-            {done.has(c.id) ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <Circle size={14} className="mt-0.5 shrink-0 text-slate-600" />}{c.label}
-          </div>
+          <details key={c.id} className={`group text-xs ${done.has(c.id) ? 'text-green-300' : 'text-slate-300'}`}>
+            <summary className="flex cursor-pointer list-none items-start gap-1.5 [&::-webkit-details-marker]:hidden">
+              {done.has(c.id) ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <Circle size={14} className="mt-0.5 shrink-0 text-slate-600" />}
+              <span className="flex-1">{c.label}</span>
+              <span className="shrink-0 text-[10px] text-sky-300 group-open:hidden">방법</span>
+            </summary>
+            <p className="ml-5 mt-0.5 mb-1 rounded bg-slate-800/80 px-2 py-1 text-[11px] leading-relaxed text-slate-300">{c.how}</p>
+          </details>
         ))}
       </div>
     </div>

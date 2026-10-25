@@ -38,6 +38,9 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
   const [selected, setSelected] = useState(null);
   const [selCh, setSelCh] = useState(0);
   const actKey = useRef(0);
+  // 스튜디오 되돌리기: 장비 놓기·옮기기·지우기, 케이블 꽂기·뽑기 직전 상태 (최근 30번)
+  const undoStack = useRef([]);
+  const [undoCount, setUndoCount] = useState(0);
 
   // 자동 말하기: 4초 말하고 1.5초 쉬기
   useEffect(() => {
@@ -156,6 +159,7 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
     const primary = !op.mixer || op.mixer === cur.mixerId;
     if (primary && op.op === 'ch' && op.key === 'fader') noteFader(`ch${op.ch}`, cur.channels[op.ch - 1]?.fader ?? 0, op.value);
     if (primary && op.op === 'master' && op.key === 'mainFader') noteFader('main', cur.master.mainFader, op.value);
+    if (cur.unlimited && UNDOABLE.has(op.op)) { undoStack.current = [...undoStack.current.slice(-29), cur]; setUndoCount(undoStack.current.length); }
     stRef.current = next;
     setSt(next);
     // 채널을 조작하면 그 채널이 선택된다 (디지털 믹서의 SEL처럼, 2D·3D 콘솔이 같은 채널을 보여 준다)
@@ -237,6 +241,16 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
     stRef.current = next; setSt(next);
   }, [spec]);
 
+  const undo = useCallback(() => {
+    const prev = undoStack.current.pop();
+    if (!prev) return false;
+    cancelFades();
+    stRef.current = prev; setSt(prev); setUndoCount(undoStack.current.length); setPending(null);
+    getAudio().click();
+    notify('info', '되돌렸어요');
+    return true;
+  }, [cancelFades, notify]);
+
   const reset = useCallback(() => {
     const s0 = buildRuntime(spec);
     cancelFades();
@@ -246,7 +260,7 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
   return {
     st, setSt, stRef, nominal, actual, talking, ptt, setPtt, autoTalk, setAutoTalk, performing, setPerforming, setScriptTalk,
     latched, setLatched, cancelFades, objectives, allDone, action, setAction, toast, setToast, log, notify, apply, pending, setPending, cable, setCable,
-    clickPort, disconnect, selected, setSelected, selCh, setSelCh, reset, show, load,
+    clickPort, disconnect, selected, setSelected, selCh, setSelCh, reset, show, load, undo, undoCount,
   };
 }
 
@@ -271,6 +285,7 @@ export const speechMs = (text, speed = 1) => {
   return (chars * 160 + pauses * 260 + 600) / speed;
 };
 // 손 동작이 끝나기까지 걸리는 시간
+const UNDOABLE = new Set(['addDevice', 'removeDevice', 'moveDevice', 'connect', 'disconnect']);
 const ACTION_MS = { connect: 2500, place: 1600, move: 1700, addDevice: 1600, ptz: 1700, talk: 300, perform: 300 };
 
 export function useScriptPlayer(game, { voiceOn = true } = {}) {
