@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Star, Play, Mic, MonitorPlay, Church, Guitar, Presentation, Lightbulb, Clapperboard, Joystick, Siren } from 'lucide-react';
 import STORY from '../data/story.json';
 import { SOLUTIONS } from '../data/solutions.js';
@@ -15,11 +15,15 @@ const CH_COLOR = { seminar: 'from-sky-600 to-sky-900', youtube: 'from-pink-600 t
 
 export const ALL_STAGES = STORY.chapters.flatMap((c) => c.stages.map((s) => ({ ...s, chapterTitle: c.title, solution: SOLUTIONS[s.id] })));
 
-export default function StoryMode({ onExit, startStage, autoStart }) {
-  const [playing, setPlaying] = useState(startStage ?? null);
+// stage·onStage: 고른 미션은 바깥(주소·history)이 정한다 — 휴대폰 '뒤로'가 미션 목록으로 가게
+export default function StoryMode({ onExit, stage: playing = null, onStage, autoStart }) {
+  const [autoId] = useState(() => (autoStart ? playing : null)); // ?auto=1: 처음 연 미션만 정답 자동 진행
+  const setPlaying = (id, opts) => onStage?.(id, opts);
   const [runKey, setRunKey] = useState(0);
   const [progress, setProgress] = useState(() => loadProgress('bm2-progress', {}));
   const refresh = () => setProgress(loadProgress('bm2-progress', {}));
+  // 뒤로 가기로 목록에 돌아와도 별 개수를 새로 읽는다
+  useEffect(() => { if (!playing) refresh(); }, [playing]);
   const stage = useMemo(() => ALL_STAGES.find((s) => s.id === playing), [playing]);
   if (stage) {
     const idx = ALL_STAGES.findIndex((s) => s.id === stage.id);
@@ -27,8 +31,8 @@ export default function StoryMode({ onExit, startStage, autoStart }) {
     return (
       <GameScreen key={`${stage.id}-${runKey}`} spec={stage} mode="story" heading={`${stage.chapterTitle} · 스테이지 ${idx + 1}/${ALL_STAGES.length}`}
         onExit={() => { refresh(); setPlaying(null); }}
-        onNext={next ? () => { refresh(); setPlaying(next.id); setRunKey((k) => k + 1); } : null}
-        onRestart={() => setRunKey((k) => k + 1)} initialAuto={!!autoStart && runKey === 0 && stage.id === startStage} />
+        onNext={next ? () => { refresh(); setPlaying(next.id, { replace: true }); setRunKey((k) => k + 1); } : null}
+        onRestart={() => setRunKey((k) => k + 1)} initialAuto={!!autoId && runKey === 0 && stage.id === autoId} />
     );
   }
   const total = ALL_STAGES.length;

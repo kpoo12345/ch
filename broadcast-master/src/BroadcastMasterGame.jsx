@@ -72,6 +72,10 @@ function writeHistory(s, replace) {
   try { window.history[fn](state, '', urlOf(s)); } catch { try { window.history[fn](state, ''); } catch { /* history 없음 */ } }
 }
 const sameScreen = (a, b) => !!a && !!b && a.mode === b.mode && (a.entry ?? null) === (b.entry ?? null) && (a.part ?? null) === (b.part ?? null) && (a.stage ?? null) === (b.stage ?? null);
+// 한 단계 위 화면: 백과사전 항목 → 목록, 스토리 미션 → 미션 목록, 튜토리얼 파트 → 파트 목록
+const parentOf = (s) => (s.mode === 'dict' && s.entry ? { mode: 'dict' } : s.mode === 'story' && s.stage ? { mode: 'story' } : s.mode === 'tutorial' && s.part != null ? { mode: 'tutorial' } : null);
+// 같은 화면 안에서 항목·미션·파트만 바뀌면 다시 만들지 않는다 (검색어·체크 상태가 남게)
+const KEEP = new Set(['dict', 'story', 'tutorial']);
 
 function Screens() {
   // 주소로 바로 가기: ?stage=light-2 (?auto=1 이면 정답 자동 진행) · ?tutorial=1 튜토리얼 파트 1 · ?dict=dynamic_mic 백과사전 항목 · ?story · ?studio
@@ -90,9 +94,8 @@ function Screens() {
   const stack = React.useRef([]);
   const show = (s, cur) => {
     getAudio().setSong(s.mode === 'menu' || s.mode === 'dict' ? 'menu' : 'game');
-    const sameDict = cur.mode === 'dict' && s.mode === 'dict'; // 백과사전 안에서 항목만 바뀌면 다시 그리지 않는다
     window.scrollTo(0, 0);
-    setScreen({ ...s, key: sameDict ? cur.key : cur.key + 1 });
+    setScreen({ ...s, key: cur.mode === s.mode && KEEP.has(s.mode) ? cur.key : cur.key + 1 });
   };
   React.useEffect(() => {
     stack.current[0] = screenRef.current;
@@ -106,7 +109,8 @@ function Screens() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const go = (s) => {
+  // replace: 지금 화면을 바꿔 끼운다 (다음 미션·다음 파트처럼 뒤로 갈 때 거칠 필요가 없는 곳)
+  const go = (s, { replace = false } = {}) => {
     const cur = screenRef.current;
     if (sameScreen(cur, s)) return;
     const depth = cur.depth ?? 0;
@@ -114,6 +118,14 @@ function Screens() {
     if (depth > 0 && sameScreen(prev, s)) {
       show(prev, cur);
       try { window.history.back(); } catch { /* history 없음 */ }
+      return;
+    }
+    // 목록으로 올라가는데 앞 기록이 그 목록이 아니면(주소로 바로 들어온 경우) 쌓지 않고 바꾼다 — 뒤로가 다시 미션을 열지 않게
+    if (replace || sameScreen(parentOf(cur), s)) {
+      const next = { ...s, depth };
+      stack.current = [...stack.current.slice(0, depth), next];
+      writeHistory(next, true);
+      show(next, cur);
       return;
     }
     const next = { ...s, depth: depth + 1 };
@@ -139,10 +151,14 @@ function Screens() {
   if (screen.mode === 'dict') {
     return <Encyclopedia key={screen.key} entry={screen.entry ?? null} onEntry={(id) => go({ mode: 'dict', entry: id })} onExit={toMenu} onNavigate={(m, arg, fromId = null) => open(m, arg, { entry: fromId })} />;
   }
-  if (screen.mode === 'tutorial') return <TutorialMode key={screen.key} startPart={screen.part} onExit={exit} onStory={() => open('story')} />;
+  if (screen.mode === 'tutorial') {
+    return <TutorialMode key={screen.key} part={screen.part ?? null} onPart={(i, o) => go({ mode: 'tutorial', part: i ?? undefined, back: screen.back }, o)} onExit={exit} onStory={() => open('story')} />;
+  }
   // 예전 스테이지 번호(1~4)로 들어오면 스토리 스테이지 id로 바꾼다
   const V1_STAGE = { 1: 'seminar-1', 2: 'seminar-3', 3: 'lecture-1', 4: 'crisis-2' };
-  if (screen.mode === 'story') return <StoryMode key={screen.key} onExit={exit} startStage={typeof screen.stage === 'number' ? V1_STAGE[screen.stage] : screen.stage ?? null} autoStart={screen.auto} />;
+  if (screen.mode === 'story') {
+    return <StoryMode key={screen.key} stage={V1_STAGE[screen.stage] ?? screen.stage ?? null} onStage={(id, o) => go({ mode: 'story', stage: id ?? undefined, back: screen.back }, o)} onExit={exit} autoStart={screen.auto} />;
+  }
   if (screen.mode === 'studio') return <Sandbox key={screen.key} onExit={toMenu} />;
   return <MainMenu key={screen.key} onSelect={(m, arg) => open(m, arg)} />;
 }

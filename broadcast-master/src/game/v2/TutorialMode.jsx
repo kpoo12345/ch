@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, PlayCircle, Hand, CheckCircle2, RotateCcw } from 'lucide-react';
 import { TUTORIAL } from '../data/tutorial.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
@@ -9,8 +9,10 @@ import { FeedbackButton } from '../BetaFeedback.jsx';
 /* =====================================================================
  * 튜토리얼 — 파트 선택 → 대화 장면(한 줄 설명 → 직접 해 보기/보여 주세요 → 다음)
  * ===================================================================== */
-export default function TutorialMode({ onExit, onStory, startPart = null }) {
-  const [part, setPart] = useState(startPart != null && startPart >= 0 && startPart < TUTORIAL.length ? startPart : null);
+// part·onPart: 연 파트는 바깥(주소·history)이 정한다 — 휴대폰 '뒤로'가 파트 목록으로 가게
+const validPart = (i) => (i != null && i >= 0 && i < TUTORIAL.length ? i : null);
+export default function TutorialMode({ onExit, onStory, part: partProp = null, onPart }) {
+  const [part, setPart] = useState(() => validPart(partProp));
   const [practice, setPractice] = useState(() => loadProgress('bm2-tut-practice', true));
   const [auto, setAuto] = useState(() => loadProgress('bm2-tut-auto', false));
   const [doneOverlay, setDoneOverlay] = useState(false);
@@ -19,7 +21,15 @@ export default function TutorialMode({ onExit, onStory, startPart = null }) {
   // 파트마다 마지막으로 본 장면 (휴대폰에서 탭이 새로 고쳐져도 이어 볼 수 있게)
   const savedPos = (id) => loadProgress('bm2-tut-pos', {})[id] ?? 0;
   const [from, setFrom] = useState(() => (part != null ? savedPos(TUTORIAL[part]?.id) : 0));
-  const openPart = (i, resume) => { setFrom(resume ? savedPos(TUTORIAL[i].id) : 0); setPart(i); setRunKey((k) => k + 1); };
+  const showPart = (i, resume) => { setFrom(resume ? savedPos(TUTORIAL[i].id) : 0); setPart(i); setRunKey((k) => k + 1); };
+  const openPart = (i, resume, opts) => { showPart(i, resume); onPart?.(i, opts); };
+  const closePart = () => { setPart(null); setDoneOverlay(false); onPart?.(null); };
+  // 뒤로·앞으로로 파트가 바뀌면 따라간다 (다시 열면 보던 장면부터)
+  useEffect(() => {
+    const want = validPart(partProp);
+    if (want === part) return;
+    if (want == null) { setPart(null); setDoneOverlay(false); } else { setDoneOverlay(false); showPart(want, true); }
+  }, [partProp]); // eslint-disable-line react-hooks/exhaustive-deps
   const savePos = (id, i) => { const all = loadProgress('bm2-tut-pos', {}); if (all[id] !== i) { all[id] = i; saveProgress('bm2-tut-pos', all); } };
   if (part != null) {
     const p = TUTORIAL[part];
@@ -31,15 +41,15 @@ export default function TutorialMode({ onExit, onStory, startPart = null }) {
           tutorial={{ steps: p.steps, practice, auto, key: `${p.id}-${runKey}`, from,
             onStep: (_step, i) => savePos(p.id, i),
             onDone: () => { const d = new Set(loadProgress('bm2-tutorial', [])); d.add(p.id); saveProgress('bm2-tutorial', [...d]); savePos(p.id, 0); setDoneOverlay(true); } }}
-          onExit={() => { setPart(null); setDoneOverlay(false); }} />
+          onExit={closePart} />
         {doneOverlay && (
           <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-3">
             <div className="rounded-2xl border border-green-500/50 bg-slate-900/95 p-4 shadow-2xl flex flex-wrap items-center gap-2">
               <CheckCircle2 className="text-green-400" /> <b className="text-green-200">{p.title} 완료!</b>
-              {next && <button type="button" onClick={() => { setDoneOverlay(false); openPart(nextIdx, false); }} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white font-bold">다음 파트 →</button>}
-              <button type="button" onClick={() => { setDoneOverlay(false); openPart(part, false); }} className="px-3 py-1.5 rounded-lg bg-slate-700 font-bold text-sm">다시 보기</button>
+              {next && <button type="button" onClick={() => { setDoneOverlay(false); openPart(nextIdx, false, { replace: true }); }} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white font-bold">다음 파트 →</button>}
+              <button type="button" onClick={() => { setDoneOverlay(false); showPart(part, false); }} className="px-3 py-1.5 rounded-lg bg-slate-700 font-bold text-sm">다시 보기</button>
               {!next && <button type="button" onClick={onStory} className="px-3 py-1.5 rounded-lg bg-violet-600 text-white font-bold">스토리 모드 시작 →</button>}
-              <button type="button" onClick={() => { setDoneOverlay(false); setPart(null); }} className="px-3 py-1.5 rounded-lg bg-slate-800 text-sm">목록</button>
+              <button type="button" onClick={closePart} className="px-3 py-1.5 rounded-lg bg-slate-800 text-sm">목록</button>
             </div>
           </div>
         )}
