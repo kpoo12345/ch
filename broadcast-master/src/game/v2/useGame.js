@@ -149,7 +149,7 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
       getAudio().pop?.();
       const amp = popped.some((id) => cur.devices[id]?.type === 'power_amp');
       // +48V는 스피커를 끌 일이 아니라 그 채널을 끄거나(ON/MUTE) 페이더를 내린 뒤 바꾸는 것 (예배 중·공연 중에도)
-      if (op.key === 'phantom') notify('err', '퍽! 채널이 열린 채로 +48V를 바꿔서 스피커로 "퍽" 소리가 나갔어요. +48V는 그 채널을 끄거나(ON/MUTE) 페이더를 내린 다음에 켜고, 켠 뒤에 채널을 다시 올려요.');
+      if (op.key === 'phantom') notify('err', '퍽! 스피커가 켜져 있고 채널도 열린 채로 +48V를 바꿔서 "퍽" 소리가 나갔어요. +48V는 스피커를 켜기 전에, 또는 그 채널을 끄거나(ON/MUTE) 페이더를 내린 다음에 바꿔요.');
       else notify('err', `퍽! ${amp ? '파워 앰프' : '스피커'}가 켜진 채로 케이블을 꽂거나 뺐어요. ${amp ? '앰프' : '스피커'} 전원은 연결을 다 마친 뒤 맨 마지막에 켭니다. (껐다가 다시 순서대로 하면 됩니다)`);
     }
     if (noteOnAirMove(cur, op, lat)) {
