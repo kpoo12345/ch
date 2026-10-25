@@ -16,7 +16,7 @@ import { STOCK } from '../data/tutorial.js';
 const VOICE_TYPES = new Set(['dynamic_mic', 'condenser_mic', 'wireless_mic']);
 const kindLabel = { voice: '목소리', inst: '악기', line: '라인' };
 
-// popMode: 'all' = 스피커가 켜진 채 케이블·+48V를 건드리면 늘 "퍽" (스토리·자유 모드, 정답 보기의 유령 손은 제외)
+// popMode: 'all' = 스피커가 켜진 채 케이블·+48V를 건드리면 늘 "퍽" (그걸 가르치는 스토리 미션·자유 모드, 정답 보기의 유령 손은 제외)
 //          'optIn' = 대본이 pop:true로 일부러 보여 줄 때만 (튜토리얼 — 선배가 차려 둔 상태 때문에 엉뚱하게 혼나지 않게)
 export function useGame(spec, { onClear, popMode = 'all' } = {}) {
   const [st, setSt] = useState(() => buildRuntime(spec));
@@ -148,7 +148,9 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
       setLatched((s0) => new Set([...s0, ...popped.map((id) => `pop:${id}`)]));
       getAudio().pop?.();
       const amp = popped.some((id) => cur.devices[id]?.type === 'power_amp');
-      notify('err', `퍽! ${amp ? '파워 앰프' : '스피커'}가 켜진 채로 케이블을 꽂거나 +48V를 바꿨어요. ${amp ? '앰프' : '스피커'} 전원은 연결을 다 마친 뒤 맨 마지막에 켭니다. (껐다가 다시 순서대로 하면 됩니다)`);
+      // +48V는 스피커를 끌 일이 아니라 그 채널을 끄거나(ON/MUTE) 페이더를 내린 뒤 바꾸는 것 (예배 중·공연 중에도)
+      if (op.key === 'phantom') notify('err', '퍽! 채널이 열린 채로 +48V를 바꿔서 스피커로 "퍽" 소리가 나갔어요. +48V는 그 채널을 끄거나(ON/MUTE) 페이더를 내린 다음에 켜고, 켠 뒤에 채널을 다시 올려요.');
+      else notify('err', `퍽! ${amp ? '파워 앰프' : '스피커'}가 켜진 채로 케이블을 꽂거나 뺐어요. ${amp ? '앰프' : '스피커'} 전원은 연결을 다 마친 뒤 맨 마지막에 켭니다. (껐다가 다시 순서대로 하면 됩니다)`);
     }
     if (noteOnAirMove(cur, op, lat)) {
       // 드래그 중 계속 경고가 쌓이지 않게 처음 한 번만 알린다

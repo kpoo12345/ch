@@ -52,7 +52,10 @@ export default function GameScreen({
   spec, mode = 'story', heading, onExit, onNext, onRestart, tutorial, sandbox, restore, initialAuto = false,
 }) {
   const [cleared, setCleared] = useState(false);
-  const game = useGame(spec, { onClear: () => setCleared(true), popMode: mode === 'tutorial' ? 'optIn' : 'all' });
+  // "퍽"(켜진 스피커로 케이블·+48V) 경고는 그걸 가르치는 미션(목표에 noPop)과 자유 스튜디오에서만.
+  //  이미 돌아가는 현장을 고치는 미션에서는 길잡이·정답이 시키는 연결마다 경고가 떠서 헷갈렸다
+  const popLesson = mode === 'sandbox' || (spec.objectives ?? []).some((o) => o.check?.type === 'noPop');
+  const game = useGame(spec, { onClear: () => setCleared(true), popMode: mode === 'tutorial' || !popLesson ? 'optIn' : 'all' });
   const { st, nominal, actual, talking } = game;
   // 내레이션·현장 소리 켜고 끈 것은 배경음악처럼 기억한다
   const [voiceOn, setVoiceOn] = useState(() => loadProgress('bm2-voice', true));
