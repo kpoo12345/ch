@@ -150,9 +150,13 @@ export default function MainMenu({ onSelect }) {
             <div className="mt-1.5 text-[11px] text-white/75 truncate">{nextStage ? `${cleared ? '다음 미션' : '첫 미션'}: ${chapterNo(nextStage.ch)} · ${nextStage.title}` : '모든 미션 완료! 별 3개에 도전해 보세요.'}</div>
             <div className="mt-3 flex items-center justify-between gap-2">
               <span className="text-[11px] font-mono text-white/80">{cleared}/{stages.length} 스테이지 · ★ {stars}</span>
-              <button type="button" onClick={() => go('story')} className="px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 bg-sky-300 text-slate-950 hover:bg-sky-200">
-                {cleared ? '이어 하기' : '시작'} <ChevronRight size={16} />
-              </button>
+              {/* 다음 미션을 바로 연다 (목록은 옆 단추) */}
+              <span className="flex items-center gap-1.5">
+                <button type="button" onClick={() => go('story')} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-black/25 border border-white/25 hover:bg-black/40">미션 목록</button>
+                <button type="button" onClick={() => go('story', nextStage?.id)} className="px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 bg-sky-300 text-slate-950 hover:bg-sky-200">
+                  {!nextStage ? '목록 보기' : cleared ? '이어 하기' : '시작'} <ChevronRight size={16} />
+                </button>
+              </span>
             </div>
           </section>
 

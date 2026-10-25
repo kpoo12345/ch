@@ -24,6 +24,12 @@ export default function StoryMode({ onExit, stage: playing = null, onStage, auto
   const refresh = () => setProgress(loadProgress('bm2-progress', {}));
   // 뒤로 가기로 목록에 돌아와도 별 개수를 새로 읽는다
   useEffect(() => { if (!playing) refresh(); }, [playing]);
+  // 목록을 열면 "다음" 미션이 보이게 굴린다 (휴대폰에서 아래쪽 장일 때)
+  useEffect(() => {
+    if (playing) return;
+    const el = document.querySelector('[aria-current="step"]');
+    if (el && el.getBoundingClientRect().bottom > window.innerHeight) el.scrollIntoView({ block: 'center' });
+  }, [playing]);
   const stage = useMemo(() => ALL_STAGES.find((s) => s.id === playing), [playing]);
   if (stage) {
     const idx = ALL_STAGES.findIndex((s) => s.id === stage.id);
@@ -37,8 +43,9 @@ export default function StoryMode({ onExit, stage: playing = null, onStage, auto
   }
   const total = ALL_STAGES.length;
   const starsTotal = Object.values(progress).reduce((a, b) => a + b, 0);
-  // 잠금: 각 장의 첫 스테이지는 앞 장을 하나 이상 깼거나 첫 장이면 열림. 장 안에서는 앞 스테이지를 깨야 열림
+  // 잠그지 않는다 (어느 미션이든 열 수 있다). 처음 하는 사람이 어디서 시작할지 알도록 아직 안 깬 첫 미션을 "다음"으로 짚는다
   const cleared = (id) => (progress[id] ?? 0) > 0;
+  const nextId = ALL_STAGES.find((s) => !cleared(s.id))?.id ?? null;
   return (
     <div className="min-h-[100dvh] bg-[#0b1220] text-slate-100" onPointerDown={() => getAudio().unlock()}>
       <header className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
@@ -64,13 +71,14 @@ export default function StoryMode({ onExit, stage: playing = null, onStage, auto
                 {ch.stages.map((s, si) => {
                   const st = progress[s.id] ?? 0;
                   const done = cleared(s.id);
+                  const next = s.id === nextId;
                   return (
                     <li key={s.id}>
-                      <button type="button" onClick={() => setPlaying(s.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-800/60">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${done ? 'bg-green-700' : 'bg-slate-800'}`}>{si + 1}</span>
+                      <button type="button" onClick={() => setPlaying(s.id)} aria-current={next ? 'step' : undefined}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left ${next ? 'bg-sky-900/40 ring-2 ring-inset ring-amber-300 hover:bg-sky-900/60' : 'hover:bg-slate-800/60'}`}>
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${done ? 'bg-green-700' : next ? 'bg-amber-400 text-slate-900' : 'bg-slate-800'}`}>{si + 1}</span>
                         <span className="min-w-0 flex-1">
-                          <span className="block font-bold text-sm">{s.title}</span>
+                          <span className="block font-bold text-sm">{next && <span className="mr-1.5 rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-slate-900 align-middle">{done ? '' : Object.keys(progress).length ? '다음' : '여기부터'}</span>}{s.title}</span>
                           <span className="block text-xs text-slate-400 truncate">#{s.tag} · {s.mission}</span>
                         </span>
                         <span className="flex gap-0.5 shrink-0">{[1, 2, 3].map((n) => <Star key={n} size={14} className={n <= st ? 'text-yellow-300 fill-yellow-300' : 'text-slate-600'} />)}</span>
