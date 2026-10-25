@@ -6,7 +6,7 @@ import {
 import Venue3D from '../Venue3D.jsx';
 import { hasWebGL, NoWebGL } from '../kit3d.jsx';
 import { CABLES, DEVICE_TYPES } from '../engine.js';
-import { stuckAtMixer } from '../sim.js';
+import { stuckAtMixer, buildRuntime } from '../sim.js';
 import { getAudio } from '../audio.js';
 import { setTalk, stopAllSpeech, loadVoice, loadVoiceWithin } from '../speech.js';
 import { loadProgress, saveProgress } from '../ui.jsx';
@@ -77,6 +77,8 @@ export default function GameScreen({
   const [showBrief, setShowBrief] = useState(mode === 'story');
   const [hints, setHints] = useState(0);
   const [usedAuto, setUsedAuto] = useState(false);
+  // 정답 보기를 누르면 지금까지 한 것이 지워진다 → 한 게 있으면 한 번 묻는다
+  const [askAuto, setAskAuto] = useState(false);
   // 스토리 길잡이: 힌트를 다 봐도 막히면 정답 풀이에서 "다음 할 일" 하나를 반짝여 짚어 준다 (쓰면 ★2까지)
   const plan = useMemo(() => (mode === 'story' ? planOf(spec) : []), [spec, mode]);
   const [guideOn, setGuideOn] = useState(false);
@@ -264,7 +266,14 @@ export default function GameScreen({
     game.apply(op);
     if (op.op === 'connect' || op.op === 'disconnect') game.setPending(null);
   };
+  // 처음 상태와 달라졌는지 (놓기·케이블·손잡이·장비 설정) — 누를 때만 잰다
+  const touched = () => {
+    const sig = (s) => JSON.stringify([Object.values(s.devices).map((d) => [d.id, d.placed, d.slot]), s.connections.map((c) => c.id), s.channels, s.master, s.dev, s.atem, s.obs]);
+    return sig(game.stRef.current) !== sig(buildRuntime(spec));
+  };
+  const askStartAuto = () => (touched() ? setAskAuto(true) : startAuto());
   const startAuto = () => {
+    setAskAuto(false);
     if (!spec.solution) return;
     setShowBrief(false); setUsedAuto(true); setGuideOn(false); game.reset(); setResetKey((k) => k + 1);
     Promise.all([loadVoiceWithin(['story'], 6000), new Promise((r) => setTimeout(r, 400))])
@@ -400,8 +409,8 @@ export default function GameScreen({
               {spec.timeLimit ? fmtTime(Math.max(0, spec.timeLimit - elapsed)) : fmtTime(elapsed)}
             </span>
             <span className="hidden sm:inline text-xs text-slate-300 tabular-nums">{doneCount}/{game.objectives.length}</span>
-            <button type="button" onClick={() => { if (hints >= (spec.hints?.length ?? 0) && plan.length && !guideOn) startGuide(); else { setHints((h) => Math.min((spec.hints?.length ?? 0), h + 1)); setTab('mission'); } }} className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 text-xs font-bold" title="글 힌트를 하나씩 보여 주고, 다 보면 다음 할 일을 짚어 줍니다"><Lightbulb size={14} /> <span className="hidden sm:inline">힌트</span></button>
-            {spec.solution && <button type="button" onClick={startAuto} className="flex items-center gap-1 px-2 py-1 rounded bg-violet-500/20 text-violet-200 hover:bg-violet-500/30 text-xs font-bold" title="정답을 유령 손이 직접 보여 줍니다"><Wand2 size={14} /> <span className="hidden sm:inline">정답 보기</span></button>}
+            <button type="button" onClick={() => { if (hints >= (spec.hints?.length ?? 0) && plan.length && !guideOn) startGuide(); else { setHints((h) => Math.min((spec.hints?.length ?? 0), h + 1)); setTab('mission'); } }} className="flex min-h-9 min-w-9 items-center justify-center gap-1 px-2 py-1 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 text-xs font-bold" title="글 힌트를 하나씩 보여 주고, 다 보면 다음 할 일을 짚어 줍니다" aria-label="힌트"><Lightbulb size={16} /> <span className="hidden sm:inline">힌트</span></button>
+            {spec.solution && <button type="button" onClick={askStartAuto} className="ml-1 flex min-h-9 min-w-9 items-center justify-center gap-1 px-2 py-1 rounded bg-violet-500/20 text-violet-200 hover:bg-violet-500/30 text-xs font-bold" title="정답을 유령 손이 직접 보여 줍니다" aria-label="정답 보기"><Wand2 size={16} /> <span className="hidden sm:inline">정답 보기</span></button>}
           </>
         )}
         <button type="button" onClick={() => setBgmOn(!bgmOn)} className={`p-1.5 rounded ${bgmOn ? 'text-sky-300' : 'text-slate-500'} hover:bg-slate-800`} title="배경음악" aria-label="배경음악 켜기/끄기" aria-pressed={bgmOn}><Music size={17} /></button>
@@ -444,11 +453,11 @@ export default function GameScreen({
           {compareOpen && <ListenCompare st={st} sim={actual} listen={listen} setListen={chooseListen} onClose={() => setCompareOpen(false)} />}
           {/* 대화 장면 (튜토리얼 · 정답 보기) */}
           {!dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} />}
-          {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gShown} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gShown.op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
+          {!dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard item={gShown} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gShown.op)} onAuto={spec.solution ? askStartAuto : null} onRestart={onRestart} />}
           {lab && <LabOverlay lab={lab} onClose={closeLab} />}
         </div>
         {dialogBelow && <Dialog player={player} tutorial={!!tutorial} onLab={openLab} guide={guide} redo={redo} inline />}
-        {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gShown} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gShown.op)} onAuto={spec.solution ? startAuto : null} onRestart={onRestart} />}
+        {dialogBelow && (storyAsk || guideLeft?.length > 0) && <StoryGuideCard inline item={gShown} n={gCur + 1} total={gSteps.length} finishing={gPhase === 'finish'} st={st} guide={guide} left={storyAsk ? null : guideLeft} onClose={() => setGuideOn(false)} onDo={() => doForMe(gShown.op)} onAuto={spec.solution ? askStartAuto : null} onRestart={onRestart} />}
 
         {/* 사이드 패널 */}
         <aside className={`lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950/60 ${consoleOpen ? 'hidden lg:flex' : 'flex'} flex-col min-h-0 ${dialogBelow ? 'flex-1 shrink min-h-[18vh]' : 'flex-1'} lg:h-auto lg:flex-none`}>
@@ -524,6 +533,19 @@ export default function GameScreen({
       </div>
 
       {showBrief && <Briefing spec={spec} heading={heading} onStart={() => { setShowBrief(false); getAudio().unlock(); }} onAuto={spec.solution ? startAuto : null} />}
+      {askAuto && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3" onClick={() => setAskAuto(false)}>
+          <div role="alertdialog" aria-modal="true" aria-label="정답 보기 확인" className="w-full max-w-sm rounded-2xl border border-violet-400/60 bg-slate-950 p-4 text-slate-100 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 font-black"><Wand2 size={18} className="text-violet-300" /> 정답 보기로 처음부터 볼까요?</div>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">지금까지 한 것이 지워지고 유령 손이 처음부터 해 보여요. 이렇게 끝내면 <b className="text-amber-200">★1</b>이에요. 다음 한 단계만 알고 싶다면 <b>다음 할 일 짚어 주기</b>(★2까지)가 있어요.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={startAuto} className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-bold text-white hover:bg-violet-500">지우고 정답 보기</button>
+              {plan.length > 0 && !guideOn && <button type="button" onClick={() => { setAskAuto(false); startGuide(); setTab('mission'); }} className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-slate-900 hover:bg-amber-400">다음 할 일만 짚어 주기</button>}
+              <button type="button" onClick={() => setAskAuto(false)} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold hover:bg-slate-700">계속 직접 하기</button>
+            </div>
+          </div>
+        </div>
+      )}
       {resultOpen && (
         <Result spec={spec} stars={stars} usedAuto={usedAuto} elapsed={elapsed} onNext={onNext} onRetry={() => { setResultOpen(false); onRestart?.(); }} onExit={onExit} onClose={() => setResultOpen(false)} />
       )}
