@@ -284,8 +284,9 @@ export const speechMs = (text, speed = 1) => {
   const pauses = (text.match(/[.,?!…]/g) ?? []).length;
   return (chars * 160 + pauses * 260 + 600) / speed;
 };
-// 손 동작이 끝나기까지 걸리는 시간
+// 스튜디오에서 되돌릴 수 있는 조작
 const UNDOABLE = new Set(['addDevice', 'removeDevice', 'moveDevice', 'connect', 'disconnect']);
+// 손 동작이 끝나기까지 걸리는 시간
 const ACTION_MS = { connect: 2500, place: 1600, move: 1700, addDevice: 1600, ptz: 1700, talk: 300, perform: 300 };
 
 export function useScriptPlayer(game, { voiceOn = true } = {}) {
