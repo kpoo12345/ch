@@ -3988,7 +3988,7 @@
      },
      "objectives": [
       {
-       "label": "방송 중(PGM)인 PTZ를 움직이지 않기",
+       "label": "방송 중(PGM)인 PTZ를 움직이지 않기 (한 번 움직이면 되돌릴 수 없어요)",
        "check": {
         "type": "noOnAirMove",
         "device": "ptz1"
@@ -4003,10 +4003,11 @@
        }
       },
       {
-       "label": "PTZ 화면을 다시 PGM에",
+       "label": "PTZ를 PVW로 뺐다가, 구도를 바꾼 뒤 다시 PGM에",
        "check": {
         "type": "program",
-        "camera": "ptz1"
+        "camera": "ptz1",
+        "again": true
        }
       },
       {

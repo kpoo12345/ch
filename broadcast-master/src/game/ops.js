@@ -220,7 +220,9 @@ export function runOps(st0, ops, { onStep } = {}) {
         if (from >= 35 && op.to <= 3) { latched.add(`fadeOut:${k}`); latched.delete(`cutOut:${k}`); }
         if (from <= 3 && op.to >= 50) latched.add(`fadeIn:${k}`);
       }
-      st = applyOp(st, op);
+      const next = applyOp(st, op);
+      noteOffAir(st, op, next, latched);
+      st = next;
     }
     onStep?.(st, op, i, { talking, latched });
     latchTalk(st, talking, latched, performing);
@@ -299,6 +301,15 @@ export function noteOnAirMove(st, op, latched) {
   const sim = computeSim(st);
   const target = Object.entries(sim.ptz).find(([, r]) => r.reachable && r.index === cs.selected + 1)?.[0];
   if (target && sim.video.tally?.[target] === 'pgm') { latched.add(`onAirMove:${target}`); return target; }
+  return null;
+}
+
+// 방송(PGM)에서 빠진 카메라를 기록 ('offAir:<카메라>') — "다시 PGM에" 목표는 한 번 뺐다가 다시 올려야 인정
+export function noteOffAir(st, op, next, latched) {
+  if (op.op !== 'atem' || next === st) return null;
+  const was = computeSim(st).video.programCam;
+  const now = computeSim(next).video.programCam;
+  if (was && was !== now) { latched.add(`offAir:${was}`); return was; }
   return null;
 }
 

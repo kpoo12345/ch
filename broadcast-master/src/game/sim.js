@@ -691,7 +691,8 @@ export function checkObjective(check, st, sim, ctx = {}) {
     case 'wireless': { const s = st.dev[check.device]; return !!s && s.txPower && s.txChannel === s.rxChannel && s.battery > 15; }
     case 'iem': { const s = st.dev[check.device]; return !!s && !!s.power && s.txChannel === s.rxChannel; }
     case 'cleanHdmi': return !!st.dev[check.device]?.clean;
-    case 'program': return sim.video.programCam === check.camera;
+    // again: 처음부터 PGM이던 카메라는 한 번 빠졌다가(PVW로) 다시 올라와야 인정 (시작하자마자 체크돼 있지 않게)
+    case 'program': return sim.video.programCam === check.camera && (!check.again || !!ctx.latched?.includes(`offAir:${check.camera}`));
     case 'live': return sim.stream.live;
     case 'recording': return !!st.atem.recording && sim.video.isPro;
     case 'pip': return !!st.atem.pip && (!check.base || sim.video.programCam === check.base);

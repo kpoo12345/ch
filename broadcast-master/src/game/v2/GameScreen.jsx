@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Lightbulb, Wand2, Music, Volume2, VolumeX, Mic, Tag, Lock, Unlock, Video, RotateCcw, CheckCircle2, Circle, Star, ChevronRight,
+  ArrowLeft, Lightbulb, Wand2, Music, Volume2, VolumeX, Mic, Tag, Lock, Unlock, Video, RotateCcw, CheckCircle2, Circle, XCircle, Star, ChevronRight,
   SlidersHorizontal, Cable, ListChecks, Cpu, ScrollText, Ear, Guitar, MessageSquare, MessageSquarePlus, Compass, X, Hand,
 } from 'lucide-react';
 import Venue3D from '../Venue3D.jsx';
@@ -476,7 +476,7 @@ export default function GameScreen({
             {tab === 'add' && sandbox && <sandbox.Panel game={game} placing={placing} setPlacing={setPlacing} />}
             {tab === 'mission' && (
               <MissionPanel spec={spec} game={game} tutorial={mode === 'tutorial'} placeAsk={player.waiting?.op === 'place' ? player.waiting.device : null} hints={hints} onHint={() => setHints((h) => Math.min(spec.hints?.length ?? 0, h + 1))}
-                guideReady={plan.length > 0 && !player.script && !cleared} guideOn={guideOn} onGuide={() => (guideOn ? setGuideOn(false) : startGuide())} />
+                guideReady={plan.length > 0 && !player.script && !cleared} guideOn={guideOn} onGuide={() => (guideOn ? setGuideOn(false) : startGuide())} onRestart={onRestart} />
             )}
             {tab === 'device' && sandbox && game.selected && <sandbox.Tools game={game} id={game.selected} setPlacing={setPlacing} placing={placing} />}
             {tab === 'device' && (game.selected && st.devices[game.selected]
@@ -580,7 +580,7 @@ function StoryGuideCard({ item, n, total, finishing = false, st, guide, left = n
       <div className="flex items-center gap-2">
         <Compass size={16} className="shrink-0 text-amber-300" />
         {left
-          ? <b className="text-sm text-amber-200">거의 다 됐어요!</b>
+          ? <b className="text-sm text-amber-200">{left.some((o) => o.check?.type === 'noOnAirMove') ? '이번 판은 다시 해야 해요' : '거의 다 됐어요!'}</b>
           : <b className="text-sm text-amber-200">다음 할 일 <span className="font-mono text-[11px] text-amber-300/80">{finishing ? '마무리' : `${n}/${total}`}</span></b>}
         {!left && <button type="button" onClick={onDo} className="ml-auto flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[12px] font-bold text-slate-200 hover:bg-slate-700" title="이 한 단계만 유령 손이 대신 합니다"><Hand size={13} /> 대신 해 주세요</button>}
         <button type="button" onClick={onClose} className={`${left ? 'ml-auto ' : ''}rounded p-1 text-slate-400 hover:bg-slate-800`} aria-label="길잡이 끄기" title="길잡이 끄기"><X size={15} /></button>
@@ -611,7 +611,7 @@ function StoryGuideCard({ item, n, total, finishing = false, st, guide, left = n
   );
 }
 
-function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint, guideReady, guideOn, onGuide }) {
+function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint, guideReady, guideOn, onGuide, onRestart }) {
   const { objectives, st } = game;
   return (
     <div className="space-y-3">
@@ -619,12 +619,20 @@ function MissionPanel({ spec, game, tutorial, placeAsk, hints, onHint, guideRead
       {/* 튜토리얼은 선배가 "놓아 보세요" 할 때 그 장비만 */}
       {(!tutorial || placeAsk) && <Unplaced game={game} only={tutorial ? placeAsk : null} />}
       <ul className="space-y-1.5" aria-label="목표">
-        {objectives.map((o, i) => (
-          <li key={i} className={`flex items-start gap-2 text-sm ${o.ok ? 'text-green-300' : 'text-slate-200'}`}>
-            {o.ok ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : <Circle size={16} className="shrink-0 mt-0.5 text-slate-500" />}
-            <span>{o.label}</span>
-          </li>
-        ))}
+        {objectives.map((o, i) => {
+          // 방송 중에 PTZ를 움직인 기록은 지울 수 없다 → 빈 동그라미 대신 실패 표시와 다시 하기 안내
+          const lost = !o.ok && o.check?.type === 'noOnAirMove';
+          return (
+            <li key={i} className={`flex items-start gap-2 text-sm ${o.ok ? 'text-green-300' : lost ? 'text-red-300' : 'text-slate-200'}`}>
+              {o.ok ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : lost ? <XCircle size={16} className="shrink-0 mt-0.5" /> : <Circle size={16} className="shrink-0 mt-0.5 text-slate-500" />}
+              <span>{o.label}{lost && (
+                <span className="block text-[11px] text-red-200/80">방송 중에 움직인 기록은 지울 수 없어요. 처음부터 다시 해 보세요.
+                  {onRestart && <button type="button" onClick={onRestart} className="ml-1.5 rounded bg-sky-600 px-1.5 py-0.5 text-[11px] font-bold text-white hover:bg-sky-500">다시 하기</button>}
+                </span>
+              )}</span>
+            </li>
+          );
+        })}
       </ul>
       {/* 튜토리얼에서는 선배가 직접 짚어 주므로 정답이 될 실마리는 감춘다 */}
       {!tutorial && <Status game={game} />}

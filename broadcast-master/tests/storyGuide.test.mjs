@@ -16,7 +16,7 @@ after(() => server.close());
 const { planOf, skipDone, doneLive, doneNow, finishSteps, guideText, advanceGuide, unblockStep } = await server.ssrLoadModule('/src/game/v2/storyGuide.js');
 const { ctlKeysOf } = await server.ssrLoadModule('/src/game/v2/practiceTarget.js');
 const { buildRuntime, computeSim, checkObjective } = await server.ssrLoadModule('/src/game/sim.js');
-const { applyOp, noteOnAirMove, notePop, latchTalk } = await server.ssrLoadModule('/src/game/ops.js');
+const { applyOp, noteOnAirMove, notePop, noteOffAir, latchTalk } = await server.ssrLoadModule('/src/game/ops.js');
 const { SOLUTIONS } = await server.ssrLoadModule('/src/game/data/solutions.js');
 
 const STORY = JSON.parse(readFileSync(new URL('../src/game/data/story.json', import.meta.url)));
@@ -41,6 +41,7 @@ function player(spec) {
       }
       const next = applyOp(st, op);
       assert.ok(!next.lastError, `${spec.id}: ${JSON.stringify(op)} → ${next.lastError?.reason}`);
+      noteOffAir(st, op, next, latched);
       st = next;
     }
     latchTalk(st, talking, latched, true);
@@ -245,7 +246,18 @@ test('ptz-2: moving the on-air PTZ first ends on the remaining-goals card instea
   const r = runGuide(spec, p);
   assert.equal(r.cleared, false);
   assert.ok(!r.timeout, 'the guide must not loop');
-  assert.deepEqual(r.left, ['noOnAirMove']);
+  // 남은 단계(CUT · "한 번도 못 봤죠")를 따라가지 않고 곧바로 다시 하기 카드로
+  assert.deepEqual(r.notes, ['left']);
+  assert.ok(r.left.includes('noOnAirMove'), `left ${r.left}`);
+});
+
+test('ptz-2: "back on PGM" is not ticked at the start; it needs the PTZ cut away and back', () => {
+  const spec = stages.find((s) => s.id === 'ptz-2');
+  const p = player(spec);
+  assert.ok(p.cleared().some((l) => /다시 PGM/.test(l)), 'not ticked at the start');
+  const plan = planOf(spec);
+  for (const x of plan) p.act(x.op);
+  assert.deepEqual(p.cleared(), [], 'the solution ticks everything');
 });
 
 test('ptz-2: cutting back early makes the guide return to the CUT before moving the PTZ', () => {

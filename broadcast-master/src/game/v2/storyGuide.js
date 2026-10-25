@@ -341,6 +341,9 @@ export function skipDone(plan, from, st, game) {
 //  돌려주는 note: 'back-air'(방송 중 PTZ라 CUT으로) · 'back-aim'(구도가 풀려 다시 맞추기) · 'next' · 'finish'
 export function advanceGuide(g, { plan, st, before, game, unmet = [] }) {
   if (!unmet.length) return null;
+  // 되돌릴 수 없는 실수(방송 중에 PTZ를 움직임)가 기록됐으면 남은 단계를 따라가도 끝낼 수 없다
+  //  → 곧바로 남은 목표 카드(다시 하기)로 ("시청자는 흔들리는 화면을 못 봤죠" 같은 말을 하지 않게)
+  if (unmet.some((o) => o.check?.type === 'noOnAirMove')) return g.phase === 'finish' && !g.list.length ? null : { phase: 'finish', list: [], cur: 0, note: 'left' };
   if (g.phase === 'plan') {
     if (g.cur < plan.length) {
       const back = guardBack(plan, g.cur, st, game);

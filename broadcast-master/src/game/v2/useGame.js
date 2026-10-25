@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { buildRuntime, computeSim, checkObjective, FAULT_TEXT, voiceSources, CHANNELS, CH_DEFAULT, MASTER_DEFAULT, portKind, mixerStateOf, ATEM_DEFAULT, framingOf } from '../sim.js';
-import { applyOp, opToAction, noteOnAirMove, notePop, getPath } from '../ops.js';
+import { applyOp, opToAction, noteOnAirMove, notePop, noteOffAir, getPath } from '../ops.js';
 import { getAudio } from '../audio.js';
 import { MISMATCH_TIP, DEVICE_TYPES, CABLES } from '../engine.js';
 import { narrate, stopNarration, speechOk, hasClip, setNarrationRate, clipStatus } from '../speech.js';
@@ -160,6 +160,8 @@ export function useGame(spec, { onClear, popMode = 'all' } = {}) {
     if (primary && op.op === 'ch' && op.key === 'fader') noteFader(`ch${op.ch}`, cur.channels[op.ch - 1]?.fader ?? 0, op.value);
     if (primary && op.op === 'master' && op.key === 'mainFader') noteFader('main', cur.master.mainFader, op.value);
     if (cur.unlimited && UNDOABLE.has(op.op)) { undoStack.current = [...undoStack.current.slice(-29), cur]; setUndoCount(undoStack.current.length); }
+    // 방송(PGM)에서 빠진 카메라 기록 — "다시 PGM에" 목표용
+    if (op.op === 'atem') { const off = new Set(); if (noteOffAir(cur, op, next, off) && ![...off].every((k) => latchedRef.current.has(k))) setLatched((s0) => new Set([...s0, ...off])); }
     stRef.current = next;
     setSt(next);
     // 채널을 조작하면 그 채널이 선택된다 (디지털 믹서의 SEL처럼, 2D·3D 콘솔이 같은 채널을 보여 준다)
